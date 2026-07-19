@@ -38,6 +38,7 @@ const VALIDATION_KEYWORDS = new Set([
   'const',
   'contains',
   'dependentRequired',
+  'dependentSchemas',
   'dependencies',
   'else',
   'enum',
@@ -69,6 +70,8 @@ const VALIDATION_KEYWORDS = new Set([
   'type',
   'uniqueItems',
 ])
+
+const UNSUPPORTED_VALIDATION_KEYWORDS = new Set(['unevaluatedItems', 'unevaluatedProperties'])
 
 function escapePointer(value: string): string {
   return value.replace(/~/g, '~0').replace(/\//g, '~1')
@@ -131,6 +134,9 @@ function schemaArray(value: unknown, keyword: string): JsonSchema[] {
 
 function assertKnownKeywords(schema: Record<string, unknown>): void {
   for (const keyword of Object.keys(schema)) {
+    if (UNSUPPORTED_VALIDATION_KEYWORDS.has(keyword)) {
+      throw new JsonSchemaDefinitionError(`Unsupported JSON Schema validation keyword: ${keyword}`)
+    }
     if (!ANNOTATION_KEYWORDS.has(keyword) && !VALIDATION_KEYWORDS.has(keyword)) {
       // Unknown extension keywords are annotations under JSON Schema and do not affect validation.
       // Reject only vocabularies that claim to be validation keywords via the standard namespace.
@@ -239,17 +245,21 @@ function validateNode(
     }
   }
   if (schema.anyOf !== undefined) {
-    const matches = schemaArray(schema.anyOf, 'anyOf').some(
-      (child, index) =>
-        validateNode(
-          child,
-          value,
-          root,
-          instancePath,
-          `${schemaPath}/anyOf/${index}`,
-          referenceStack
-        ).length === 0
-    )
+    // Evaluate every branch so a malformed later branch cannot be hidden by an
+    // earlier match. Ajv's former compile step rejected the whole schema first.
+    const matches = schemaArray(schema.anyOf, 'anyOf')
+      .map(
+        (child, index) =>
+          validateNode(
+            child,
+            value,
+            root,
+            instancePath,
+            `${schemaPath}/anyOf/${index}`,
+            referenceStack
+          ).length === 0
+      )
+      .some(Boolean)
     if (!matches) add('anyOf', 'must match a schema in anyOf')
   }
   if (schema.oneOf !== undefined) {
@@ -391,7 +401,8 @@ function validateNode(
     })
     if (schema.items !== undefined) {
       if (Array.isArray(schema.items)) {
-        schemaArray(schema.items, 'items').forEach((child, index) => {
+        const tupleItems = schemaArray(schema.items, 'items')
+        tupleItems.forEach((child, index) => {
           if (index < value.length)
             errors.push(
               ...validateNode(
@@ -404,6 +415,31 @@ function validateNode(
               )
             )
         })
+        if (value.length > tupleItems.length && schema.additionalItems !== undefined) {
+          if (schema.additionalItems === false) {
+            add('additionalItems', 'must NOT have additional items', {
+              limit: tupleItems.length,
+            })
+          } else if (schema.additionalItems !== true) {
+            if (!isRecord(schema.additionalItems)) {
+              throw new JsonSchemaDefinitionError(
+                'JSON Schema "additionalItems" must be a schema or boolean.'
+              )
+            }
+            for (let index = tupleItems.length; index < value.length; index += 1) {
+              errors.push(
+                ...validateNode(
+                  schema.additionalItems,
+                  value[index],
+                  root,
+                  `${instancePath}/${index}`,
+                  `${schemaPath}/additionalItems`,
+                  referenceStack
+                )
+              )
+            }
+          }
+        }
       } else if (typeof schema.items === 'boolean' || isRecord(schema.items)) {
         const start = prefixItems.length
         for (let index = start; index < value.length; index += 1) {
@@ -473,6 +509,79 @@ function validateNode(
           })
       }
     }
+    const validateDependentRequired = (keyword: 'dependentRequired' | 'dependencies'): void => {
+      const definitions = schema[keyword]
+      if (definitions === undefined) return
+      if (!isRecord(definitions)) {
+        throw new JsonSchemaDefinitionError(`JSON Schema "${keyword}" must be an object.`)
+      }
+      for (const [property, dependency] of Object.entries(definitions)) {
+        if (!Object.prototype.hasOwnProperty.call(value, property)) continue
+        if (!Array.isArray(dependency)) {
+          if (keyword === 'dependentRequired') {
+            throw new JsonSchemaDefinitionError(
+              'JSON Schema "dependentRequired" dependencies must be arrays of strings.'
+            )
+          }
+          continue
+        }
+        if (dependency.some((entry) => typeof entry !== 'string')) {
+          throw new JsonSchemaDefinitionError(
+            `JSON Schema "${keyword}" property dependencies must be arrays of strings.`
+          )
+        }
+        for (const required of dependency as string[]) {
+          if (!Object.prototype.hasOwnProperty.call(value, required)) {
+            add(
+              keyword,
+              `must have property '${required}' when property '${property}' is present`,
+              {
+                property,
+                missingProperty: required,
+              }
+            )
+          }
+        }
+      }
+    }
+    validateDependentRequired('dependentRequired')
+    validateDependentRequired('dependencies')
+
+    const validateDependentSchemas = (keyword: 'dependentSchemas' | 'dependencies'): void => {
+      const definitions = schema[keyword]
+      if (definitions === undefined) return
+      if (!isRecord(definitions)) {
+        throw new JsonSchemaDefinitionError(`JSON Schema "${keyword}" must be an object.`)
+      }
+      for (const [property, dependency] of Object.entries(definitions)) {
+        if (!Object.prototype.hasOwnProperty.call(value, property)) continue
+        if (Array.isArray(dependency)) {
+          if (keyword === 'dependentSchemas') {
+            throw new JsonSchemaDefinitionError(
+              'JSON Schema "dependentSchemas" dependencies must be schemas.'
+            )
+          }
+          continue
+        }
+        if (typeof dependency !== 'boolean' && !isRecord(dependency)) {
+          throw new JsonSchemaDefinitionError(
+            `JSON Schema "${keyword}" dependencies must be schemas or arrays of strings.`
+          )
+        }
+        errors.push(
+          ...validateNode(
+            dependency,
+            value,
+            root,
+            instancePath,
+            `${schemaPath}/${keyword}/${escapePointer(property)}`,
+            referenceStack
+          )
+        )
+      }
+    }
+    validateDependentSchemas('dependentSchemas')
+    validateDependentSchemas('dependencies')
     const properties = schema.properties === undefined ? {} : schema.properties
     if (!isRecord(properties))
       throw new JsonSchemaDefinitionError('JSON Schema "properties" must be an object.')

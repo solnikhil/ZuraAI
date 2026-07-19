@@ -55,6 +55,11 @@ describe('tool routing through current-desktop Computer Use', () => {
       executionContext?: { approvalToken?: string; runId?: string }
     ) => Promise<unknown>
     handlers: Record<string, ReturnType<typeof vi.fn>>
+    backgroundWindowCoordinator: {
+      status: ReturnType<typeof vi.fn>
+      attach: ReturnType<typeof vi.fn>
+      release: ReturnType<typeof vi.fn>
+    }
   }> {
     let handler:
       | ((
@@ -135,6 +140,14 @@ describe('tool routing through current-desktop Computer Use', () => {
       createMcpAddRequest: vi.fn(() => ({ requestId: 'request-1', status: 'pending' })),
     }
 
+    const backgroundWindowCoordinator = {
+      status: vi.fn(() => null),
+      attach: vi.fn(),
+      release: vi.fn(async () => false),
+      releaseSender: vi.fn(async () => undefined),
+      dispose: vi.fn(async () => undefined),
+    }
+
     vi.doMock('./computerUse', () => computerUse)
     vi.doMock('./windows-uia', () => nativeMocks)
     vi.doMock('./system-shell', () => nativeMocks)
@@ -143,6 +156,7 @@ describe('tool routing through current-desktop Computer Use', () => {
     vi.doMock('./window-management', () => nativeMocks)
     vi.doMock('./os-integration', () => nativeMocks)
     vi.doMock('../mcp/mcpAddRequests', () => nativeMocks)
+    vi.doMock('./background-window', () => ({ backgroundWindowCoordinator }))
     vi.doMock('./webSearch', () => ({
       executeWebSearch: vi.fn(async () => ({ success: true, data: [] })),
     }))
@@ -172,6 +186,7 @@ describe('tool routing through current-desktop Computer Use', () => {
     return {
       handler: handler as NonNullable<typeof handler>,
       handlers: { ...computerUse, ...nativeMocks },
+      backgroundWindowCoordinator,
     }
   }
 
@@ -196,6 +211,71 @@ describe('tool routing through current-desktop Computer Use', () => {
       window_title: 'Settings',
       app_name: undefined,
     })
+  })
+
+  it('locks screenshots to the exact reserved HWND and reports unavailable background capture', async () => {
+    const executeScreenshot = vi.fn(async () => ({
+      success: false,
+      error: 'No matching window source available for capture',
+    }))
+    const { handler, backgroundWindowCoordinator } = await loadToolHandler({ executeScreenshot })
+    backgroundWindowCoordinator.status.mockReturnValue({
+      hwnd: 67850,
+      processId: 25044,
+      processStartTimeMs: 123456,
+      title: 'Spotify Premium',
+    })
+
+    const result = await handler(
+      { sender: { id: 7 } },
+      'computer_screenshot',
+      { window_title: 'Another app' },
+      { runId: 'run-1' }
+    )
+
+    expect(executeScreenshot).toHaveBeenCalledWith(
+      { window_id: 'window:67850:0' },
+      { registerEmergencyStop: false }
+    )
+    expect(result).toEqual(
+      expect.objectContaining({
+        success: false,
+        data: expect.objectContaining({
+          status: 'blocked',
+          reason: 'screenshot_unavailable',
+          hwnd: 67850,
+        }),
+      })
+    )
+  })
+
+  it('blocks window_focus while the owning run has a background reservation', async () => {
+    const { handler, handlers, backgroundWindowCoordinator } = await loadToolHandler()
+    backgroundWindowCoordinator.status.mockReturnValue({
+      hwnd: 67850,
+      processId: 25044,
+      processStartTimeMs: 123456,
+      title: 'Spotify Premium',
+    })
+
+    const result = await handler(
+      { sender: { id: 7 } },
+      'window_focus',
+      { hwnd: 67850 },
+      { runId: 'run-1' }
+    )
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        success: false,
+        data: expect.objectContaining({
+          status: 'foreground_required',
+          action: 'window_focus',
+          hwnd: 67850,
+        }),
+      })
+    )
+    expect(handlers.executeWindowFocus).not.toHaveBeenCalled()
   })
 
   it('routes native Windows tools through execute-tool', async () => {

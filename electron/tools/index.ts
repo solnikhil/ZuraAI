@@ -85,6 +85,11 @@ import { validateBuiltinToolInvocation } from './validateBuiltinToolInvocation'
 import { consumeToolApprovalAuthorization } from './toolApprovalAuthorizations'
 import type { BuiltinToolExecutionContext } from '../../src/electron/types'
 import { backgroundWindowCoordinator } from './background-window'
+import {
+  backgroundWindowFocusBlocked,
+  normalizeBackgroundScreenshotResult,
+  scopeScreenshotToBackgroundTarget,
+} from './background-window/toolPolicy'
 import { registerKillSwitch, unregisterKillSwitch } from './computer-use/killSwitch'
 import { requireApproval } from './native-common'
 
@@ -168,6 +173,32 @@ async function executeReservedUiAction(
 async function releaseGuardForForegroundAction(context?: ToolHandlerContext): Promise<void> {
   if (!context?.runId) return
   await backgroundWindowCoordinator.release(requireBackgroundOwner(context), 'user-release')
+}
+
+async function executeReservedScreenshot(
+  args: unknown,
+  context?: ToolHandlerContext
+): Promise<ToolResult> {
+  if (!context?.runId) return executeScreenshot(normalizeScreenshotArgs(args))
+  const target = backgroundWindowCoordinator.status(requireBackgroundOwner(context))
+  if (!target) return executeScreenshot(normalizeScreenshotArgs(args))
+  // The attach lifecycle already owns Esc+Esc. Do not replace its callback with the
+  // ordinary foreground Computer Use abort handler just to take a read-only capture.
+  const result = await executeScreenshot(scopeScreenshotToBackgroundTarget(target), {
+    registerEmergencyStop: false,
+  })
+  return normalizeBackgroundScreenshotResult(result, target)
+}
+
+async function executeWindowFocusWithBackgroundGuard(
+  args: unknown,
+  context?: ToolHandlerContext
+): Promise<ToolResult> {
+  if (context?.runId) {
+    const target = backgroundWindowCoordinator.status(requireBackgroundOwner(context))
+    if (target) return backgroundWindowFocusBlocked(target)
+  }
+  return executeWindowFocus(args)
 }
 
 function isComputerUseToolName(toolName: string): boolean {
@@ -345,7 +376,7 @@ const toolHandlers: Record<BuiltinMainToolName, ToolHandler> = {
     )
     return { success: true, data: { released } }
   },
-  computer_screenshot: (args) => executeScreenshot(normalizeScreenshotArgs(args)),
+  computer_screenshot: executeReservedScreenshot,
   computer_click: async (args, context) => {
     await releaseGuardForForegroundAction(context)
     const n = normalizeClickArgs(args)
@@ -447,7 +478,7 @@ const toolHandlers: Record<BuiltinMainToolName, ToolHandler> = {
     return { success: true, data: runs }
   },
   window_list: executeWindowList,
-  window_focus: executeWindowFocus,
+  window_focus: executeWindowFocusWithBackgroundGuard,
   window_move: executeWindowMove,
   window_close: executeWindowClose,
   system_active_window: executeSystemActiveWindow,

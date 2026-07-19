@@ -16,6 +16,12 @@ Invalid model argument examples include:
 
 Each model-facing schema is closed and main rejects reserved authority properties before dispatch. Do not strip them silently: rejection makes provider/schema drift visible.
 
+Provider and main-boundary schema validation share the CSP-safe interpreter in
+`packages/provider-core/src/jsonSchema.ts`. It performs no runtime code generation, coercion,
+property removal, or default insertion. Do not reintroduce Ajv runtime compilation into renderer
+tool parsing or weaken `script-src` with `unsafe-eval`; unsupported standard validation keywords
+must produce a schema-definition failure.
+
 Approval authority is a separate main-owned execution context. After an explicit approval or a main-verified exact-repeat trust match, main issues a short-lived one-use token bound to:
 
 - Sender webContents ID
@@ -31,6 +37,10 @@ Trusted exact-repeat decisions store only main-generated argument signatures. Ra
 ## Background-window authority
 
 `background_window_attach` is an approval-gated request to reserve one exact external HWND. Main resolves and stores `{hwnd, pid, processStartTime}` and binds it to the trusted sender plus opaque chat-run ID carried outside model arguments. Status, release, UI observation, and element mutation must match that owner. HWND reuse, process mismatch, stale elements, target loss, and renderer destruction fail closed and release the guard.
+
+While the reservation is active, main scopes `computer_screenshot` to the reserved HWND regardless of model-provided title/app filters and returns a typed `screenshot_unavailable` blocked result when Windows does not expose a capturable surface. Main rejects `window_focus` with `foreground_required`; foreground focus is available only after the run explicitly releases its background reservation.
+
+`ui_get_app_state` treats its accessibility tree and targeted image as separate observations. If UI Automation successfully reads the reserved target but Electron exposes no matching window capture source, the tool returns the valid tree with typed `screenshot_unavailable` metadata. It never substitutes a full-screen image, and coordinate actions remain unavailable until a separate targeted screenshot succeeds.
 
 Background-safe UI Automation is pattern-only. Invoke, Value, SelectionItem/Toggle, and Scroll may execute without shared input; missing patterns return `foreground_required`. Never silently fall back to focus, clipboard paste, global keyboard input, cursor movement, coordinate clicks, wheel input, arbitrary window messages, or renderer-provided PowerShell. An approved physical `computer_*` action releases the guard first.
 

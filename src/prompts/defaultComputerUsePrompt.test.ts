@@ -24,5 +24,7 @@ describe('defaultComputerUsePrompt', () => {
       'computer_screenshot with window_id, window_title, or app_name'
     )
     expect(defaultComputerUsePrompt).toContain('full-screen computer_screenshot only')
+    expect(defaultComputerUsePrompt).toContain('Never call window_focus')
+    expect(defaultComputerUsePrompt).toContain('screenshot_unavailable')
   })
 })

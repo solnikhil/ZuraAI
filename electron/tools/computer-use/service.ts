@@ -71,9 +71,12 @@ async function gateApproval(
   return { approved: true }
 }
 
-export async function executeScreenshot(args: ScreenshotArgs): Promise<ToolResult> {
+export async function executeScreenshot(
+  args: ScreenshotArgs,
+  options: { registerEmergencyStop?: boolean } = {}
+): Promise<ToolResult> {
   resetAbortOnNewTask()
-  registerKillSwitch(() => abortSession())
+  if (options.registerEmergencyStop !== false) registerKillSwitch(() => abortSession())
   try {
     const result = await captureScreenshot({
       displayId: args.display_id,

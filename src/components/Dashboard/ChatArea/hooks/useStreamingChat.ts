@@ -211,10 +211,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
     useStreamingActions()
 
   const buildFinalStreamingUpdates = useCallback(
-    (
-      finalState: StreamingMessageState,
-      terminalAgentRun?: Message['agentRun']
-    ): Partial<Message> =>
+    (finalState: StreamingMessageState, terminalAgentRun?: Message['agentRun']): Partial<Message> =>
       buildCommittedStreamingUpdates(finalState, undefined, terminalAgentRun),
     []
   )

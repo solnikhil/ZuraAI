@@ -45,6 +45,7 @@ function makeState(): UiAppState {
     state_id: 'uis_test',
     captured_at: 1,
     screenshot: {
+      status: 'available',
       image: '',
       screenWidth: 100,
       screenHeight: 100,
@@ -211,6 +212,76 @@ describe('strict background UI automation actions', () => {
     expect(result.success).toBe(true)
     return (result.data as { state: UiAppState }).state.windows[0]?.elements[0]?.element_id || ''
   }
+
+  it('normalizes singleton PowerShell windows, elements, and supported patterns', async () => {
+    const singletonSnapshot = {
+      ...rawSnapshot(),
+      windows: {
+        ...rawSnapshot().windows[0],
+        elements: {
+          ...rawSnapshot().windows[0].elements[0],
+          supportedPatterns: 'Invoke',
+        },
+      },
+    }
+    mocks.runPowerShell.mockResolvedValueOnce({
+      stdout: JSON.stringify(singletonSnapshot),
+      stderr: '',
+    })
+
+    const result = await executeUiGetAppState({ hwnd: 100 })
+
+    expect(result.success).toBe(true)
+    const state = (result.data as { state: UiAppState }).state
+    expect(state.windows).toHaveLength(1)
+    expect(state.windows[0]?.elements).toHaveLength(1)
+    expect(state.windows[0]?.elements[0]?.supported_actions).toEqual(['click'])
+    const snapshotPowerShell = mocks.runPowerShell.mock.calls[0]?.[0] as string
+    expect(snapshotPowerShell).toContain('supportedPatterns = @(Get-PatternNames $child)')
+    expect(snapshotPowerShell).toContain('$elements = @(Walk $window $null 1)')
+    expect(snapshotPowerShell).toContain('elements = @($elements)')
+  })
+
+  it('preserves a successful accessibility tree when targeted capture is unavailable', async () => {
+    mocks.runPowerShell.mockResolvedValueOnce({
+      stdout: JSON.stringify(rawSnapshot(['Invoke'])),
+      stderr: '',
+    })
+    mocks.captureScreenshot.mockRejectedValueOnce(
+      new Error('No matching window source available for capture')
+    )
+
+    const result = await executeUiGetAppState({ hwnd: 100 })
+
+    expect(result.success).toBe(true)
+    const state = (result.data as { state: UiAppState }).state
+    expect(state.windows[0]?.elements[0]).toMatchObject({
+      name: 'Save',
+      supported_actions: ['click'],
+    })
+    expect(state.screenshot).toEqual({
+      status: 'unavailable',
+      reason: 'screenshot_unavailable',
+      message: expect.stringContaining('accessibility tree remains valid'),
+    })
+    expect(mocks.captureScreenshot).toHaveBeenCalledTimes(1)
+    expect(mocks.captureScreenshot).toHaveBeenCalledWith({ windowId: 'window:100:0' })
+  })
+
+  it('does not hide unexpected screenshot failures', async () => {
+    mocks.runPowerShell.mockResolvedValueOnce({
+      stdout: JSON.stringify(rawSnapshot()),
+      stderr: '',
+    })
+    mocks.captureScreenshot.mockRejectedValueOnce(new Error('desktopCapturer initialization failed'))
+
+    const result = await executeUiGetAppState({ hwnd: 100 })
+
+    expect(result).toMatchObject({
+      success: false,
+      error: 'desktopCapturer initialization failed',
+    })
+  })
 
   it('scopes runtime lookup and fresh verification to the cached HWND', async () => {
     const elementId = await seedElement()

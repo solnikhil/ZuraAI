@@ -31,6 +31,21 @@ export interface UiAutomationWindow {
   elements: UiAutomationElement[]
 }
 
+export type UiAppScreenshot =
+  | {
+      status: 'available'
+      image: string
+      screenWidth: number
+      screenHeight: number
+      coordinateContext: unknown
+      target?: unknown
+    }
+  | {
+      status: 'unavailable'
+      reason: 'screenshot_unavailable'
+      message: string
+    }
+
 export interface UiAppState {
   state_id: string
   captured_at: number
@@ -40,13 +55,7 @@ export interface UiAppState {
     process_id: number
     process_name: string
   }
-  screenshot: {
-    image: string
-    screenWidth: number
-    screenHeight: number
-    coordinateContext: unknown
-    target?: unknown
-  }
+  screenshot: UiAppScreenshot
   windows: UiAutomationWindow[]
   truncation: {
     max_depth: number

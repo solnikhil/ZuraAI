@@ -384,7 +384,7 @@ Safety rules:
   },
   ui_get_app_state: {
     description:
-      'Inspect the current Windows desktop/app state for reliable Agent Mode UI automation. Returns a fresh screenshot, active window metadata, a compact accessibility tree, stable element_id values, supported element actions, bounds, and truncation metadata. Use this before UI actions and prefer element_id actions over coordinates.',
+      'Inspect the current Windows desktop/app state for reliable Agent Mode UI automation. Returns active window metadata, a compact accessibility tree, stable element_id values, supported element actions, bounds, truncation metadata, and either a fresh targeted screenshot or an explicit screenshot_unavailable status. A missing screenshot does not invalidate the accessibility tree: continue with element_id UI Automation actions, but do not use coordinates without a separate successful screenshot.',
     parameters: {
       type: 'object',
       description: 'Optional filters and compactness controls for state capture.',

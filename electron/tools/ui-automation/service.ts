@@ -47,7 +47,9 @@ interface RawElement {
   selected?: boolean
   visible?: boolean
   bounds?: Partial<UiAutomationBounds>
-  supportedPatterns?: string[]
+  // PowerShell enumerates single-item function output unless explicitly wrapped.
+  // Accept both shapes at the process boundary and normalize before iteration.
+  supportedPatterns?: string | string[]
 }
 
 interface RawWindow {
@@ -56,7 +58,7 @@ interface RawWindow {
   processId?: number
   processName?: string
   runtimeId?: string
-  elements?: RawElement[]
+  elements?: RawElement | RawElement[]
 }
 
 interface RawSnapshot {
@@ -154,9 +156,9 @@ function patternToAction(pattern: string): string | null {
   return null
 }
 
-function normalizeActions(patterns: string[] | undefined): string[] {
+function normalizeActions(patterns: string | string[] | undefined): string[] {
   const actions = new Set<string>()
-  for (const pattern of patterns || []) {
+  for (const pattern of normalizeJsonArray(patterns)) {
     const action = patternToAction(pattern)
     if (action) actions.add(action)
   }
@@ -198,7 +200,8 @@ function buildWindows(rawWindows: RawWindow[], now: number): UiAutomationWindow[
     const byRuntime = new Map<string, UiAutomationElement>()
     const roots: UiAutomationElement[] = []
 
-    for (const raw of rawWindow.elements || []) {
+    const rawElements = normalizeJsonArray(rawWindow.elements)
+    for (const raw of rawElements) {
       if (!raw.runtimeId) continue
       const bounds = normalizeBounds(raw.bounds)
       const supportedActions = normalizeActions(raw.supportedPatterns)
@@ -233,7 +236,7 @@ function buildWindows(rawWindows: RawWindow[], now: number): UiAutomationWindow[
       byRuntime.set(raw.runtimeId, element)
     }
 
-    for (const raw of rawWindow.elements || []) {
+    for (const raw of rawElements) {
       if (!raw.runtimeId) continue
       const element = byRuntime.get(raw.runtimeId)
       if (!element) continue
@@ -333,7 +336,7 @@ function Walk($el, $parentRuntimeId, $depth) {
       selected = $selected
       visible = (-not $isOffscreen) -and ([double]$rect.Width -gt 0) -and ([double]$rect.Height -gt 0)
       bounds = [pscustomobject]@{ x = [int]$rect.X; y = [int]$rect.Y; width = [int]$rect.Width; height = [int]$rect.Height }
-      supportedPatterns = Get-PatternNames $child
+      supportedPatterns = @(Get-PatternNames $child)
     }
     $script:total += 1
     $out += Walk $child $rid ($depth + 1)
@@ -350,14 +353,14 @@ foreach ($window in $windows) {
   if (${processName ? `((Get-Process -Id $pid -ErrorAction SilentlyContinue).ProcessName -notlike ${psString(`*${processName}*`)})` : '$false'}) { continue }
   if ($total -ge ${maxElements}) { $truncated = $true; break }
   $windowRuntimeId = ($window.GetRuntimeId() -join '.')
-  $elements = Walk $window $null 1
+  $elements = @(Walk $window $null 1)
   $items += [pscustomobject]@{
     hwnd = $handle
     title = $title
     processId = $pid
     processName = [string](Get-Process -Id $pid -ErrorAction SilentlyContinue).ProcessName
     runtimeId = $windowRuntimeId
-    elements = $elements
+    elements = @($elements)
   }
 }
 
@@ -474,14 +477,39 @@ async function buildAppState(args: unknown = {}): Promise<UiAppState> {
   if (requestedHwnd !== undefined && !windows.some((window) => window.hwnd === requestedHwnd)) {
     throw new Error('ZURA_UIA_TARGET_LOST: Target window is no longer available.')
   }
-  const screenshot = await captureScreenshot(
+  const screenshotTarget =
     requestedHwnd !== undefined
       ? { windowId: `window:${requestedHwnd}:0` }
       : {
           windowTitle: stringArg(args, 'windowTitle') || undefined,
           appName: stringArg(args, 'appName') || stringArg(args, 'processName') || undefined,
         }
+  const isTargetedScreenshot = Boolean(
+    screenshotTarget.windowId || screenshotTarget.windowTitle || screenshotTarget.appName
   )
+  let screenshot: UiAppState['screenshot']
+  try {
+    const captured = await captureScreenshot(screenshotTarget)
+    screenshot = {
+      status: 'available',
+      image: captured.image,
+      screenWidth: captured.width,
+      screenHeight: captured.height,
+      coordinateContext: serializeCoordinateContext(captured.coordinateContext),
+      ...(captured.target ? { target: captured.target } : {}),
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Target screenshot is unavailable.'
+    if (!isTargetedScreenshot || message !== 'No matching window source available for capture') {
+      throw error
+    }
+    screenshot = {
+      status: 'unavailable',
+      reason: 'screenshot_unavailable',
+      message:
+        'Windows did not expose a capturable surface for this target. The accessibility tree remains valid for element_id UI Automation actions; coordinate actions require a separate successful screenshot.',
+    }
+  }
 
   const state: UiAppState = {
     state_id: `uis_${randomUUID()}`,
@@ -495,13 +523,7 @@ async function buildAppState(args: unknown = {}): Promise<UiAppState> {
           process_name: raw.activeWindow.processName || '',
         }
       : undefined,
-    screenshot: {
-      image: screenshot.image,
-      screenWidth: screenshot.width,
-      screenHeight: screenshot.height,
-      coordinateContext: serializeCoordinateContext(screenshot.coordinateContext),
-      ...(screenshot.target ? { target: screenshot.target } : {}),
-    },
+    screenshot,
     windows,
     truncation: {
       max_depth: maxDepth,
