@@ -6,6 +6,7 @@ import { useSettings } from '../../contexts/SettingsContext'
 import { isSkillEnabled } from '../../skills'
 import { loadSettingsModule } from '../Settings/settingsLoader'
 import { resolveSettingsNavigation } from '../../constants/settingsSections'
+import { FOLDERS_SECTION_ENABLED } from './foldersFeature'
 
 // Lazy load Settings component for memory optimization
 // Only loads when user actually opens Settings
@@ -47,6 +48,9 @@ export default function DashboardLayout() {
       setDashboardView('chat')
     }
     if (view === 'artifacts' && !artifactsEnabled) {
+      setDashboardView('chat')
+    }
+    if (view === 'folders' && !FOLDERS_SECTION_ENABLED) {
       setDashboardView('chat')
     }
   }, [artifactsEnabled, remindersEnabled, setDashboardView, view])
@@ -118,7 +122,7 @@ export default function DashboardLayout() {
                 <ArtifactsView />
               </Suspense>
             </div>
-          ) : view === 'folders' ? (
+          ) : view === 'folders' && FOLDERS_SECTION_ENABLED ? (
             <div style={{ width: '100%', height: '100%', position: 'absolute', top: 0, left: 0 }}>
               <Suspense fallback={<SettingsLoadingFallback />}>
                 <FoldersView />

@@ -11,6 +11,7 @@ import {
 import { useSettings } from '../../../../contexts/SettingsContext'
 import { useToast } from '../../../shared/Toast'
 import type { ToolCallState } from '../../../../hooks/useToolCalling'
+import { removeToolFollowUpSplitMarker } from '../messageTimeline'
 import { getSessionMemoryScope, isFolderAssociationResolvable } from '../../../../utils/memoryScope'
 import {
   completeAgentToolStep,
@@ -121,9 +122,12 @@ export function buildCommittedStreamingUpdates(
   const hasField = <K extends keyof StreamingMessageState>(key: K) =>
     Object.prototype.hasOwnProperty.call(finalState, key)
 
-  const updates: Partial<Message> = {
-    content: finalState.content,
-  }
+  const cleanContent = removeToolFollowUpSplitMarker(finalState.content).trimEnd()
+  const content =
+    terminalAgentRun?.status === 'cancelled'
+      ? `${cleanContent}${cleanContent ? '\n\n' : ''}Task stopped before completion.`
+      : cleanContent
+  const updates: Partial<Message> = { content }
 
   if (hasField('thinking')) updates.thinking = finalState.thinking
   if (hasField('thinkingDuration')) updates.thinkingDuration = finalState.thinkingDuration

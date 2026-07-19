@@ -24,6 +24,7 @@ import type {
   UiFindArgs,
   UiWaitForArgs,
 } from './types'
+import { LEGACY_ACCESSIBILITY_HELPER } from './legacyAccessibility'
 
 const DEFAULT_MAX_DEPTH = 4
 const DEFAULT_MAX_ELEMENTS = 120
@@ -50,6 +51,7 @@ interface RawElement {
   // PowerShell enumerates single-item function output unless explicitly wrapped.
   // Accept both shapes at the process boundary and normalize before iteration.
   supportedPatterns?: string | string[]
+  source?: 'uia' | 'msaa'
 }
 
 interface RawWindow {
@@ -83,6 +85,7 @@ interface ElementCacheEntry {
   automationId: string
   bounds: UiAutomationBounds
   supportedActions: string[]
+  source: 'uia' | 'msaa'
   updatedAt: number
 }
 
@@ -149,6 +152,7 @@ function normalizeBounds(raw: RawElement['bounds']): UiAutomationBounds {
 
 function patternToAction(pattern: string): string | null {
   if (pattern === 'Invoke') return 'click'
+  if (pattern === 'LegacyDefaultAction') return 'click'
   if (pattern === 'Value') return 'set_value'
   if (pattern === 'SelectionItem' || pattern === 'Toggle') return 'select'
   if (pattern === 'Scroll') return 'scroll'
@@ -208,6 +212,8 @@ function buildWindows(rawWindows: RawWindow[], now: number): UiAutomationWindow[
       const elementId = stableElementId(hwnd, raw)
       const element: UiAutomationElement = {
         element_id: elementId,
+        source: raw.source === 'msaa' ? 'msaa' : 'uia',
+        background_safe: supportedActions.length > 0,
         name: raw.name || '',
         value: raw.value || undefined,
         role: raw.controlType || 'Custom',
@@ -231,6 +237,7 @@ function buildWindows(rawWindows: RawWindow[], now: number): UiAutomationWindow[
         automationId: element.automation_id,
         bounds,
         supportedActions,
+        source: raw.source === 'msaa' ? 'msaa' : 'uia',
         updatedAt: now,
       })
       byRuntime.set(raw.runtimeId, element)
@@ -266,10 +273,12 @@ function snapshotScript(args: unknown, maxDepth: number, maxElements: number): s
   const windowTitle = stringArg(args, 'windowTitle')
   const processName = stringArg(args, 'processName')
   const hwnd = isRecord(args) && typeof args.hwnd === 'number' ? Math.trunc(args.hwnd) : undefined
+  const legacyHelper = hwnd !== undefined ? LEGACY_ACCESSIBILITY_HELPER : ''
 
   return `
 Add-Type -AssemblyName UIAutomationClient
 Add-Type -AssemblyName UIAutomationTypes
+${legacyHelper}
 Add-Type @"
 using System;
 using System.Runtime.InteropServices;
@@ -337,6 +346,7 @@ function Walk($el, $parentRuntimeId, $depth) {
       visible = (-not $isOffscreen) -and ([double]$rect.Width -gt 0) -and ([double]$rect.Height -gt 0)
       bounds = [pscustomobject]@{ x = [int]$rect.X; y = [int]$rect.Y; width = [int]$rect.Width; height = [int]$rect.Height }
       supportedPatterns = @(Get-PatternNames $child)
+      source = 'uia'
     }
     $script:total += 1
     $out += Walk $child $rid ($depth + 1)
@@ -354,6 +364,16 @@ foreach ($window in $windows) {
   if ($total -ge ${maxElements}) { $truncated = $true; break }
   $windowRuntimeId = ($window.GetRuntimeId() -join '.')
   $elements = @(Walk $window $null 1)
+  $hasActionableUia = @($elements | Where-Object { @($_.supportedPatterns).Count -gt 0 }).Count -gt 0
+  if (-not $hasActionableUia -and ${hwnd !== undefined ? '$true' : '$false'} -and $total -lt ${maxElements}) {
+    $remaining = ${maxElements} - $total
+    $legacyElements = @([ZuraLegacyAccessibility]::Capture($handle, ${maxDepth}, $remaining))
+    if ($legacyElements.Count -gt 0) {
+      $elements += $legacyElements
+      $total += $legacyElements.Count
+      if ($total -ge ${maxElements}) { $truncated = $true }
+    }
+  }
   $items += [pscustomobject]@{
     hwnd = $handle
     title = $title
@@ -393,6 +413,24 @@ function runtimeActionScript(
   direction?: string,
   amount?: number
 ): string {
+  if (entry.source === 'msaa') {
+    if (action !== 'invoke') {
+      return `throw "Element does not support the requested legacy accessibility action."`
+    }
+    return `
+Add-Type -AssemblyName UIAutomationClient
+Add-Type -AssemblyName UIAutomationTypes
+${LEGACY_ACCESSIBILITY_HELPER}
+$root = [System.Windows.Automation.AutomationElement]::RootElement
+$windowCondition = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::NativeWindowHandleProperty, ${entry.hwnd})
+$window = $root.FindFirst([System.Windows.Automation.TreeScope]::Children, $windowCondition)
+if ($null -eq $window) { throw "ZURA_UIA_TARGET_LOST: Target window is no longer available." }
+if ([int]$window.Current.ProcessId -ne ${entry.processId}) { throw "ZURA_UIA_TARGET_CHANGED: Target window identity changed." }
+[ZuraLegacyAccessibility]::Invoke(${entry.hwnd}, ${psString(entry.runtimeId)}, ${psString(entry.name)}, ${psString(entry.role)})
+@{ action = 'legacyInvoke'; element_id = ${psString(entry.elementId)} } | ConvertTo-Json -Compress
+`
+  }
+
   return `
 Add-Type -AssemblyName UIAutomationClient
 Add-Type -AssemblyName UIAutomationTypes

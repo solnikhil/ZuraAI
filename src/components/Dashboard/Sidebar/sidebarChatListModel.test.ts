@@ -30,6 +30,7 @@ describe('sidebar chat list model', () => {
         folders: [folder],
         timeGroups,
         open: { pinned: true, projects: true, recents: true },
+        foldersSectionEnabled: true,
       }).map((item) => item.key)
     ).toEqual([
       'pinned',
@@ -48,7 +49,24 @@ describe('sidebar chat list model', () => {
       folders: [folder],
       timeGroups: buildTimeGroups(grouped),
       open: { pinned: false, projects: false, recents: false },
+      foldersSectionEnabled: true,
     })
     expect(items.map((item) => item.key)).toEqual(['pinned', 'folders-heading', 'your-chats'])
+  })
+
+  it('omits the Projects section when folders UI is disabled', () => {
+    const items = buildSidebarListItems({
+      groupedSessions: grouped,
+      folders: [folder],
+      timeGroups: buildTimeGroups(grouped),
+      open: { pinned: true, projects: true, recents: true },
+      foldersSectionEnabled: false,
+    })
+    expect(items.map((item) => item.key)).toEqual([
+      'pinned',
+      'pinned:pinned',
+      'your-chats',
+      'Today:today',
+    ])
   })
 })

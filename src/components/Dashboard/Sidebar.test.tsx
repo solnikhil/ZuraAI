@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import '@testing-library/jest-dom'
 import Sidebar from './Sidebar'
 
@@ -183,7 +183,7 @@ describe('Sidebar', () => {
     expect(mockAppShell.setDashboardView).toHaveBeenCalledWith('artifacts')
   })
 
-  it('groups folder chats under a collapsible Projects section', () => {
+  it('hides the Projects section while folders UI is temporarily disabled', () => {
     mockChatHistory.folders = [{ id: 'folder-1', name: 'ZuraAI', order: 0, createdAt: Date.now() }]
     mockChatHistory.sessions = [
       {
@@ -200,20 +200,9 @@ describe('Sidebar', () => {
 
     render(<Sidebar {...defaultProps} />)
 
-    expect(screen.getByRole('button', { name: 'Projects' })).toHaveAttribute(
-      'aria-expanded',
-      'true'
-    )
-    expect(screen.getByText('ZuraAI')).toBeInTheDocument()
-    expect(screen.getByText('Diagram AI automation')).toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole('button', { name: 'Projects' }))
-
-    expect(screen.getByRole('button', { name: 'Projects' })).toHaveAttribute(
-      'aria-expanded',
-      'false'
-    )
+    // Projects section is gated by FOLDERS_SECTION_ENABLED; folder chats still appear in Recents.
+    expect(screen.queryByRole('button', { name: 'Projects' })).not.toBeInTheDocument()
     expect(screen.queryByText('ZuraAI')).not.toBeInTheDocument()
-    expect(screen.queryByText('Diagram AI automation')).not.toBeInTheDocument()
+    expect(screen.getByText('Diagram AI automation')).toBeInTheDocument()
   })
 })

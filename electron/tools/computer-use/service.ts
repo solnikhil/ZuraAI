@@ -55,7 +55,10 @@ function rememberScreenshot(sessionKey: string, state: ScreenshotSessionState): 
   }
 }
 
-function requireScreenshotSession(sessionKey: string, screenshotId: string): ScreenshotSessionState {
+function requireScreenshotSession(
+  sessionKey: string,
+  screenshotId: string
+): ScreenshotSessionState {
   const state = screenshotSessions.get(sessionKey)
   if (!state) {
     throw new Error('No screen context is available for this run. Use computer_screenshot first.')
@@ -165,7 +168,10 @@ async function executeAction(
   try {
     before = requireScreenshotSession(sessionKey, args.screenshot_id)
   } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : 'Invalid screenshot context.' }
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Invalid screenshot context.',
+    }
   }
 
   actionCount++
@@ -248,7 +254,10 @@ export async function executeClick(
   try {
     desktopPoint = mapActionPoint(args, sessionKey)
   } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : 'Invalid screenshot context.' }
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Invalid screenshot context.',
+    }
   }
   const desktopArgs = { ...args, ...desktopPoint }
   return executeAction(
@@ -267,7 +276,15 @@ export async function executeType(
   autoApprove: boolean,
   sessionKey = 'unscoped'
 ): Promise<ToolResult> {
-  return executeAction('type', args, () => performType(args), autoApprove, undefined, undefined, sessionKey)
+  return executeAction(
+    'type',
+    args,
+    () => performType(args),
+    autoApprove,
+    undefined,
+    undefined,
+    sessionKey
+  )
 }
 
 export async function executeKey(
@@ -275,7 +292,15 @@ export async function executeKey(
   autoApprove: boolean,
   sessionKey = 'unscoped'
 ): Promise<ToolResult> {
-  return executeAction('key', args, () => performKeyPress(args), autoApprove, undefined, undefined, sessionKey)
+  return executeAction(
+    'key',
+    args,
+    () => performKeyPress(args),
+    autoApprove,
+    undefined,
+    undefined,
+    sessionKey
+  )
 }
 
 export async function executeScroll(
@@ -288,7 +313,10 @@ export async function executeScroll(
   try {
     desktopPoint = mapActionPoint(args, sessionKey)
   } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : 'Invalid screenshot context.' }
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Invalid screenshot context.',
+    }
   }
   const desktopArgs = { ...args, ...desktopPoint }
   return executeAction(
@@ -312,7 +340,10 @@ export async function executeCursorPosition(
   try {
     desktopPoint = mapActionPoint(args, sessionKey)
   } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : 'Invalid screenshot context.' }
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Invalid screenshot context.',
+    }
   }
   const desktopArgs = { ...args, ...desktopPoint }
   return executeAction(

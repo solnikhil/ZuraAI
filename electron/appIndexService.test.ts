@@ -124,7 +124,8 @@ async function loadService(
 
   const readdirImplementation = vi.fn(async (root: string, readdirOptions?: unknown) => {
     if (root.includes('Nested')) return [fileEntry('Discord.lnk'), ...nestedJunk]
-    if (root === 'C:\\Users\\Nikhil\\Desktop') return [fileEntry('Kiro.lnk'), fileEntry('Claude.lnk')]
+    if (root === 'C:\\Users\\Nikhil\\Desktop')
+      return [fileEntry('Kiro.lnk'), fileEntry('Claude.lnk')]
     if (root.includes('Start Menu\\Programs')) return [dirEntry('Nested')]
     const actual = await vi.importActual<typeof import('fs/promises')>('fs/promises')
     return actual.readdir(root, readdirOptions as never)
@@ -236,6 +237,29 @@ describe('appIndexService', () => {
     expect((await service.findApps('disc')).matches[0]).toMatchObject({ name: 'Discord' })
     expect((await service.findApps('vsc')).matches[0]).toMatchObject({ name: 'Visual Studio Code' })
     expect((await service.findApps('claude')).matches[0]).toMatchObject({ name: 'Claude' })
+  })
+
+  it('awaits a query-specific native lookup when the cached index has no match', async () => {
+    const { service, runPowerShell } = await loadService({
+      nativeApps: [
+        {
+          name: 'Spotify',
+          appUserModelId: 'SpotifyAB.SpotifyMusic_zpdnekdrzrea0!Spotify',
+        },
+      ],
+    })
+
+    const result = await service.findApps('spotify')
+
+    expect(result.matches[0]).toMatchObject({
+      name: 'Spotify',
+      appUserModelId: 'SpotifyAB.SpotifyMusic_zpdnekdrzrea0!Spotify',
+    })
+    expect(
+      runPowerShell.mock.calls.some(([script]) =>
+        String(script).includes("Get-StartApps -Name '*spotify*'")
+      )
+    ).toBe(true)
   })
 
   it('ranks recently used apps first for the empty app list', async () => {

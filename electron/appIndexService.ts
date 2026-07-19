@@ -1223,10 +1223,10 @@ export async function findApps(
 
   const rankMatches = () =>
     memoryApps
-    .map((entry) => ({ ...entry, rank: scoreApp(entry, trimmedQuery) }))
-    .filter((entry) => entry.rank > 0)
-    .sort((a, b) => b.rank - a.rank || a.name.localeCompare(b.name))
-    .slice(0, limit)
+      .map((entry) => ({ ...entry, rank: scoreApp(entry, trimmedQuery) }))
+      .filter((entry) => entry.rank > 0)
+      .sort((a, b) => b.rank - a.rank || a.name.localeCompare(b.name))
+      .slice(0, limit)
 
   let matches = rankMatches()
   if (isWindows() && matches.length === 0) {

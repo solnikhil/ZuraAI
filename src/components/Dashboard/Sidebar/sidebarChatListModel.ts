@@ -32,8 +32,10 @@ export function buildSidebarListItems(options: {
   folders: Folder[]
   timeGroups: TimeGroupBucket[]
   open: SidebarListOpenState
+  /** When false, omits the Projects/folders sidebar section (code path retained). */
+  foldersSectionEnabled?: boolean
 }): SidebarListItem[] {
-  const { groupedSessions, folders, timeGroups, open } = options
+  const { groupedSessions, folders, timeGroups, open, foldersSectionEnabled = true } = options
   const items: SidebarListItem[] = []
 
   if (groupedSessions.pinned.length > 0) {
@@ -45,23 +47,25 @@ export function buildSidebarListItems(options: {
     }
   }
 
-  items.push({ type: 'folder-heading', key: 'folders-heading', label: 'Projects' })
-  if (open.projects) {
-    for (const folder of folders) {
-      items.push({
-        type: 'section',
-        key: `folder:${folder.id}`,
-        label: folder.name,
-        icon: 'folder',
-        folder,
-      })
-      for (const session of groupedSessions.folders.get(folder.id) ?? []) {
+  if (foldersSectionEnabled) {
+    items.push({ type: 'folder-heading', key: 'folders-heading', label: 'Projects' })
+    if (open.projects) {
+      for (const folder of folders) {
         items.push({
-          type: 'row',
-          key: `folder:${folder.id}:${session.id}`,
-          session,
-          indented: true,
+          type: 'section',
+          key: `folder:${folder.id}`,
+          label: folder.name,
+          icon: 'folder',
+          folder,
         })
+        for (const session of groupedSessions.folders.get(folder.id) ?? []) {
+          items.push({
+            type: 'row',
+            key: `folder:${folder.id}:${session.id}`,
+            session,
+            indented: true,
+          })
+        }
       }
     }
   }

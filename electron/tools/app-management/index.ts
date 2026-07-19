@@ -141,7 +141,11 @@ export async function executeAppLaunch(args: unknown): Promise<ToolResult> {
     }
     return {
       success: true,
-      data: { status: 'launch_requested', itemId: itemId || undefined, launched: nameOrPath || appUserModelId },
+      data: {
+        status: 'launch_requested',
+        itemId: itemId || undefined,
+        launched: nameOrPath || appUserModelId,
+      },
     }
   } catch (error) {
     refreshAppIndex().catch(() => undefined)

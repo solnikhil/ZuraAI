@@ -100,6 +100,26 @@ function isSuccessfulMutatingResult(result: ToolCallResult): boolean {
 export function selectVerificationStrategy(
   toolResults: ToolCallResult[] | undefined
 ): AgentVerificationStrategy | null {
+  const unchangedVisualResults = (toolResults || []).filter((result) => {
+    const data = result.result?.data as { visualChange?: unknown } | undefined
+    return (
+      result.result?.success === true &&
+      VISUAL_MUTATION_TOOLS.has(result.toolCall.name) &&
+      data?.visualChange === 'unchanged'
+    )
+  })
+  if (unchangedVisualResults.length > 0) {
+    return {
+      category: 'visual',
+      reason:
+        'The physical action completed but the target image was unchanged, so the intended UI effect is not verified.',
+      preferredTools: ['computer_screenshot'],
+      mutatingToolNames: Array.from(
+        new Set(unchangedVisualResults.map((result) => result.toolCall.name))
+      ),
+    }
+  }
+
   const mutatingResults = (toolResults || []).filter(isSuccessfulMutatingResult)
   if (mutatingResults.length === 0) return null
 
@@ -157,6 +177,18 @@ export function selectVerificationStrategy(
   }
 }
 
+export function didVerificationSucceed(
+  strategy: AgentVerificationStrategy,
+  toolResults: ToolCallResult[] | undefined
+): boolean {
+  const allowedTools = new Set(strategy.preferredTools)
+  return (toolResults || []).some((result) => {
+    if (!result.result?.success || !allowedTools.has(result.toolCall.name)) return false
+    const data = result.result.data as { visualChange?: unknown } | undefined
+    return data?.visualChange !== 'unchanged'
+  })
+}
+
 export function buildAgentVerificationPrompt(
   strategy: AgentVerificationStrategy,
   options?: { recoveryAttempt?: boolean }
@@ -169,5 +201,6 @@ export function buildAgentVerificationPrompt(
 Reason: ${strategy.reason}
 Use the safest read-only verification path now. Prefer these tools, in order: ${strategy.preferredTools.join(', ')}.
 Do not make another mutating change during verification. Do not provide the final answer until the result is verified.
+Verification must directly show the requested outcome, not merely that a tool ran. An unchanged image is not proof of success.
 If verification fails, make at most one bounded recovery attempt. If it still cannot be verified, report the failure clearly instead of continuing blind.`
 }

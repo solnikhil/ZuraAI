@@ -7,6 +7,8 @@ export interface UiAutomationBounds {
 
 export interface UiAutomationElement {
   element_id: string
+  source: 'uia' | 'msaa'
+  background_safe: boolean
   parent_element_id?: string
   name: string
   value?: string

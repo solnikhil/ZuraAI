@@ -36,6 +36,7 @@ import {
   buildTimeGroups,
   type SidebarListItem,
 } from './sidebarChatListModel'
+import { FOLDERS_SECTION_ENABLED } from '../foldersFeature'
 
 interface SidebarChatListProps {
   groupedSessions: GroupedSessions
@@ -114,6 +115,7 @@ export default function SidebarChatList({
       folders,
       timeGroups,
       open: { pinned: isPinnedOpen, projects: isProjectsOpen, recents: isYourChatsOpen },
+      foldersSectionEnabled: FOLDERS_SECTION_ENABLED,
     })
   }, [
     folders,
@@ -145,7 +147,7 @@ export default function SidebarChatList({
         <ChatRowContextMenu
           key={session.id}
           isPinned={session.pinned === true}
-          currentFolderId={session.folderId ?? null}
+          currentFolderId={FOLDERS_SECTION_ENABLED ? (session.folderId ?? null) : null}
           folders={folders}
           onAction={(action) => handleContextMenuAction(action, session.id)}
           onAssignFolder={(folderId) => onAssignFolder(session.id, folderId)}

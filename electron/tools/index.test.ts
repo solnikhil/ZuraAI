@@ -7,35 +7,53 @@ import {
 
 describe('computer-use argument normalization', () => {
   it('accepts numeric strings for click coordinates', () => {
-    expect(normalizeClickArgs({ x: '42', y: '24', button: 'right' })).toEqual({
-      args: { x: 42, y: 24, button: 'right' },
+    expect(
+      normalizeClickArgs({ screenshot_id: 'shot-1', x: '42', y: '24', button: 'right' })
+    ).toEqual({
+      args: { screenshot_id: 'shot-1', x: 42, y: 24, button: 'right' },
       autoApprove: false,
     })
   })
 
   it('keeps zero-valued click coordinates instead of treating them as missing', () => {
-    expect(normalizeClickArgs({ x: 0, y: 0 })).toEqual({
-      args: { x: 0, y: 0, button: 'left' },
+    expect(normalizeClickArgs({ screenshot_id: 'shot-1', x: 0, y: 0 })).toEqual({
+      args: { screenshot_id: 'shot-1', x: 0, y: 0, button: 'left' },
       autoApprove: false,
     })
   })
 
   it('rejects invalid click coordinates instead of defaulting to the top-left corner', () => {
-    expect(() => normalizeClickArgs({ x: 'left', y: 12 })).toThrow('Invalid x coordinate')
-    expect(() => normalizeClickArgs({ x: 12, y: undefined })).toThrow('Invalid y coordinate')
+    expect(() => normalizeClickArgs({ screenshot_id: 'shot-1', x: 'left', y: 12 })).toThrow(
+      'Invalid x coordinate'
+    )
+    expect(() => normalizeClickArgs({ screenshot_id: 'shot-1', x: 12, y: undefined })).toThrow(
+      'Invalid y coordinate'
+    )
   })
 
   it('normalizes scroll and cursor coordinates with the same finite-number rules', () => {
-    expect(normalizeScrollArgs({ x: '10', y: '20', direction: 'up', amount: '4' }).args).toEqual({
-      x: 10,
-      y: 20,
-      direction: 'up',
-      amount: 4,
+    expect(
+      normalizeScrollArgs({
+        screenshot_id: 'shot-1',
+        x: '10',
+        y: '20',
+        direction: 'up',
+        amount: '4',
+      }).args
+    ).toEqual({ screenshot_id: 'shot-1', x: 10, y: 20, direction: 'up', amount: 4 })
+    expect(normalizeCursorArgs({ screenshot_id: 'shot-1', x: '30', y: '40' }).args).toEqual({
+      screenshot_id: 'shot-1',
+      x: 30,
+      y: 40,
     })
-    expect(normalizeCursorArgs({ x: '30', y: '40' }).args).toEqual({ x: 30, y: 40 })
-    expect(() => normalizeScrollArgs({ x: 10, y: Number.NaN, direction: 'down' })).toThrow(
-      'Invalid y coordinate'
-    )
+    expect(() =>
+      normalizeScrollArgs({
+        screenshot_id: 'shot-1',
+        x: 10,
+        y: Number.NaN,
+        direction: 'down',
+      })
+    ).toThrow('Invalid y coordinate')
   })
 })
 
@@ -205,12 +223,15 @@ describe('tool routing through current-desktop Computer Use', () => {
     }
 
     expect(result).toEqual({ success: true, data: { action: 'screenshot' } })
-    expect(handlers.executeScreenshot).toHaveBeenCalledWith({
-      display_id: undefined,
-      window_id: undefined,
-      window_title: 'Settings',
-      app_name: undefined,
-    })
+    expect(handlers.executeScreenshot).toHaveBeenCalledWith(
+      {
+        display_id: undefined,
+        window_id: undefined,
+        window_title: 'Settings',
+        app_name: undefined,
+      },
+      { sessionKey: 'unscoped' }
+    )
   })
 
   it('locks screenshots to the exact reserved HWND and reports unavailable background capture', async () => {
@@ -235,7 +256,7 @@ describe('tool routing through current-desktop Computer Use', () => {
 
     expect(executeScreenshot).toHaveBeenCalledWith(
       { window_id: 'window:67850:0' },
-      { registerEmergencyStop: false }
+      { registerEmergencyStop: false, sessionKey: '7:run-1' }
     )
     expect(result).toEqual(
       expect.objectContaining({

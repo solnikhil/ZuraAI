@@ -20,6 +20,7 @@ import { useStreamingChat, usePromptAutoHide } from './ChatArea/hooks'
 import type { AttachedFile } from './ChatArea/attachmentUtils'
 import { NORMAL_PLACEHOLDERS, GENZ_PLACEHOLDERS } from './ChatArea/placeholders'
 import { CHAT_AREA_STYLES } from './ChatArea/chatAreaStyles'
+import { FOLDERS_SECTION_ENABLED } from './foldersFeature'
 
 export default function ChatArea() {
   const {
@@ -277,7 +278,7 @@ export default function ChatArea() {
   }, [displayedSessionId, hasOlderMessages, isLoadingOlder, loadFullSession])
 
   const handleOpenCurrentFolder = useCallback(() => {
-    if (!currentFolderId) return
+    if (!FOLDERS_SECTION_ENABLED || !currentFolderId) return
     setSelectedFolderId(currentFolderId)
     setDashboardView('folders')
   }, [currentFolderId, setSelectedFolderId, setDashboardView])
@@ -499,7 +500,7 @@ export default function ChatArea() {
         overflow: 'hidden',
       }}
     >
-      {currentFolderName && (
+      {FOLDERS_SECTION_ENABLED && currentFolderName && (
         <FolderContextBar
           folderName={currentFolderName}
           isFolderOnly={currentFolderIsMemoryOnly}

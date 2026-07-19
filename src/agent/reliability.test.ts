@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest'
 
-import { buildAgentVerificationPrompt, selectVerificationStrategy } from './reliability'
+import {
+  buildAgentVerificationPrompt,
+  didVerificationSucceed,
+  selectVerificationStrategy,
+} from './reliability'
 
 describe('agent reliability helpers', () => {
   it('selects file verification for successful file mutations', () => {
@@ -34,6 +38,52 @@ describe('agent reliability helpers', () => {
         preferredTools: ['computer_screenshot'],
       })
     )
+  })
+
+  it('treats an unchanged physical action as explicitly unverified', () => {
+    const strategy = selectVerificationStrategy([
+      {
+        toolCall: {
+          id: 'type-1',
+          name: 'computer_type',
+          arguments: { screenshot_id: 'shot-1', text: 'Punjabi' },
+        },
+        result: { success: true, data: { visualChange: 'unchanged' } },
+      },
+    ])
+
+    expect(strategy).toEqual(
+      expect.objectContaining({
+        category: 'visual',
+        reason: expect.stringContaining('unchanged'),
+      })
+    )
+  })
+
+  it('accepts only a preferred read-only tool as verification evidence', () => {
+    const strategy = {
+      category: 'visual' as const,
+      reason: 'Verify the screen.',
+      preferredTools: ['computer_screenshot'],
+      mutatingToolNames: ['computer_click'],
+    }
+
+    expect(
+      didVerificationSucceed(strategy, [
+        {
+          toolCall: { id: 'find-1', name: 'app_find', arguments: { query: 'Spotify' } },
+          result: { success: true },
+        },
+      ])
+    ).toBe(false)
+    expect(
+      didVerificationSucceed(strategy, [
+        {
+          toolCall: { id: 'shot-1', name: 'computer_screenshot', arguments: {} },
+          result: { success: true },
+        },
+      ])
+    ).toBe(true)
   })
 
   it('selects structured state verification for ui element actions', () => {

@@ -22,6 +22,7 @@ import {
   type DeltaToolCall,
 } from './streamingUtils'
 import {
+  didVerificationSucceed,
   selectVerificationStrategy,
   type AgentVerificationStrategy,
 } from '../../../../../agent/reliability'
@@ -1149,7 +1150,8 @@ export function useProviderStreaming({
             const wasVerificationRound = Boolean(activeVerificationStrategy)
             const verificationSucceeded =
               wasVerificationRound &&
-              nextToolResult.toolResults.some((result) => result.result?.success)
+              activeVerificationStrategy !== null &&
+              didVerificationSucceed(activeVerificationStrategy, nextToolResult.toolResults)
 
             const attemptedSearchQueries = extractWebSearchQueries(nextToolResult.toolResults)
             const hasNonWebTools = hasNonWebToolResults(nextToolResult.toolResults)

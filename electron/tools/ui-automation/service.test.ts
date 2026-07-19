@@ -61,6 +61,8 @@ function makeState(): UiAppState {
         elements: [
           {
             element_id: 'uie_parent',
+            source: 'uia',
+            background_safe: false,
             name: 'Settings',
             role: 'Pane',
             automation_id: 'settings-pane',
@@ -73,6 +75,8 @@ function makeState(): UiAppState {
             children: [
               {
                 element_id: 'uie_save',
+                source: 'uia',
+                background_safe: true,
                 parent_element_id: 'uie_parent',
                 name: 'Save',
                 value: 'Ready',
@@ -88,6 +92,8 @@ function makeState(): UiAppState {
               },
               {
                 element_id: 'uie_disabled',
+                source: 'uia',
+                background_safe: true,
                 parent_element_id: 'uie_parent',
                 name: 'Delete',
                 role: 'Button',

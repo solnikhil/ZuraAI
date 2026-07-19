@@ -42,6 +42,11 @@ While the reservation is active, main scopes `computer_screenshot` to the reserv
 
 `ui_get_app_state` treats its accessibility tree and targeted image as separate observations. If UI Automation successfully reads the reserved target but Electron exposes no matching window capture source, the tool returns the valid tree with typed `screenshot_unavailable` metadata. It never substitutes a full-screen image, and coordinate actions remain unavailable until a separate targeted screenshot succeeds.
 
+Physical Computer Use actions are grounded in a main-issued screenshot ID scoped to the trusted
+sender and opaque chat-run ID. Main rejects missing, stale, or cross-run screenshot IDs, rotates the
+ID after every action, recaptures the same target, and reports whether the image changed. The
+renderer/model cannot transfer coordinate authority between runs or windows.
+
 Background-safe UI Automation is pattern-only. Invoke, Value, SelectionItem/Toggle, and Scroll may execute without shared input; missing patterns return `foreground_required`. Never silently fall back to focus, clipboard paste, global keyboard input, cursor movement, coordinate clicks, wheel input, arbitrary window messages, or renderer-provided PowerShell. An approved physical `computer_*` action releases the guard first.
 
 Disabling a prompt in renderer settings must not bypass main approval unless the product adds a separately reviewed main-owned policy and documents it in `AGENTS.md`.

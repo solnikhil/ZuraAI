@@ -15,6 +15,7 @@ import SidebarChatView from './SidebarChatView'
 import SidebarSettingsView from './SidebarSettingsView'
 import { isMacOSRuntime, isWindowsRuntime } from '../../utils/platform'
 import { WithTooltip } from '../ui/WithTooltip'
+import { FOLDERS_SECTION_ENABLED } from './foldersFeature'
 
 interface SidebarProps {
   view: DashboardView
@@ -78,15 +79,22 @@ export default function Sidebar({ view, activeSettingsSection, onNavigateSetting
   const [isResizing, setIsResizing] = useState(false)
   const resizeStateRef = useRef<{ startX: number; startWidth: number } | null>(null)
   const resizeRafRef = useRef<number | null>(null)
-  // Group sessions for sidebar list
+  // Group sessions for sidebar list. When folders UI is disabled, pass no folders so
+  // folder-assigned chats still appear under Recents instead of disappearing.
+  const sidebarFolders = FOLDERS_SECTION_ENABLED ? sortedFolders : []
   const groupedSessions = useMemo(
-    () => groupSessions(sessions, sortedFolders),
-    [sessions, sortedFolders]
+    () => groupSessions(sessions, sidebarFolders),
+    [sessions, sidebarFolders]
   )
 
   // Flatten visible sessions for keyboard navigation (pinned + folders + time groups in display order)
   const flatVisibleSessions = useMemo(() => {
     const flat = [...groupedSessions.pinned]
+    if (FOLDERS_SECTION_ENABLED) {
+      for (const folderSessions of groupedSessions.folders.values()) {
+        flat.push(...folderSessions)
+      }
+    }
     flat.push(
       ...groupedSessions.today,
       ...groupedSessions.yesterday,
@@ -149,11 +157,13 @@ export default function Sidebar({ view, activeSettingsSection, onNavigateSetting
   }, [setDashboardView])
 
   const openFolders = useCallback(() => {
+    if (!FOLDERS_SECTION_ENABLED) return
     setDashboardView('folders')
   }, [setDashboardView])
 
   const openFolder = useCallback(
     (folderId: string) => {
+      if (!FOLDERS_SECTION_ENABLED) return
       setSelectedFolderId(folderId)
       setDashboardView('folders')
     },
@@ -427,7 +437,7 @@ export default function Sidebar({ view, activeSettingsSection, onNavigateSetting
               view === 'chat' || view === 'reminders' || view === 'artifacts' || view === 'folders'
             }
             groupedSessions={groupedSessions}
-            folders={sortedFolders}
+            folders={sidebarFolders}
             selectedFolderId={selectedFolderId}
             chatSelectedOverlayStyle={chatSelectedOverlayStyle}
             currentSessionId={

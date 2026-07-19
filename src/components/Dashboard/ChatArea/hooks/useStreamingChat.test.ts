@@ -105,7 +105,7 @@ describe('useStreamingChat final commit helpers', () => {
       {
         sessionId: 'session-1',
         messageId: 'message-1',
-        content: 'Partial',
+        content: 'Partial\n\n[[ZURA_TOOL_FOLLOW_UP_SPLIT:blocks=1]]\n\n',
         agentRun: runningAgentRun,
         isStreaming: true,
       },
@@ -115,6 +115,8 @@ describe('useStreamingChat final commit helpers', () => {
 
     expect(committed.agentRun).toEqual(cancelledAgentRun)
     expect(committed.agentRun?.status).toBe('cancelled')
+    expect(committed.content).toBe('Partial\n\nTask stopped before completion.')
+    expect(committed.content).not.toContain('ZURA_TOOL_FOLLOW_UP_SPLIT')
   })
 })
 

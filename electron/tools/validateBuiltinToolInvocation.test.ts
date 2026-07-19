@@ -19,7 +19,12 @@ describe('validateBuiltinToolInvocation', () => {
 
   it('rejects undeclared and reserved execution-authority properties', () => {
     expect(
-      validateBuiltinToolInvocation('computer_click', { x: 10, y: 20, autoApprove: true })
+      validateBuiltinToolInvocation('computer_click', {
+        screenshot_id: 'shot-1',
+        x: 10,
+        y: 20,
+        autoApprove: true,
+      })
     ).toEqual({
       ok: false,
       error:
