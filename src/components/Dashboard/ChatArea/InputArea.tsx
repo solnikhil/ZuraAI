@@ -3,10 +3,9 @@
  */
 
 import * as React from 'react'
-import { AnimatePresence, motion } from 'framer-motion'
+import { motion } from 'framer-motion'
 import {
   Paperclip,
-  ImagePlus,
   ArrowUp,
   Square,
   Plus,
@@ -28,13 +27,7 @@ import { TokenUsageIndicator } from './TokenUsageIndicator'
 import { useAutoResizeTextarea } from '@/hooks/useAutoResizeTextarea'
 import { cn } from '@/lib/utils'
 import { Textarea } from '@/components/ui/textarea'
-import {
-  maybeAnimate,
-  motionDuration,
-  motionDurations,
-  motionEasing,
-  useMotionPreferences,
-} from '@/lib/motion'
+import { maybeAnimate, useMotionPreferences } from '@/lib/motion'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import {
   DropdownMenu,
@@ -110,7 +103,6 @@ export function InputArea({
 }: InputAreaProps) {
   const isLandingVariant = layoutVariant === 'landing'
   const MAX_ATTACHMENTS = 10
-  const [isDragging, setIsDragging] = React.useState(false)
   const [quickActionsOpen, setQuickActionsOpen] = React.useState(false)
   const { textareaRef, adjustHeight } = useAutoResizeTextarea({
     minHeight: 36,
@@ -123,10 +115,6 @@ export function InputArea({
   const assistantMode = settings.assistantMode || 'chat'
   const computerUseEnabled = isSkillEnabled(settings.skills, 'computer_use')
   const activeAgentPillLabel = 'Agent mode'
-  const fastTransition = {
-    duration: motionDuration(animationsEnabled, motionDurations.fast),
-    ease: motionEasing.standard,
-  }
 
   // Expose textarea ref to parent for keyboard reactivation
   React.useEffect(() => {
@@ -261,30 +249,6 @@ export function InputArea({
     }
   }
 
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    setIsDragging(true)
-  }
-
-  const handleDragLeave = (e: React.DragEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    setIsDragging(false)
-  }
-
-  const handleDrop = async (e: React.DragEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    setIsDragging(false)
-
-    const files = e.dataTransfer.files
-    if (files && files.length > 0) {
-      const newFiles = await processFiles(files, { onError })
-      commitFiles(newFiles)
-    }
-  }
-
   const removeFile = (fileId: string) => {
     onFilesChange(attachedFiles.filter((f) => f.id !== fileId))
   }
@@ -298,7 +262,7 @@ export function InputArea({
 
   const canSend = !isLoading && (input.trim() || attachedFiles.length > 0)
   const showAttachmentRail = attachedFiles.length > 0
-  const placeholder = isDragging ? 'Drop files here...' : 'Enter your message to continue...'
+  const placeholder = 'Enter your message to continue...'
   const composerWidthClass = isLandingVariant ? 'max-w-[min(745px,100%)]' : 'max-w-full'
   const shellRadiusClass = 'rounded-[24px] md:rounded-[26px]'
   const shellPaddingClass = showAttachmentRail ? 'px-3 py-3' : 'px-3 py-2.5'
@@ -393,13 +357,7 @@ export function InputArea({
   }, [onActivity])
 
   return (
-    <div
-      className="w-full pb-0 pt-3"
-      onDragOver={handleDragOver}
-      onDragLeave={handleDragLeave}
-      onDrop={handleDrop}
-      onMouseMove={handleMouseMoveActivity}
-    >
+    <div className="w-full pb-0 pt-3" onMouseMove={handleMouseMoveActivity}>
       <div className={cn('relative mx-auto w-full', composerWidthClass)}>
         <div
           role="group"
@@ -408,28 +366,10 @@ export function InputArea({
             'relative flex w-full flex-col overflow-hidden text-left cursor-text',
             'theme-composer-surface',
             shellRadiusClass,
-            shellPaddingClass,
-            isDragging && 'ring-2 ring-[var(--theme-accent)]'
+            shellPaddingClass
           )}
           onClick={handleContainerClick}
         >
-          <AnimatePresence initial={false}>
-            {isDragging && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={fastTransition}
-                className="pointer-events-none absolute inset-2 z-20 flex items-center justify-center rounded-[26px] border border-dashed border-[var(--theme-accent)] bg-[color-mix(in_srgb,var(--theme-accent)_10%,var(--theme-surface))]"
-              >
-                <div className="flex items-center gap-3 rounded-full bg-[var(--theme-surface)] px-4 py-2 text-sm text-[var(--theme-text-primary)] shadow-lg">
-                  <ImagePlus className="h-4 w-4 text-[var(--theme-accent)]" />
-                  Drop files to attach them
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-
           {showAttachmentRail && (
             <ComposerAttachments files={attachedFiles} onRemove={removeFile} />
           )}

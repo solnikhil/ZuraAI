@@ -37,7 +37,13 @@ describe('extractOcrElements', () => {
 
   it('scales OCR bounds back into screenshot coordinates and deletes its temporary image', async () => {
     mocks.runPowerShell.mockResolvedValue({
-      stdout: JSON.stringify({ text: 'Punjabi', x: 40, y: 60, width: 80, height: 20 }),
+      stdout: JSON.stringify({
+        textBase64: Buffer.from('Punjabi').toString('base64'),
+        x: 40,
+        y: 60,
+        width: 80,
+        height: 20,
+      }),
     })
 
     const result = await extractOcrElements(Buffer.from('source').toString('base64'), 1_000, 500)
@@ -62,6 +68,25 @@ describe('extractOcrElements', () => {
       ],
     })
     expect(mocks.unlink).toHaveBeenCalledOnce()
+  })
+
+  it('safely decodes OCR text containing control characters', async () => {
+    mocks.runPowerShell.mockResolvedValue({
+      stdout: JSON.stringify({
+        textBase64: Buffer.from('Punjabi\u000bHits').toString('base64'),
+        x: 10,
+        y: 10,
+        width: 100,
+        height: 20,
+      }),
+    })
+
+    const result = await extractOcrElements(Buffer.from('source').toString('base64'), 100, 100)
+
+    expect(result).toMatchObject({
+      status: 'available',
+      elements: [{ text: 'Punjabi Hits' }],
+    })
   })
 
   it('surfaces OCR failure without leaking the temporary image', async () => {

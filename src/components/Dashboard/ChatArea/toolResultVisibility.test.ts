@@ -1,67 +1,35 @@
 import { describe, expect, it } from 'vitest'
 
-import {
-  shouldHideGenericToolResultCard,
-  shouldHideMessageToolResultCard,
-  shouldSuppressNoisyToolUi,
-} from './toolResultVisibility'
-import type { ToolCallResult } from '../../../chat/types'
-import type { ToolCall, ToolResult } from '../../../tools/types'
+import { shouldShowLiveToolResultCard, shouldSuppressNoisyToolUi } from './toolResultVisibility'
 
-function buildToolResult(overrides: {
-  toolCall?: Partial<ToolCall>
-  result?: Partial<ToolResult>
-}): ToolCallResult {
-  return {
-    toolCall: {
-      id: 'tool-1',
-      name: 'demo_tool',
-      arguments: {},
-      ...overrides.toolCall,
-    },
-    result: {
-      success: true,
-      data: {},
-      ...overrides.result,
-    },
-  }
-}
-
-describe('shouldHideGenericToolResultCard', () => {
-  it('hides web search results', () => {
-    expect(
-      shouldHideGenericToolResultCard(
-        buildToolResult({
-          toolCall: { name: 'web_search' },
-        })
-      )
-    ).toBe(true)
-  })
-
-  it('hides system_shell results', () => {
-    expect(
-      shouldHideGenericToolResultCard(
-        buildToolResult({
-          toolCall: { name: 'system_shell' },
-        })
-      )
-    ).toBe(true)
-  })
-
-  it('keeps artifact tool results visible', () => {
-    for (const toolName of ['artifact_create', 'artifact_update']) {
-      expect(
-        shouldHideGenericToolResultCard(
-          buildToolResult({
-            toolCall: { name: toolName },
-          })
-        )
-      ).toBe(false)
-      expect(shouldSuppressNoisyToolUi(toolName)).toBe(false)
+describe('shouldShowLiveToolResultCard', () => {
+  it('hides all generic agent/OS/MCP tool cards by default', () => {
+    for (const toolName of [
+      'window_list',
+      'window_focus',
+      'web_search',
+      'system_shell',
+      'computer_screenshot',
+      'ui_get_app_state',
+      'app_launch',
+      'file_read',
+      'code_execution',
+      'mcp__seqthnk__sequentialthinking',
+      'demo_tool',
+    ]) {
+      expect(shouldShowLiveToolResultCard(toolName)).toBe(false)
     }
   })
 
-  it('hides noisy built-in execution and scheduled task results', () => {
+  it('shows only allowlisted product-surface tools', () => {
+    for (const toolName of ['artifact_create', 'artifact_update', 'mcp_request_add']) {
+      expect(shouldShowLiveToolResultCard(toolName)).toBe(true)
+    }
+  })
+})
+
+describe('shouldSuppressNoisyToolUi', () => {
+  it('suppresses high-churn tools from the thinking timeline', () => {
     for (const toolName of [
       'code_execution',
       'scheduled_task_create',
@@ -70,105 +38,13 @@ describe('shouldHideGenericToolResultCard', () => {
       'scheduled_task_list',
       'scheduled_task_get_logs',
     ]) {
-      expect(
-        shouldHideGenericToolResultCard(
-          buildToolResult({
-            toolCall: { name: toolName },
-          })
-        )
-      ).toBe(true)
       expect(shouldSuppressNoisyToolUi(toolName)).toBe(true)
     }
   })
 
-  it('hides namespaced MCP results', () => {
-    expect(
-      shouldHideGenericToolResultCard(
-        buildToolResult({
-          toolCall: { name: 'mcp__seqthnk__sequentialthinking' },
-        })
-      )
-    ).toBe(true)
-  })
-
-  it('hides MCP results when metadata lost the explicit origin flag', () => {
-    expect(
-      shouldHideGenericToolResultCard(
-        buildToolResult({
-          toolCall: { name: 'sequentialthinking' },
-          result: {
-            metadata: {
-              origin: 'mcp',
-              serverId: 'server-1',
-              namespacedToolName: 'mcp__seqthnk__sequentialthinking',
-              serverName: 'seqthnk',
-              originalToolName: 'sequentialthinking',
-              trusted: true,
-              approvalState: 'not-required',
-              durationMs: 12,
-              outcome: 'success',
-            },
-          },
-        })
-      )
-    ).toBe(true)
-  })
-
-  it('keeps normal non-MCP tool results visible', () => {
-    expect(
-      shouldHideGenericToolResultCard(
-        buildToolResult({
-          toolCall: { name: 'image_resize' },
-          result: {
-            metadata: {
-              origin: 'builtin-main',
-            },
-          },
-        })
-      )
-    ).toBe(false)
-  })
-})
-
-describe('shouldHideMessageToolResultCard', () => {
-  it('hides code execution card when thinking block already contains completed code_execution tool', () => {
-    const result = buildToolResult({
-      toolCall: { name: 'code_execution' },
-      result: {
-        success: false,
-        error: 'Piston API error',
-      },
-    })
-
-    expect(
-      shouldHideMessageToolResultCard(result, [
-        {
-          type: 'tool',
-          timestamp: Date.now(),
-          toolName: 'code_execution',
-          toolInput: { code: 'print(2 + 2)', language: 'python' },
-          toolOutput: {
-            success: false,
-            error: 'Piston API error',
-          },
-        },
-      ])
-    ).toBe(true)
-  })
-
-  it('hides code execution card even when no matching thinking block exists', () => {
-    const result = buildToolResult({
-      toolCall: { name: 'code_execution' },
-    })
-
-    expect(
-      shouldHideMessageToolResultCard(result, [
-        {
-          type: 'tool',
-          timestamp: Date.now(),
-          toolName: 'some_other_tool',
-        },
-      ])
-    ).toBe(true)
+  it('does not suppress normal agent tools from the thinking timeline', () => {
+    expect(shouldSuppressNoisyToolUi('window_list')).toBe(false)
+    expect(shouldSuppressNoisyToolUi('artifact_create')).toBe(false)
+    expect(shouldSuppressNoisyToolUi(undefined)).toBe(false)
   })
 })

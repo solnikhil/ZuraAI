@@ -1,0 +1,102 @@
+/* Full-window external file drop surface (main app shell) */
+
+.window-file-drop-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 8500;
+  pointer-events: none;
+  display: flex;
+  align-items: stretch;
+  justify-content: stretch;
+}
+
+.window-file-drop-overlay__scrim {
+  position: absolute;
+  inset: 0;
+  background: color-mix(in srgb, var(--theme-background) 55%, transparent);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+.window-file-drop-overlay__frame {
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  margin: 14px;
+  border-radius: 18px;
+  border: 2px dashed color-mix(in srgb, var(--theme-accent) 72%, var(--theme-border));
+  background: color-mix(in srgb, var(--theme-accent) 10%, var(--theme-surface) 70%);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--theme-accent) 18%, transparent),
+    var(--theme-shadow-sm, 0 8px 28px rgba(0, 0, 0, 0.18));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: window-file-drop-in 140ms ease-out;
+}
+
+.app-frame--windows:not(.app-frame--maximized) .window-file-drop-overlay__frame {
+  /* Stay inside the frameless window curve */
+  border-radius: 12px;
+}
+
+.window-file-drop-overlay__card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 22px 28px;
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--theme-surface) 92%, transparent);
+  border: 1px solid color-mix(in srgb, var(--theme-border) 80%, transparent);
+  box-shadow: 0 12px 40px color-mix(in srgb, black 18%, transparent);
+  max-width: min(420px, calc(100% - 48px));
+  text-align: center;
+}
+
+.window-file-drop-overlay__icon-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--theme-accent) 16%, var(--theme-surface));
+  color: var(--theme-accent);
+}
+
+.window-file-drop-overlay__icon {
+  width: 26px;
+  height: 26px;
+}
+
+.window-file-drop-overlay__title {
+  font-size: 1.05rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--theme-text-primary);
+  line-height: 1.25;
+}
+
+.window-file-drop-overlay__subtitle {
+  font-size: 0.85rem;
+  color: var(--theme-text-secondary);
+  line-height: 1.35;
+}
+
+@keyframes window-file-drop-in {
+  from {
+    opacity: 0;
+    transform: scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .window-file-drop-overlay__frame {
+    animation: none;
+  }
+}

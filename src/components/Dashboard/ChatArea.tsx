@@ -15,9 +15,16 @@ import { StreamingMessage } from './ChatArea/StreamingMessage'
 import { InputArea } from './ChatArea/InputArea'
 import { FolderContextBar } from './ChatArea/FolderContextBar'
 import { VirtualMessageList } from './ChatArea/VirtualMessageList'
-import { shouldHideGenericToolResultCard } from './ChatArea/toolResultVisibility'
+import { shouldShowLiveToolResultCard } from './ChatArea/toolResultVisibility'
 import { useStreamingChat, usePromptAutoHide } from './ChatArea/hooks'
 import type { AttachedFile } from './ChatArea/attachmentUtils'
+import {
+  canAnalyzeImageAttachments,
+  isTextExtractableAttachment,
+  mergeAttachedFiles,
+  processFiles,
+  providerSupportsVisionUploads,
+} from './ChatArea/attachmentUtils'
 import { NORMAL_PLACEHOLDERS, GENZ_PLACEHOLDERS } from './ChatArea/placeholders'
 import { CHAT_AREA_STYLES } from './ChatArea/chatAreaStyles'
 import { FOLDERS_SECTION_ENABLED } from './foldersFeature'
@@ -36,9 +43,14 @@ export default function ChatArea() {
   const { showToast } = useToast()
   const { setSelectedFolderId, setDashboardView } = useAppShell()
   const streamingState = useStreamingState()
-  const { draftText: input, setDraftText: setInput } = useComposerDraft()
+  const {
+    draftText: input,
+    setDraftText: setInput,
+    registerIncomingFilesHandler,
+  } = useComposerDraft()
   const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([])
   const [promptFocused, setPromptFocused] = useState(false)
+  const MAX_ATTACHMENTS = 10
   const inputTextareaRef = useRef<HTMLTextAreaElement | null>(null)
   const [isLoadingOlder, setIsLoadingOlder] = useState(false)
   const currentSession = sessions.find((s) => s.id === currentSessionId)
@@ -99,6 +111,62 @@ export default function ChatArea() {
   const handlePromptActivity = useCallback(() => {
     resetTimer()
   }, [resetTimer])
+
+  // Accept files dropped onto the main window (WindowFileDropOverlay).
+  useEffect(() => {
+    const visionUploadsAvailable = providerSupportsVisionUploads(settings.modelProvider)
+    const canUseImageUploads = canAnalyzeImageAttachments(settings)
+
+    return registerIncomingFilesHandler((files) => {
+      void (async () => {
+        const processed = await processFiles(files, {
+          onError: (message) => showToast(message, 'error'),
+        })
+        if (processed.length === 0) return
+
+        setAttachedFiles((prev) => {
+          let accepted = processed
+
+          const unsupportedDocuments = accepted.filter(
+            (file) => file.type !== 'image' && !isTextExtractableAttachment(file)
+          )
+          if (unsupportedDocuments.length > 0) {
+            showToast(
+              `These attachments are not supported yet: ${unsupportedDocuments
+                .map((file) => file.name)
+                .join(', ')}. Use text-based files like .txt, .md, .csv, .json, or .xml.`,
+              'error'
+            )
+            accepted = accepted.filter((file) => !unsupportedDocuments.includes(file))
+          }
+
+          if (!canUseImageUploads) {
+            const nonImageFiles = accepted.filter((file) => file.type !== 'image')
+            if (nonImageFiles.length !== accepted.length) {
+              showToast(
+                visionUploadsAvailable
+                  ? 'Select a vision-capable model to attach images.'
+                  : 'Image attachments are not available for the current provider.',
+                'error'
+              )
+            }
+            accepted = nonImageFiles
+          }
+
+          if (accepted.length === 0) return prev
+
+          const merged = mergeAttachedFiles(prev, accepted)
+          if (merged.length === prev.length) return prev
+
+          if (merged.length > MAX_ATTACHMENTS) {
+            showToast(`You can attach up to ${MAX_ATTACHMENTS} items at a time.`, 'error')
+          }
+
+          return merged.slice(0, MAX_ATTACHMENTS)
+        })
+      })()
+    })
+  }, [registerIncomingFilesHandler, settings, showToast])
 
   const handlePromptFocusChange = useCallback((focused: boolean) => {
     setPromptFocused(focused)
@@ -298,7 +366,9 @@ export default function ChatArea() {
     () =>
       isShowingLoadingFallback
         ? []
-        : toolState.toolResults.filter((result) => !shouldHideGenericToolResultCard(result)),
+        : toolState.toolResults.filter((result) =>
+            shouldShowLiveToolResultCard(result.toolCall.name)
+          ),
     [isShowingLoadingFallback, toolState.toolResults]
   )
   const displayActiveToolCalls = isShowingLoadingFallback

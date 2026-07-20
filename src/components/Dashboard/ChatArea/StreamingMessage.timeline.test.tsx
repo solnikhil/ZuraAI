@@ -46,10 +46,6 @@ vi.mock('../../ResponseInfo', () => ({
   default: () => null,
 }))
 
-vi.mock('../../../tools/ui/ToolResultDisplay', () => ({
-  default: () => null,
-}))
-
 vi.mock('./MessageRenderer/attachmentUtils', () => ({
   formatFileSize: () => '1 KB',
 }))

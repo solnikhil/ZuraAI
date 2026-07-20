@@ -86,6 +86,71 @@ describe('computer-use screenshot capture', () => {
     )
   })
 
+  it('matches an app by owning process when its window title is dynamic', async () => {
+    mocks.getSources.mockResolvedValue([
+      {
+        id: 'window:67908:0',
+        name: 'Meek Mill - Going Bad (feat. Drake)',
+        thumbnail: makeImage(800, 600),
+        display_id: '',
+      },
+    ])
+    mocks.execFile.mockImplementation((_file, args, _options, callback) => {
+      const script = String(args.at(-1))
+      callback(
+        null,
+        script.includes('GetWindowThreadProcessId')
+          ? '[{"hwnd":67908,"processId":24336,"processName":"Spotify"}]'
+          : '{"x":100,"y":80,"width":800,"height":600}',
+        ''
+      )
+    })
+
+    const { captureScreenshot } = await import('./screenshot')
+    const result = await captureScreenshot({ appName: 'Spotify' })
+
+    expect(result.target).toEqual({
+      type: 'window',
+      id: 'window:67908:0',
+      title: 'Meek Mill - Going Bad (feat. Drake)',
+      hwnd: 67908,
+      processId: 24336,
+      processName: 'Spotify',
+    })
+  })
+
+  it('lists stable process and hwnd metadata beside changing titles', async () => {
+    mocks.getSources.mockResolvedValue([
+      {
+        id: 'window:67908:0',
+        name: 'Another Song Title',
+        thumbnail: makeImage(0, 0),
+        display_id: '',
+      },
+    ])
+    mocks.execFile.mockImplementation((_file, _args, _options, callback) => {
+      callback(
+        null,
+        '[{"hwnd":67908,"processId":24336,"processName":"Spotify"}]',
+        ''
+      )
+    })
+
+    const { listWindows } = await import('./screenshot')
+
+    await expect(listWindows()).resolves.toEqual({
+      windows: [
+        {
+          title: 'Another Song Title',
+          id: 'window:67908:0',
+          hwnd: 67908,
+          processId: 24336,
+          processName: 'Spotify',
+        },
+      ],
+    })
+  })
+
   it('fails closed when targeted window bounds cannot be verified', async () => {
     mocks.getSources.mockResolvedValue([
       { id: 'window:22:0', name: 'Target App', thumbnail: makeImage(800, 600), display_id: '' },

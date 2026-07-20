@@ -33,10 +33,6 @@ vi.mock('../../ResponseInfo', () => ({
   default: () => null,
 }))
 
-vi.mock('../../../tools/ui/ToolResultDisplay', () => ({
-  default: ({ toolName }: { toolName: string }) => <div data-testid="tool-result">{toolName}</div>,
-}))
-
 vi.mock('./attachmentUtils', () => ({
   formatFileSize: () => '1 KB',
 }))
@@ -44,7 +40,7 @@ vi.mock('./attachmentUtils', () => ({
 import { MessageRenderer } from './MessageRenderer'
 
 describe('MessageRenderer MCP timeline', () => {
-  it('renders MCP tool history inline and skips duplicate MCP result cards', () => {
+  it('renders MCP tool history inline in the thinking timeline', () => {
     render(
       <MessageRenderer
         message={{
@@ -128,51 +124,9 @@ describe('MessageRenderer MCP timeline', () => {
 
     expect(screen.getByText('mcp__filesystem__read_file')).toBeInTheDocument()
     expect(screen.getByText('mcp__github__create_issue')).toBeInTheDocument()
-    expect(screen.queryByTestId('tool-result')).not.toBeInTheDocument()
   })
 
-  it('does not render generic tool result cards while the assistant is still streaming', () => {
-    render(
-      <MessageRenderer
-        message={{
-          id: 'message-mcp-streaming',
-          role: 'assistant',
-          content: 'Working...',
-          timestamp: 1,
-          toolResults: [
-            {
-              toolCall: {
-                id: 'tool-1',
-                name: 'mcp__seqthnk__sequentialthinking',
-                arguments: { thought: 'plan this' },
-              },
-              result: {
-                success: true,
-                data: { nextThoughtNeeded: true },
-                metadata: {
-                  origin: 'mcp',
-                  serverId: 'seqthnk',
-                  serverName: 'seqthnk',
-                  namespacedToolName: 'mcp__seqthnk__sequentialthinking',
-                  originalToolName: 'sequentialthinking',
-                  trusted: true,
-                  approvalState: 'approved',
-                  durationMs: 42,
-                  outcome: 'success',
-                },
-              },
-            },
-          ],
-        }}
-        isStreaming={true}
-        sessionId="session-1"
-      />
-    )
-
-    expect(screen.queryByTestId('tool-result')).not.toBeInTheDocument()
-  })
-
-  it('skips duplicate MCP result cards even when persisted metadata omits the explicit origin flag', () => {
+  it('renders MCP timeline history when persisted metadata omits the explicit origin flag', () => {
     render(
       <MessageRenderer
         message={{
@@ -221,6 +175,6 @@ describe('MessageRenderer MCP timeline', () => {
       />
     )
 
-    expect(screen.queryByTestId('tool-result')).not.toBeInTheDocument()
+    expect(screen.getByText('mcp__seqthnk__sequentialthinking')).toBeInTheDocument()
   })
 })

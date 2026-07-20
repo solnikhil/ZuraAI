@@ -14,6 +14,7 @@ import {
 } from '../native-common'
 import { serializeCoordinateContext } from '../computer-use/coordinates'
 import { captureScreenshot } from '../computer-use/screenshot'
+import { extractOcrElements, type OcrExtraction } from '../computer-use/ocr'
 import { ACTION_DELAY_MS } from '../computer-use/constants'
 import type {
   UiAutomationActionOutcome,
@@ -21,6 +22,7 @@ import type {
   UiAutomationBounds,
   UiAutomationElement,
   UiAutomationWindow,
+  UiBlock,
   UiFindArgs,
   UiWaitForArgs,
 } from './types'
@@ -195,6 +197,45 @@ function flattenWindows(state: UiAppState): UiAutomationElement[] {
   return elements
 }
 
+function buildUiBlocks(windows: UiAutomationWindow[], ocr?: OcrExtraction): UiBlock[] {
+  const blocks: UiBlock[] = []
+  const visit = (windowHwnd: number, element: UiAutomationElement) => {
+    const text = [element.name, element.value].filter(Boolean).join(' — ').trim()
+    if (element.visible && (text || element.supported_actions.length > 0)) {
+      blocks.push({
+        element_id: element.element_id,
+        source: element.source,
+        background_safe: element.background_safe,
+        coordinate_space: 'desktop',
+        window_hwnd: windowHwnd,
+        role: element.role,
+        text,
+        bounds: element.bounds,
+        supported_actions: element.supported_actions,
+      })
+    }
+    for (const child of element.children || []) visit(windowHwnd, child)
+  }
+  for (const window of windows) {
+    for (const element of window.elements) visit(window.hwnd, element)
+  }
+  if (ocr?.status === 'available') {
+    for (const element of ocr.elements) {
+      blocks.push({
+        element_id: element.element_id,
+        source: 'ocr',
+        background_safe: false,
+        coordinate_space: 'screenshot',
+        role: element.role,
+        text: element.text,
+        bounds: element.bounds,
+        supported_actions: [],
+      })
+    }
+  }
+  return blocks
+}
+
 function buildWindows(rawWindows: RawWindow[], now: number): UiAutomationWindow[] {
   const windows: UiAutomationWindow[] = []
 
@@ -356,11 +397,11 @@ function Walk($el, $parentRuntimeId, $depth) {
 
 foreach ($window in $windows) {
   $title = [string]$window.Current.Name
-  $pid = [int]$window.Current.ProcessId
+  $windowProcessId = [int]$window.Current.ProcessId
   $handle = [int64]$window.Current.NativeWindowHandle
   if (${hwnd !== undefined ? `$handle -ne ${hwnd}` : '$false'}) { continue }
   if (${windowTitle ? `$title -notlike ${psString(`*${windowTitle}*`)}` : '$false'}) { continue }
-  if (${processName ? `((Get-Process -Id $pid -ErrorAction SilentlyContinue).ProcessName -notlike ${psString(`*${processName}*`)})` : '$false'}) { continue }
+  if (${processName ? `((Get-Process -Id $windowProcessId -ErrorAction SilentlyContinue).ProcessName -notlike ${psString(`*${processName}*`)})` : '$false'}) { continue }
   if ($total -ge ${maxElements}) { $truncated = $true; break }
   $windowRuntimeId = ($window.GetRuntimeId() -join '.')
   $elements = @(Walk $window $null 1)
@@ -377,8 +418,8 @@ foreach ($window in $windows) {
   $items += [pscustomobject]@{
     hwnd = $handle
     title = $title
-    processId = $pid
-    processName = [string](Get-Process -Id $pid -ErrorAction SilentlyContinue).ProcessName
+    processId = $windowProcessId
+    processName = [string](Get-Process -Id $windowProcessId -ErrorAction SilentlyContinue).ProcessName
     runtimeId = $windowRuntimeId
     elements = @($elements)
   }
@@ -526,14 +567,20 @@ async function buildAppState(args: unknown = {}): Promise<UiAppState> {
     screenshotTarget.windowId || screenshotTarget.windowTitle || screenshotTarget.appName
   )
   let screenshot: UiAppState['screenshot']
+  let ocr: OcrExtraction | undefined
   try {
     const captured = await captureScreenshot(screenshotTarget)
+    ocr = await extractOcrElements(captured.image, captured.width, captured.height)
     screenshot = {
       status: 'available',
       image: captured.image,
       screenWidth: captured.width,
       screenHeight: captured.height,
       coordinateContext: serializeCoordinateContext(captured.coordinateContext),
+      ocr:
+        ocr.status === 'available'
+          ? { status: 'available', element_count: ocr.elements.length }
+          : { status: 'unavailable', error: ocr.error, element_count: 0 },
       ...(captured.target ? { target: captured.target } : {}),
     }
   } catch (error) {
@@ -563,6 +610,7 @@ async function buildAppState(args: unknown = {}): Promise<UiAppState> {
       : undefined,
     screenshot,
     windows,
+    ui_blocks: buildUiBlocks(windows, ocr),
     truncation: {
       max_depth: maxDepth,
       max_elements: maxElements,
@@ -574,6 +622,7 @@ async function buildAppState(args: unknown = {}): Promise<UiAppState> {
               captured_at: now,
               screenshot: {} as UiAppState['screenshot'],
               windows,
+              ui_blocks: [],
               truncation: {} as UiAppState['truncation'],
             }).length,
       truncated: raw.truncated === true,

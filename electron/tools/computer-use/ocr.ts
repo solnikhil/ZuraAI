@@ -24,7 +24,7 @@ export type OcrExtraction =
   | { status: 'unavailable'; error: string; elements: [] }
 
 interface RawOcrLine {
-  text?: unknown
+  textBase64?: unknown
   x?: unknown
   y?: unknown
   width?: unknown
@@ -65,7 +65,9 @@ $lines = @($result.Lines | Select-Object -First ${MAX_OCR_ELEMENTS} | ForEach-Ob
   $right = ($words | ForEach-Object { $_.BoundingRect.X + $_.BoundingRect.Width } | Measure-Object -Maximum).Maximum
   $bottom = ($words | ForEach-Object { $_.BoundingRect.Y + $_.BoundingRect.Height } | Measure-Object -Maximum).Maximum
   [pscustomobject]@{
-    text = [string](($words | ForEach-Object { $_.Text }) -join ' ')
+    textBase64 = [Convert]::ToBase64String(
+      [Text.Encoding]::UTF8.GetBytes([string](($words | ForEach-Object { $_.Text }) -join ' '))
+    )
     x = [double]$left
     y = [double]$top
     width = [double]($right - $left)
@@ -111,7 +113,14 @@ export async function extractOcrElements(
     const raw = parseJsonOutput<RawOcrLine[] | RawOcrLine>(stdout)
     const lines = Array.isArray(raw) ? raw : raw ? [raw] : []
     const elements = lines.flatMap((line): OcrVisualElement[] => {
-      const text = typeof line.text === 'string' ? line.text.trim().slice(0, 240) : ''
+      const text =
+        typeof line.textBase64 === 'string'
+          ? Buffer.from(line.textBase64, 'base64')
+              .toString('utf8')
+              .replace(/[\u0000-\u001f\u007f-\u009f]/g, ' ')
+              .trim()
+              .slice(0, 240)
+          : ''
       const x = finiteNumber(line.x)
       const y = finiteNumber(line.y)
       const lineWidth = finiteNumber(line.width)

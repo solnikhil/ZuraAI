@@ -6,14 +6,10 @@
  * 1. Only renders visible messages (DOM stays light)
  * 2. Smart auto-scroll that doesn't fight user interaction
  * 3. Streaming-aware: keeps pinned during token generation
- * 4. "Back to bottom" button when scrolled up
- *
- *
  */
 
 import React, { useRef, useState, useCallback, useEffect } from 'react'
 import { Virtuoso, VirtuosoHandle } from 'react-virtuoso'
-import { ChevronDown } from 'lucide-react'
 import type { Message } from '../../../chat/types'
 
 interface VirtualMessageListProps {
@@ -96,9 +92,7 @@ export function VirtualMessageList({
     return grew ? 'auto' : false
   }, [messages.length])
 
-  /**
-   * Scroll to bottom - used for "Back to bottom" button
-   */
+  /** Scroll to bottom helper for session resets and pin recovery. */
   const scrollToBottom = useCallback((behavior: 'auto' | 'smooth' = 'auto') => {
     virtuosoRef.current?.scrollToIndex({
       index: 'LAST',
@@ -234,44 +228,6 @@ export function VirtualMessageList({
             : () => <div style={{ paddingBottom: '180px' }} />,
         }}
       />
-
-      {/* Back to bottom button - appears when user scrolls up */}
-      {!atBottom && (
-        <button
-          onClick={() => {
-            setUserScrollLocked(false)
-            scrollToBottom('smooth')
-          }}
-          style={{
-            position: 'absolute',
-            right: 24,
-            bottom: 200,
-            width: 40,
-            height: 40,
-            borderRadius: '50%',
-            background: 'var(--theme-surface)',
-            border: '1px solid var(--theme-border)',
-            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            cursor: 'pointer',
-            transition: 'all 0.2s ease',
-            zIndex: 10,
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.background = 'var(--theme-surface-hover)'
-            e.currentTarget.style.transform = 'scale(1.05)'
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.background = 'var(--theme-surface)'
-            e.currentTarget.style.transform = 'scale(1)'
-          }}
-          aria-label="Scroll to bottom"
-        >
-          <ChevronDown size={20} style={{ color: 'var(--theme-text-primary)' }} />
-        </button>
-      )}
     </div>
   )
 }

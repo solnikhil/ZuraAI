@@ -11,6 +11,7 @@ import { useMouseNavigation } from './shell/useMouseNavigation'
 import { useResizeIndicator } from './shell/useResizeIndicator'
 import { useWindowMaximizeState } from './shell/useWindowMaximizeState'
 import { useShellRouteState } from './shell/useShellRouteState'
+import WindowFileDropOverlay from './shell/WindowFileDropOverlay'
 import { isMacOSRuntime, isWindowsRuntime } from '../utils/platform'
 
 export default function AppShellLayout() {
@@ -97,6 +98,7 @@ export default function AppShellLayout() {
         <div className="app-content">
           <Outlet />
         </div>
+        <WindowFileDropOverlay />
         {/* Render CSS-based resize handles on Windows (frameless window has no native handles) */}
         {isWindows && <ResizeHandles disabled={isMaximized} />}
         {isDev && resizeIndicator && (

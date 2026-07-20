@@ -22,7 +22,22 @@ export interface ScreenshotCaptureResult {
     id: string
     title: string
     hwnd?: number
+    processId?: number
+    processName?: string
   }
+}
+
+export interface CapturableWindow {
+  title: string
+  id: string
+  hwnd?: number
+  processId?: number
+  processName?: string
+}
+
+interface WindowOwner {
+  processId: number
+  processName: string
 }
 
 function getDisplayForSource(
@@ -44,7 +59,8 @@ function normalizeTarget(value: string | undefined): string {
 
 function sourceMatchesTarget(
   source: Electron.DesktopCapturerSource,
-  options: ScreenshotCaptureOptions
+  options: ScreenshotCaptureOptions,
+  owner?: WindowOwner
 ): boolean {
   const windowId = normalizeTarget(options.windowId)
   const windowTitle = normalizeTarget(options.windowTitle)
@@ -54,7 +70,12 @@ function sourceMatchesTarget(
 
   if (windowId && sourceId !== windowId && !sourceId.includes(windowId)) return false
   if (windowTitle && !sourceName.includes(windowTitle)) return false
-  if (appName && !sourceName.includes(appName)) return false
+  if (
+    appName &&
+    !sourceName.includes(appName) &&
+    !normalizeTarget(owner?.processName).includes(appName)
+  )
+    return false
   return Boolean(windowId || windowTitle || appName)
 }
 
@@ -88,6 +109,55 @@ function runPowerShell(script: string): Promise<string> {
       }
     )
   })
+}
+
+async function getWindowOwners(
+  sources: Electron.DesktopCapturerSource[]
+): Promise<Map<number, WindowOwner>> {
+  const owners = new Map<number, WindowOwner>()
+  if (process.platform !== 'win32') return owners
+  const handles = [...new Set(sources.map((source) => parseWindowHandle(source.id)).filter(Boolean))]
+  if (handles.length === 0) return owners
+
+  const script = `
+Add-Type @"
+using System;
+using System.Runtime.InteropServices;
+public static class ZuraWindowOwner {
+  [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
+}
+"@
+$items = foreach ($handle in @(${handles.join(',')})) {
+  [uint32]$ownerProcessId = 0
+  [void][ZuraWindowOwner]::GetWindowThreadProcessId([IntPtr][int64]$handle, [ref]$ownerProcessId)
+  $ownerProcess = Get-Process -Id $ownerProcessId -ErrorAction SilentlyContinue
+  [pscustomobject]@{
+    hwnd = [int64]$handle
+    processId = [int64]$ownerProcessId
+    processName = if ($null -ne $ownerProcess) { [string]$ownerProcess.ProcessName } else { '' }
+  }
+}
+@($items) | ConvertTo-Json -Compress
+`
+
+  try {
+    const stdout = await runPowerShell(script)
+    const parsed = JSON.parse(stdout.trim()) as
+      | Array<{ hwnd?: unknown; processId?: unknown; processName?: unknown }>
+      | { hwnd?: unknown; processId?: unknown; processName?: unknown }
+    for (const item of Array.isArray(parsed) ? parsed : [parsed]) {
+      if (
+        typeof item.hwnd === 'number' &&
+        typeof item.processId === 'number' &&
+        typeof item.processName === 'string'
+      ) {
+        owners.set(item.hwnd, { processId: item.processId, processName: item.processName })
+      }
+    }
+  } catch {
+    // Process metadata improves app-name matching, but exact id/title capture remains usable.
+  }
+  return owners
 }
 
 async function getWindowBounds(
@@ -155,10 +225,13 @@ export async function captureScreenshot(
     types: sourceTypes,
     thumbnailSize: { width: 1600, height: 900 },
   })
+  const owners = options.appName ? await getWindowOwners(sources) : new Map<number, WindowOwner>()
 
   let source = sources[0]
   if (wantsWindow) {
-    const match = sources.find((s) => sourceMatchesTarget(s, options))
+    const match = sources.find((s) =>
+      sourceMatchesTarget(s, options, owners.get(parseWindowHandle(s.id) || 0))
+    )
     if (match) source = match
   } else if (options.displayId) {
     const match = sources.find(
@@ -175,7 +248,10 @@ export async function captureScreenshot(
     )
   }
 
-  if (wantsWindow && !sourceMatchesTarget(source, options)) {
+  if (
+    wantsWindow &&
+    !sourceMatchesTarget(source, options, owners.get(parseWindowHandle(source.id) || 0))
+  ) {
     throw new Error('No matching window source available for capture')
   }
 
@@ -200,6 +276,7 @@ export async function captureScreenshot(
   }
   const coordinateBounds = windowBounds ?? display.bounds
   const targetHwnd = wantsWindow ? parseWindowHandle(source.id) : null
+  const targetOwner = targetHwnd ? owners.get(targetHwnd) : undefined
 
   return {
     image: base64,
@@ -227,17 +304,30 @@ export async function captureScreenshot(
       id: source.id,
       title: source.name,
       ...(targetHwnd ? { hwnd: targetHwnd } : {}),
+      ...(targetOwner
+        ? { processId: targetOwner.processId, processName: targetOwner.processName }
+        : {}),
     },
   }
 }
 
-export async function listWindows(): Promise<{ windows: Array<{ title: string; id: string }> }> {
+export async function listWindows(): Promise<{ windows: CapturableWindow[] }> {
   const sources = await desktopCapturer.getSources({
     types: ['window'],
     thumbnailSize: { width: 0, height: 0 },
   })
+  const owners = await getWindowOwners(sources)
   const windows = sources
-    .map((s) => ({ title: s.name, id: s.id }))
+    .map((s) => {
+      const hwnd = parseWindowHandle(s.id)
+      const owner = hwnd ? owners.get(hwnd) : undefined
+      return {
+        title: s.name,
+        id: s.id,
+        ...(hwnd ? { hwnd } : {}),
+        ...(owner ? { processId: owner.processId, processName: owner.processName } : {}),
+      }
+    })
     .filter((w) => w.title.trim().length > 0)
   return { windows }
 }

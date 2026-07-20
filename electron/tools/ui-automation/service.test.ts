@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   runPowerShell: vi.fn(),
   captureScreenshot: vi.fn(),
+  extractOcrElements: vi.fn(),
 }))
 
 vi.mock('electron', () => ({
@@ -31,6 +32,10 @@ vi.mock('../computer-use/screenshot', () => ({
   captureScreenshot: mocks.captureScreenshot,
 }))
 
+vi.mock('../computer-use/ocr', () => ({
+  extractOcrElements: mocks.extractOcrElements,
+}))
+
 import {
   executeUiClick,
   executeUiGetAppState,
@@ -51,6 +56,7 @@ function makeState(): UiAppState {
       screenWidth: 100,
       screenHeight: 100,
       coordinateContext: {},
+      ocr: { status: 'available', element_count: 0 },
     },
     windows: [
       {
@@ -112,6 +118,7 @@ function makeState(): UiAppState {
         ],
       },
     ],
+    ui_blocks: [],
     truncation: {
       max_depth: 4,
       max_elements: 120,
@@ -190,6 +197,8 @@ describe('strict background UI automation actions', () => {
   beforeEach(() => {
     mocks.runPowerShell.mockReset()
     mocks.captureScreenshot.mockReset()
+    mocks.extractOcrElements.mockReset()
+    mocks.extractOcrElements.mockResolvedValue({ status: 'available', elements: [] })
     mocks.captureScreenshot.mockResolvedValue({
       image: 'image',
       width: 100,
@@ -278,6 +287,56 @@ describe('strict background UI automation actions', () => {
     expect(snapshotPowerShell).toContain('$elements = @(Walk $window $null 1)')
     expect(snapshotPowerShell).toContain('elements = @($elements)')
     expect(snapshotPowerShell).toContain('[ZuraLegacyAccessibility]::Capture')
+    expect(snapshotPowerShell).toContain('$windowProcessId = [int]$window.Current.ProcessId')
+    expect(snapshotPowerShell).not.toContain('$pid = [int]$window.Current.ProcessId')
+  })
+
+  it('returns compact UI blocks from accessibility providers and OCR', async () => {
+    mocks.runPowerShell.mockResolvedValueOnce({
+      stdout: JSON.stringify(rawSnapshot(['Invoke'])),
+      stderr: '',
+    })
+    mocks.extractOcrElements.mockResolvedValueOnce({
+      status: 'available',
+      elements: [
+        {
+          element_id: 'ocr_punjabi',
+          source: 'ocr',
+          background_safe: false,
+          role: 'Text',
+          text: 'Punjabi Hits',
+          bounds: { x: 20, y: 30, width: 100, height: 20 },
+        },
+      ],
+    })
+
+    const result = await executeUiGetAppState({ processName: 'Spotify' })
+    const state = (result.data as { state: UiAppState }).state
+
+    expect(state.screenshot).toMatchObject({
+      ocr: { status: 'available', element_count: 1 },
+    })
+    expect(state.ui_blocks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          source: 'uia',
+          coordinate_space: 'desktop',
+          window_hwnd: 100,
+          text: 'Save',
+          supported_actions: ['click'],
+        }),
+        expect.objectContaining({
+          source: 'ocr',
+          coordinate_space: 'screenshot',
+          text: 'Punjabi Hits',
+          supported_actions: [],
+        }),
+      ])
+    )
+    expect(mocks.captureScreenshot).toHaveBeenCalledWith({
+      windowTitle: undefined,
+      appName: 'Spotify',
+    })
   })
 
   it('normalizes MSAA fallback elements and invokes their validated default action', async () => {

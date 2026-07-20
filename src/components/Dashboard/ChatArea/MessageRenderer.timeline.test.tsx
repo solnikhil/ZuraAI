@@ -52,10 +52,6 @@ vi.mock('../../ResponseInfo', () => ({
   default: () => null,
 }))
 
-vi.mock('../../../tools/ui/ToolResultDisplay', () => ({
-  default: ({ toolName }: { toolName: string }) => <div data-testid="tool-result">{toolName}</div>,
-}))
-
 vi.mock('./attachmentUtils', () => ({
   formatFileSize: () => '1 KB',
 }))

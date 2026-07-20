@@ -1,182 +1,104 @@
-import { useEffect, useState } from 'react'
-import { isSkippedBuiltinToolResult, type ToolExecutionMetadata } from '../types'
-import {
-  ChevronDown,
-  ChevronUp,
-  ExternalLink,
-  AlertCircle,
-  AlertTriangle,
-  Globe,
-  Search,
-  Wrench,
-  CheckCircle,
-  XCircle,
-} from '../../components/icons'
-import { getWebToolLabel, inferWebToolModeFromResultData } from './webToolDisplay'
-import {
-  normalizeToolPresentation,
-  stringifyToolValue,
-  type ToolPresentationViewModel,
-} from './toolPresentation'
+/**
+ * Live post-message tool surfaces.
+ * Only allowlisted tools render here (artifacts + MCP add review).
+ * Generic agent/OS/MCP cards are intentionally not rendered.
+ */
+
+import { useState } from 'react'
+import { CheckCircle, Wrench, XCircle } from '../../components/icons'
 import { useOptionalMcp } from '../../mcp/McpContext'
 import type { McpAgentAddApproveResult, McpAgentAddReview } from '../../mcp/addRequestTypes'
+import { shouldShowLiveToolResultCard } from './liveToolResultCards'
 
 import './ToolResultDisplay.css'
-
-interface SearchResult {
-  title: string
-  url: string
-  snippet: string
-  favicon?: string
-  // LobeHub-compatible metadata fields
-  source?: string
-  displayed_link?: string
-  date?: string
-}
-
-interface ImageResult {
-  url: string
-  description?: string
-}
-
-interface WebSearchResult {
-  query?: string
-  results?: SearchResult[]
-  images?: ImageResult[]
-  imageCount?: number
-  searchDepth?: string
-  extractDepth?: string
-  source?: string
-  intent?: string
-  answer?: string
-}
 
 interface ToolResultDisplayProps {
   toolName: string
   result: unknown
   error?: string
-  metadata?: ToolExecutionMetadata
   toolArguments?: Record<string, unknown>
+  /** Unused — kept so ChatArea can pass through without branching. */
+  metadata?: unknown
   executionTime?: number
   sessionId?: string
   messageId?: string
   toolResultIndex?: number
 }
 
-function resolveScreenshotSrc(data: Record<string, unknown> | undefined): {
-  inlineBase64: string | null
-  mediaRef: string | null
-  nestedScreenshot?: Record<string, unknown>
-} {
-  if (!data) return { inlineBase64: null, mediaRef: null }
-
-  // Nested ui_* shape: screenshot: { image | mediaRef, ... }
-  if (data.screenshot && typeof data.screenshot === 'object' && !Array.isArray(data.screenshot)) {
-    const nested = data.screenshot as Record<string, unknown>
-    if (typeof nested.mediaRef === 'string') {
-      return { inlineBase64: null, mediaRef: nested.mediaRef, nestedScreenshot: nested }
-    }
-    if (typeof nested.image === 'string' && nested.image.length > 0) {
-      return { inlineBase64: nested.image, mediaRef: null, nestedScreenshot: nested }
-    }
-  }
-
-  if (typeof data.mediaRef === 'string') {
-    return { inlineBase64: null, mediaRef: data.mediaRef }
-  }
-
-  const inline =
-    typeof data.screenshot === 'string'
-      ? data.screenshot
-      : typeof data.image === 'string'
-        ? data.image
-        : null
-  return { inlineBase64: inline, mediaRef: null }
-}
-
-function ToolScreenshotImage({
-  inlineBase64,
-  mediaRef,
-  alt,
-}: {
-  inlineBase64: string | null
-  mediaRef: string | null
-  alt: string
-}) {
-  const [loadedSrc, setLoadedSrc] = useState<string | null>(() => {
-    if (!inlineBase64) return null
-    return inlineBase64.startsWith('data:') ? inlineBase64 : `data:image/png;base64,${inlineBase64}`
-  })
-  const [loadError, setLoadError] = useState(false)
-
-  useEffect(() => {
-    if (inlineBase64) {
-      setLoadedSrc(
-        inlineBase64.startsWith('data:') ? inlineBase64 : `data:image/png;base64,${inlineBase64}`
-      )
-      return
-    }
-    if (!mediaRef || typeof window === 'undefined' || !window.ipcRenderer) return
-
-    let cancelled = false
-    void window.ipcRenderer.invoke('tool-media:load', mediaRef).then((dataUrl) => {
-      if (cancelled) return
-      if (typeof dataUrl === 'string' && dataUrl.length > 0) {
-        setLoadedSrc(dataUrl)
-      } else {
-        setLoadError(true)
-      }
-    })
-    return () => {
-      cancelled = true
-    }
-  }, [inlineBase64, mediaRef])
-
-  if (loadError) {
-    return (
-      <div className="tool-result-mcp-detail-row">
-        <span className="tool-result-mcp-detail-value">Screenshot unavailable</span>
-      </div>
-    )
-  }
-
-  if (!loadedSrc) {
-    return (
-      <div className="tool-result-mcp-detail-row">
-        <span className="tool-result-mcp-detail-value">Loading screenshot…</span>
-      </div>
-    )
-  }
-
-  return (
-    <div style={{ padding: '8px 12px' }}>
-      <img
-        src={loadedSrc}
-        alt={alt}
-        style={{
-          width: '100%',
-          maxHeight: '300px',
-          objectFit: 'contain',
-          borderRadius: '8px',
-          background: '#000',
-        }}
-      />
-    </div>
-  )
-}
-
 export default function ToolResultDisplay({
   toolName,
   result,
   error,
-  metadata,
   toolArguments,
-  executionTime,
-  sessionId: _sessionId,
-  messageId: _messageId,
-  toolResultIndex: _toolResultIndex,
 }: ToolResultDisplayProps) {
-  const [isExpanded, setIsExpanded] = useState(false)
+  if (!shouldShowLiveToolResultCard(toolName)) {
+    return null
+  }
+
+  if (toolName === 'artifact_create' || toolName === 'artifact_update') {
+    return (
+      <ArtifactResultCard
+        toolName={toolName}
+        result={result}
+        error={error}
+        toolArguments={toolArguments}
+      />
+    )
+  }
+
+  if (toolName === 'mcp_request_add') {
+    return <McpRequestAddCard result={result} error={error} />
+  }
+
+  return null
+}
+
+function ArtifactResultCard({
+  toolName,
+  result,
+  error,
+  toolArguments,
+}: {
+  toolName: 'artifact_create' | 'artifact_update' | string
+  result: unknown
+  error?: string
+  toolArguments?: Record<string, unknown>
+}) {
+  const data = result as Record<string, unknown> | undefined
+  const title =
+    typeof data?.title === 'string' ? data.title : String(toolArguments?.title || 'Artifact')
+  const kind = typeof data?.kind === 'string' ? data.kind : 'artifact'
+  const versionId = typeof data?.versionId === 'string' ? data.versionId : ''
+
+  return (
+    <div
+      className={`tool-result tool-result-product tool-result-status-${error ? 'error' : 'success'}`}
+    >
+      <div className="tool-result-header">
+        <div className="tool-result-heading">
+          <span className="tool-result-leading-icon">
+            {error ? <XCircle size={16} /> : <CheckCircle size={16} />}
+          </span>
+          <div className="tool-result-title-group">
+            <span className="tool-result-title">
+              {toolName === 'artifact_create' ? 'Artifact created' : 'Artifact updated'}
+            </span>
+            <span className="tool-result-subtitle">
+              {title} · {kind}
+              {versionId ? ` · ${versionId.slice(0, 8)}` : ''}
+            </span>
+          </div>
+        </div>
+        <span className={`tool-result-status tool-result-status-${error ? 'error' : 'success'}`}>
+          {error ? 'Failed' : 'Saved'}
+        </span>
+      </div>
+      {error && <div className="tool-result-error-message">{error}</div>}
+    </div>
+  )
+}
+
+function McpRequestAddCard({ result, error }: { result: unknown; error?: string }) {
   const [mcpAddActionState, setMcpAddActionState] = useState<'idle' | 'approving' | 'cancelling'>(
     'idle'
   )
@@ -184,589 +106,140 @@ export default function ToolResultDisplay({
   const [mcpAddError, setMcpAddError] = useState<string | null>(null)
   const mcp = useOptionalMcp()
 
-  const presentation = normalizeToolPresentation({
-    toolName,
-    result,
-    error,
-    metadata,
-    executionTime,
-  })
-  const displayName = presentation.toolLabel
-  const mcpMetadata = presentation.mcpMetadata
-  const durationMs = presentation.durationMs
+  const review = normalizeMcpAddReview(result)
+  const currentStatus = mcpAddResult?.status ?? review?.status ?? (error ? 'failed' : 'pending')
+  const canAct = Boolean(review?.canAdd && currentStatus === 'pending' && mcp)
+  const tone = mcpAddTone(currentStatus, error || mcpAddError)
 
-  if (toolName === 'web_search') {
-    if (isSkippedBuiltinToolResult(metadata)) {
-      // Render budget exhaustion as a normal-ish tool result (not a scary "Tool Error")
-      // so the user sees the attempt + outcome exactly like other web_search calls.
-      return (
-        <div className="tool-result tool-result-search tool-result-budget">
-          <div className="tool-result-header">
-            <AlertCircle size={16} />
-            <span>Web Search: {String(toolArguments?.query || 'query')}</span>
-            <span className="tool-result-badge">Budget reached</span>
-          </div>
-          <div
-            className="tool-result-error-message"
-            style={{ color: 'var(--theme-text-warning, #f59e0b)' }}
-          >
-            {error || 'Search budget for this response has been reached. No additional results.'}
-          </div>
-        </div>
-      )
-    }
-
-    if (error) {
-      return (
-        <div className="tool-result tool-result-error">
-          <div className="tool-result-header">
-            <AlertCircle size={16} />
-            <span>Tool Error: {displayName}</span>
-          </div>
-          <div className="tool-result-error-message">{error}</div>
-          {mcpMetadata && <div className="tool-result-error-message">{presentation.auditLine}</div>}
-        </div>
-      )
-    }
-
-    const searchResult = result as WebSearchResult | undefined
-    const mode = inferWebToolModeFromResultData(searchResult) || 'search'
-    const modeLabel = getWebToolLabel(mode)
-    const resultLabel = mode === 'extract' ? 'pages' : 'results'
-    const depth = mode === 'extract' ? searchResult?.extractDepth : searchResult?.searchDepth
-    const depthBadgeText =
-      depth === 'advanced' ? 'Advanced' : mode === 'extract' && depth === 'basic' ? 'Basic' : null
-    const hasImages = (searchResult?.images?.length ?? 0) > 0
-    const imageCount = searchResult?.imageCount || searchResult?.images?.length || 0
-
-    return (
-      <div
-        className={`tool-result tool-result-search${mode === 'extract' ? ' tool-result-extract' : ''}`}
-      >
-        <div
-          className="tool-result-header tool-result-clickable"
-          onClick={() => setIsExpanded(!isExpanded)}
-        >
-          {mode === 'extract' ? <Globe size={16} /> : <Search size={16} />}
-          <span>
-            {modeLabel}: {searchResult?.query}
-          </span>
-          <span className="tool-result-count">
-            {searchResult?.results?.length || 0} {resultLabel}
-            {imageCount > 0 && ` • ${imageCount} images`}
-          </span>
-          {mode === 'extract' && <span className="tool-result-badge">Extract</span>}
-          {depthBadgeText && <span className="tool-result-badge">{depthBadgeText}</span>}
-          {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-        </div>
-
-        {searchResult?.answer && <div className="tool-result-answer">{searchResult.answer}</div>}
-
-        {isExpanded && hasImages && (
-          <div className="search-images-gallery">
-            {searchResult!.images!.slice(0, 6).map((img: ImageResult, i: number) => (
-              <a
-                key={i}
-                href={img.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="search-image-item"
-              >
-                <img
-                  src={img.url}
-                  alt={img.description || `Image ${i + 1}`}
-                  loading="lazy"
-                  onError={(e) => {
-                    ;(e.target as HTMLImageElement).style.display = 'none'
-                  }}
-                />
-              </a>
-            ))}
-          </div>
-        )}
-
-        {isExpanded && (searchResult?.results?.length ?? 0) > 0 && (
-          <div className="search-results-list">
-            {searchResult!.results!.map((r: SearchResult, i: number) => (
-              <div key={i} className="search-result-item">
-                <a
-                  href={r.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="search-result-title"
-                >
-                  {r.favicon && (
-                    <img
-                      src={r.favicon}
-                      alt=""
-                      className="search-result-favicon"
-                      onError={(e) => {
-                        ;(e.target as HTMLImageElement).style.display = 'none'
-                      }}
-                    />
-                  )}
-                  {r.title}
-                  <ExternalLink size={12} />
-                </a>
-                <div className="search-result-url">
-                  {r.displayed_link || r.url}
-                  {r.date && <span className="search-result-date"> • {r.date}</span>}
-                </div>
-                {r.source && r.source !== r.displayed_link?.split(' › ')[0] && (
-                  <div className="search-result-source">{r.source}</div>
-                )}
-                <p className="search-result-snippet">{r.snippet}</p>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-    )
-  }
-
-  if (toolName === 'artifact_create' || toolName === 'artifact_update') {
-    const data = result as Record<string, unknown> | undefined
-    const title =
-      typeof data?.title === 'string' ? data.title : String(toolArguments?.title || 'Artifact')
-    const kind = typeof data?.kind === 'string' ? data.kind : 'artifact'
-    const versionId = typeof data?.versionId === 'string' ? data.versionId : ''
-    return (
-      <div
-        className={`tool-result tool-result-mcp tool-result-mcp-status-${error ? 'error' : 'success'}`}
-      >
-        <div className="tool-result-header">
-          <div className="tool-result-heading">
-            <span className="tool-result-leading-icon">
-              {error ? <XCircle size={16} /> : <CheckCircle size={16} />}
-            </span>
-            <div className="tool-result-title-group">
-              <span className="tool-result-title">
-                {toolName === 'artifact_create' ? 'Artifact created' : 'Artifact updated'}
-              </span>
-              <span className="tool-result-subtitle">
-                {title} · {kind}
-                {versionId ? ` · ${versionId.slice(0, 8)}` : ''}
-              </span>
-            </div>
-          </div>
-          <span
-            className={`tool-result-mcp-status tool-result-mcp-status-${error ? 'error' : 'success'}`}
-          >
-            {error ? 'Failed' : 'Saved'}
-          </span>
-        </div>
-        {error && <div className="tool-result-error-message">{error}</div>}
-      </div>
-    )
-  }
-
-  if (toolName === 'mcp_request_add') {
-    const review = normalizeMcpAddReview(result)
-    const currentStatus = mcpAddResult?.status ?? review?.status ?? (error ? 'failed' : 'pending')
-    const canAct = Boolean(review?.canAdd && currentStatus === 'pending' && mcp)
-
-    const approve = async () => {
-      if (!review || !mcp || mcpAddActionState !== 'idle') return
-      setMcpAddActionState('approving')
-      setMcpAddError(null)
-      try {
-        setMcpAddResult(await mcp.approvePendingAddRequest(review.requestId))
-      } catch (approvalError) {
-        setMcpAddError(toErrorMessage(approvalError))
-      } finally {
-        setMcpAddActionState('idle')
-      }
-    }
-
-    const cancel = async () => {
-      if (!review || !mcp || mcpAddActionState !== 'idle') return
-      setMcpAddActionState('cancelling')
-      setMcpAddError(null)
-      try {
-        await mcp.cancelPendingAddRequest(review.requestId)
-        setMcpAddResult({
-          requestId: review.requestId,
-          status: 'cancelled',
-          requiredSecrets: review.requiredSecrets,
-        })
-      } catch (cancelError) {
-        setMcpAddError(toErrorMessage(cancelError))
-      } finally {
-        setMcpAddActionState('idle')
-      }
-    }
-
-    return (
-      <div
-        className={`tool-result tool-result-mcp tool-result-mcp-status-${mcpAddTone(currentStatus, error || mcpAddError)}`}
-      >
-        <div className="tool-result-header">
-          <div className="tool-result-heading">
-            <span className="tool-result-leading-icon">
-              {currentStatus === 'connected' ? <CheckCircle size={16} /> : <Wrench size={16} />}
-            </span>
-            <div className="tool-result-title-group">
-              <span className="tool-result-title">
-                {review ? `Add MCP: ${review.serverName}` : 'Add MCP'}
-              </span>
-              <span className="tool-result-subtitle">
-                {review ? `${review.sourceLabel} · ${review.transport}` : 'Review required'}
-              </span>
-            </div>
-          </div>
-          <span
-            className={`tool-result-mcp-status tool-result-mcp-status-${mcpAddTone(currentStatus, error || mcpAddError)}`}
-          >
-            {formatMcpAddStatus(currentStatus)}
-          </span>
-        </div>
-
-        {review ? (
-          <div className="tool-result-body mcp-add-review">
-            <div className="mcp-add-reason">{review.reason}</div>
-            <div className="mcp-add-grid">
-              <div>
-                <span>Source</span>
-                <strong>{review.sourceLabel}</strong>
-              </div>
-              <div>
-                <span>Auth</span>
-                <strong>{formatAuthMode(review.authMode)}</strong>
-              </div>
-              <div>
-                <span>Transport</span>
-                <strong>{review.transport}</strong>
-              </div>
-              <div>
-                <span>Trust</span>
-                <strong>Untrusted after connect</strong>
-              </div>
-            </div>
-            {(review.command || review.url) && (
-              <pre className="mcp-add-command">
-                {review.command ? [review.command, ...(review.args ?? [])].join(' ') : review.url}
-              </pre>
-            )}
-            {review.requiredSecrets.length > 0 && (
-              <div className="mcp-add-note">
-                Required setup: {review.requiredSecrets.join(', ')}
-              </div>
-            )}
-            {review.riskNotes.length > 0 && (
-              <div className="mcp-add-notes">
-                {review.riskNotes.map((note) => (
-                  <div key={note}>{note}</div>
-                ))}
-              </div>
-            )}
-            {(error || mcpAddError || mcpAddResult?.error) && (
-              <div className="tool-result-error-message">
-                {error || mcpAddError || mcpAddResult?.error}
-              </div>
-            )}
-            {mcpAddResult?.status === 'needs_setup' && (
-              <div className="mcp-add-note">
-                Server was added. Finish the required auth setup in MCP settings, then connect it.
-              </div>
-            )}
-            {mcpAddResult?.status === 'connected' && (
-              <div className="mcp-add-note">
-                Connected. Review and trust discovered tools before the agent can use them.
-              </div>
-            )}
-            {currentStatus === 'pending' && (
-              <div className="mcp-add-actions">
-                <button
-                  type="button"
-                  className="mcp-add-primary"
-                  disabled={!canAct || mcpAddActionState !== 'idle'}
-                  onClick={approve}
-                >
-                  {mcpAddActionState === 'approving' ? 'Adding...' : 'Add and connect'}
-                </button>
-                <button
-                  type="button"
-                  className="mcp-add-secondary"
-                  disabled={!mcp || mcpAddActionState !== 'idle'}
-                  onClick={cancel}
-                >
-                  Cancel
-                </button>
-              </div>
-            )}
-          </div>
-        ) : (
-          <div className="tool-result-body">
-            <pre className="tool-result-json">{error || stringifyToolValue(result)}</pre>
-          </div>
-        )}
-      </div>
-    )
-  }
-
-  if (toolName === 'code_execution') {
-    const data = result as Record<string, unknown> | undefined
-    const stdout = typeof data?.stdout === 'string' ? data.stdout : ''
-    const stderr = typeof data?.stderr === 'string' ? data.stderr : ''
-    const exitCode = typeof data?.exitCode === 'number' ? data.exitCode : null
-    const lang =
-      typeof data?.language === 'string'
-        ? data.language
-        : typeof toolArguments?.language === 'string'
-          ? toolArguments.language
-          : 'code'
-    const langLabel = lang === 'python' ? 'Python' : lang === 'javascript' ? 'JavaScript' : lang
-    const hasOutput = stdout || stderr || error
-
-    return (
-      <div
-        className={`tool-result tool-result-mcp tool-result-mcp-status-${error ? 'error' : 'success'}`}
-      >
-        <div
-          className="tool-result-header tool-result-clickable"
-          onClick={() => setIsExpanded(!isExpanded)}
-        >
-          <div className="tool-result-heading">
-            <span className="tool-result-leading-icon">
-              {error ? <XCircle size={16} /> : <CheckCircle size={16} />}
-            </span>
-            <div className="tool-result-title-group">
-              <span className="tool-result-title">Code Execution</span>
-              <span className="tool-result-subtitle">
-                {langLabel}
-                {exitCode !== null && exitCode !== 0 ? ` • exit ${exitCode}` : ''}
-              </span>
-            </div>
-          </div>
-          <div className="tool-result-badge-row">
-            <span
-              className={`tool-result-mcp-status tool-result-mcp-status-${error ? 'error' : 'success'}`}
-            >
-              {error ? 'Failed' : 'Completed'}
-            </span>
-            {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-          </div>
-        </div>
-
-        {isExpanded && (
-          <div className="tool-result-body">
-            {error && (
-              <div className="tool-result-mcp-detail-row">
-                <span className="tool-result-mcp-detail-label">Error</span>
-                <pre className="tool-result-mcp-detail-value" style={{ whiteSpace: 'pre-wrap' }}>
-                  {error}
-                </pre>
-              </div>
-            )}
-            {stdout && (
-              <div className="tool-result-mcp-detail-row">
-                <span className="tool-result-mcp-detail-label">Output</span>
-                <pre
-                  className="tool-result-mcp-detail-value"
-                  style={{ whiteSpace: 'pre-wrap', maxHeight: '300px', overflow: 'auto' }}
-                >
-                  {stdout}
-                </pre>
-              </div>
-            )}
-            {stderr && (
-              <div className="tool-result-mcp-detail-row">
-                <span className="tool-result-mcp-detail-label">Stderr</span>
-                <pre
-                  className="tool-result-mcp-detail-value"
-                  style={{
-                    whiteSpace: 'pre-wrap',
-                    maxHeight: '200px',
-                    overflow: 'auto',
-                    color: 'var(--theme-text-warning, #f59e0b)',
-                  }}
-                >
-                  {stderr}
-                </pre>
-              </div>
-            )}
-            {!hasOutput && (
-              <div className="tool-result-mcp-detail-row">
-                <span className="tool-result-mcp-detail-value">No output produced.</span>
-              </div>
-            )}
-            {durationMs != null && (
-              <div className="tool-result-mcp-detail-row">
-                <span className="tool-result-mcp-detail-label">Duration</span>
-                <span className="tool-result-mcp-detail-value">{durationMs}ms</span>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-    )
-  }
-
-  {
-    const data = result as Record<string, unknown> | undefined
-    const { inlineBase64, mediaRef } = resolveScreenshotSrc(data)
-    const hasScreenshot = Boolean(inlineBase64 || mediaRef)
-    // Screenshot card for computer_* always; ui_* only when capture media is present.
-    const useScreenshotCard =
-      toolName.startsWith('computer_') || (toolName.startsWith('ui_') && hasScreenshot)
-
-    if (useScreenshotCard) {
-      const action =
-        typeof data?.action === 'string'
-          ? data.action
-          : toolName.startsWith('computer_')
-            ? toolName.replace('computer_', '')
-            : toolName.replace('ui_', '')
-      const screenW =
-        typeof data?.screenWidth === 'number'
-          ? data.screenWidth
-          : typeof data?.width === 'number'
-            ? data.width
-            : null
-      const screenH =
-        typeof data?.screenHeight === 'number'
-          ? data.screenHeight
-          : typeof data?.height === 'number'
-            ? data.height
-            : null
-      const actionLabel =
-        action === 'screenshot' || action === 'get_app_state'
-          ? action === 'get_app_state'
-            ? 'UI State'
-            : 'Screenshot'
-          : action === 'click'
-            ? 'Click'
-            : action === 'type' || action === 'type_text'
-              ? 'Type'
-              : action === 'key'
-                ? 'Key Press'
-                : action === 'scroll'
-                  ? 'Scroll'
-                  : action === 'cursor_position'
-                    ? 'Move Cursor'
-                    : action
-
-      return (
-        <div
-          className={`tool-result tool-result-mcp tool-result-mcp-status-${error ? 'error' : 'success'}`}
-        >
-          <div
-            className="tool-result-header tool-result-clickable"
-            onClick={() => setIsExpanded(!isExpanded)}
-          >
-            <div className="tool-result-heading">
-              <span className="tool-result-leading-icon">
-                {error ? <XCircle size={16} /> : <CheckCircle size={16} />}
-              </span>
-              <div className="tool-result-title-group">
-                <span className="tool-result-title">{actionLabel}</span>
-                {screenW && screenH && (
-                  <span className="tool-result-subtitle">
-                    {screenW}×{screenH}
-                  </span>
-                )}
-              </div>
-            </div>
-            <div className="tool-result-badge-row">
-              <span
-                className={`tool-result-mcp-status tool-result-mcp-status-${error ? 'error' : 'success'}`}
-              >
-                {error ? 'Failed' : 'Done'}
-              </span>
-              {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-            </div>
-          </div>
-
-          {isExpanded && (
-            <div className="tool-result-body">
-              {error && (
-                <div className="tool-result-mcp-detail-row">
-                  <span className="tool-result-mcp-detail-label">Error</span>
-                  <pre className="tool-result-mcp-detail-value" style={{ whiteSpace: 'pre-wrap' }}>
-                    {error}
-                  </pre>
-                </div>
-              )}
-              {hasScreenshot && (
-                <ToolScreenshotImage
-                  inlineBase64={inlineBase64}
-                  mediaRef={mediaRef}
-                  alt={`${actionLabel} result`}
-                />
-              )}
-              {durationMs != null && (
-                <div className="tool-result-mcp-detail-row">
-                  <span className="tool-result-mcp-detail-label">Duration</span>
-                  <span className="tool-result-mcp-detail-value">{durationMs}ms</span>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      )
+  const approve = async () => {
+    if (!review || !mcp || mcpAddActionState !== 'idle') return
+    setMcpAddActionState('approving')
+    setMcpAddError(null)
+    try {
+      setMcpAddResult(await mcp.approvePendingAddRequest(review.requestId))
+    } catch (approvalError) {
+      setMcpAddError(toErrorMessage(approvalError))
+    } finally {
+      setMcpAddActionState('idle')
     }
   }
 
-  const status = presentation.status
-  const detailBody = presentation.outputText
-  const outputItems = presentation.outputItems
-  const hasStructuredOutput = outputItems.length > 0
+  const cancel = async () => {
+    if (!review || !mcp || mcpAddActionState !== 'idle') return
+    setMcpAddActionState('cancelling')
+    setMcpAddError(null)
+    try {
+      await mcp.cancelPendingAddRequest(review.requestId)
+      setMcpAddResult({
+        requestId: review.requestId,
+        status: 'cancelled',
+        requiredSecrets: review.requiredSecrets,
+      })
+    } catch (cancelError) {
+      setMcpAddError(toErrorMessage(cancelError))
+    } finally {
+      setMcpAddActionState('idle')
+    }
+  }
 
   return (
-    <div className={`tool-result tool-result-mcp tool-result-mcp-status-${status.tone}`}>
-      <div
-        className="tool-result-header tool-result-clickable"
-        onClick={() => setIsExpanded(!isExpanded)}
-      >
+    <div className={`tool-result tool-result-product tool-result-status-${tone}`}>
+      <div className="tool-result-header">
         <div className="tool-result-heading">
           <span className="tool-result-leading-icon">
-            {status.tone === 'success' ? (
-              <CheckCircle size={16} />
-            ) : status.tone === 'warning' ? (
-              <AlertTriangle size={16} />
-            ) : status.tone === 'error' ? (
-              <XCircle size={16} />
-            ) : (
-              <Wrench size={16} />
-            )}
+            {currentStatus === 'connected' ? <CheckCircle size={16} /> : <Wrench size={16} />}
           </span>
           <div className="tool-result-title-group">
-            <span className="tool-result-title">{displayName}</span>
-            <span className="tool-result-subtitle">{presentation.subtitleLabel}</span>
+            <span className="tool-result-title">
+              {review ? `Add MCP: ${review.serverName}` : 'Add MCP'}
+            </span>
+            <span className="tool-result-subtitle">
+              {review ? `${review.sourceLabel} · ${review.transport}` : 'Review required'}
+            </span>
           </div>
         </div>
-        <div className="tool-result-badge-row">
-          <span className={`tool-result-mcp-status tool-result-mcp-status-${status.tone}`}>
-            {status.label}
-          </span>
-          {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-        </div>
+        <span className={`tool-result-status tool-result-status-${tone}`}>
+          {formatMcpAddStatus(currentStatus)}
+        </span>
       </div>
 
-      {isExpanded && (
-        <div className="tool-result-body">
-          {hasStructuredOutput ? (
-            <div className="mcp-result-list">
-              {outputItems.slice(0, 10).map((item, i) => (
-                <div key={i} className="mcp-result-item">
-                  {item.key && <div className="mcp-result-item-key">{item.key}</div>}
-                  <div className="mcp-result-item-value">{item.value}</div>
-                </div>
-              ))}
-              {outputItems.length > 10 && (
-                <div
-                  className="mcp-result-item"
-                  style={{ fontStyle: 'italic', color: 'var(--theme-text-muted)' }}
-                >
-                  +{outputItems.length - 10} more items
-                </div>
-              )}
+      {review ? (
+        <div className="tool-result-body mcp-add-review">
+          <div className="mcp-add-reason">{review.reason}</div>
+          <div className="mcp-add-grid">
+            <div>
+              <span>Source</span>
+              <strong>{review.sourceLabel}</strong>
             </div>
-          ) : (
-            <pre className="tool-result-json">{detailBody}</pre>
+            <div>
+              <span>Auth</span>
+              <strong>{formatAuthMode(review.authMode)}</strong>
+            </div>
+            <div>
+              <span>Transport</span>
+              <strong>{review.transport}</strong>
+            </div>
+            <div>
+              <span>Trust</span>
+              <strong>Untrusted after connect</strong>
+            </div>
+          </div>
+          {(review.command || review.url) && (
+            <pre className="mcp-add-command">
+              {review.command ? [review.command, ...(review.args ?? [])].join(' ') : review.url}
+            </pre>
           )}
-
-          <McpDetailsSection presentation={presentation} toolArguments={toolArguments} />
+          {review.requiredSecrets.length > 0 && (
+            <div className="mcp-add-note">Required setup: {review.requiredSecrets.join(', ')}</div>
+          )}
+          {review.riskNotes.length > 0 && (
+            <div className="mcp-add-notes">
+              {review.riskNotes.map((note) => (
+                <div key={note}>{note}</div>
+              ))}
+            </div>
+          )}
+          {(error || mcpAddError || mcpAddResult?.error) && (
+            <div className="tool-result-error-message">
+              {error || mcpAddError || mcpAddResult?.error}
+            </div>
+          )}
+          {mcpAddResult?.status === 'needs_setup' && (
+            <div className="mcp-add-note">
+              Server was added. Finish the required auth setup in MCP settings, then connect it.
+            </div>
+          )}
+          {mcpAddResult?.status === 'connected' && (
+            <div className="mcp-add-note">
+              Connected. Review and trust discovered tools before the agent can use them.
+            </div>
+          )}
+          {currentStatus === 'pending' && (
+            <div className="mcp-add-actions">
+              <button
+                type="button"
+                className="mcp-add-primary"
+                disabled={!canAct || mcpAddActionState !== 'idle'}
+                onClick={() => void approve()}
+              >
+                {mcpAddActionState === 'approving' ? 'Adding...' : 'Add and connect'}
+              </button>
+              <button
+                type="button"
+                className="mcp-add-secondary"
+                disabled={!mcp || mcpAddActionState !== 'idle'}
+                onClick={() => void cancel()}
+              >
+                Cancel
+              </button>
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="tool-result-body">
+          <pre className="tool-result-json">
+            {error || (typeof result === 'string' ? result : JSON.stringify(result, null, 2))}
+          </pre>
         </div>
       )}
     </div>
@@ -830,75 +303,4 @@ function formatAuthMode(mode: string): string {
 
 function toErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
-}
-
-function McpDetailsSection({
-  presentation,
-  toolArguments,
-}: {
-  presentation: ToolPresentationViewModel
-  toolArguments?: Record<string, unknown>
-}) {
-  const [isExpanded, setIsExpanded] = useState(false)
-  const { mcpMetadata: metadata, status, durationMs } = presentation
-
-  return (
-    <>
-      <button
-        className="mcp-details-toggle"
-        onClick={(e) => {
-          e.stopPropagation()
-          setIsExpanded(!isExpanded)
-        }}
-      >
-        {isExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
-        Details
-      </button>
-
-      {isExpanded && (
-        <div className="mcp-details-content">
-          <div className="tool-result-meta-grid" style={{ marginTop: 0 }}>
-            <div className="tool-result-meta-item">
-              <span className="tool-result-meta-label">Status</span>
-              <span className="tool-result-meta-value">{status.label}</span>
-            </div>
-            {metadata && (
-              <>
-                <div className="tool-result-meta-item">
-                  <span className="tool-result-meta-label">Server</span>
-                  <span className="tool-result-meta-value">{metadata.serverName}</span>
-                </div>
-                <div className="tool-result-meta-item">
-                  <span className="tool-result-meta-label">Approval</span>
-                  <span className="tool-result-meta-value">{presentation.approvalLabel}</span>
-                </div>
-                <div className="tool-result-meta-item">
-                  <span className="tool-result-meta-label">Trusted</span>
-                  <span className="tool-result-meta-value">{presentation.trustedLabel}</span>
-                </div>
-                {durationMs !== undefined && (
-                  <div className="tool-result-meta-item">
-                    <span className="tool-result-meta-label">Duration</span>
-                    <span className="tool-result-meta-value">{durationMs}ms</span>
-                  </div>
-                )}
-              </>
-            )}
-          </div>
-
-          {presentation.auditLine && (
-            <div className="tool-result-audit-line">{presentation.auditLine}</div>
-          )}
-          {status.description && <div className="tool-result-audit-line">{status.description}</div>}
-
-          {toolArguments && Object.keys(toolArguments).length > 0 && (
-            <div className="tool-result-section">
-              <div className="tool-result-section-label">Input</div>
-              <pre className="tool-result-json">{stringifyToolValue(toolArguments)}</pre>
-            </div>
-          )}
-        </div>
-      )}
-    </>
-  )
 }

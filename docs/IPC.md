@@ -12,16 +12,16 @@ Handlers the UI can call must register through `electron/ipc/trustedIpc.ts`. Do 
 
 ## Who validates what
 
-| Area | Main home | What must be true |
-| ---- | --------- | ----------------- |
-| Chats / folders / tool media | `chatStoreHandlers.ts` | Bounded schemas; media refs resolve only inside user data |
-| Secrets | `secureStorageHandlers.ts` | Fixed key names; values stay in main after write |
-| Provider runtime | `providerRuntimeHandlers.ts` | Fixed providers/ops; credentials resolved in main |
-| Built-in tools | `electron/tools/` | Exact tool names + closed schemas; approval is separate from model args |
-| Background window | `electron/tools/background-window/` | Main owns HWND/PID identity and run ownership |
-| MCP | `electron/mcp/` | Saved server IDs; secrets and OAuth stay main-owned |
-| Scheduled tasks | `monitorHandlers.ts` | Bounded task payloads; respect feature enablement |
-| Windows / shell | window and system modules | Sender-owned window; capability allowlists |
+| Area                         | Main home                           | What must be true                                                       |
+| ---------------------------- | ----------------------------------- | ----------------------------------------------------------------------- |
+| Chats / folders / tool media | `chatStoreHandlers.ts`              | Bounded schemas; media refs resolve only inside user data               |
+| Secrets                      | `secureStorageHandlers.ts`          | Fixed key names; values stay in main after write                        |
+| Provider runtime             | `providerRuntimeHandlers.ts`        | Fixed providers/ops; credentials resolved in main                       |
+| Built-in tools               | `electron/tools/`                   | Exact tool names + closed schemas; approval is separate from model args |
+| Background window            | `electron/tools/background-window/` | Main owns HWND/PID identity and run ownership                           |
+| MCP                          | `electron/mcp/`                     | Saved server IDs; secrets and OAuth stay main-owned                     |
+| Scheduled tasks              | `monitorHandlers.ts`                | Bounded task payloads; respect feature enablement                       |
+| Windows / shell              | window and system modules           | Sender-owned window; capability allowlists                              |
 
 When you add a channel, write down domain, direction, argument bounds, return shape, privilege, and who cleans it up.
 
@@ -39,6 +39,8 @@ Channel allowlists live in `src/electron/ipcChannelManifest.ts` and are derived 
 2. **Execution context** — approval tokens, chat-run IDs, and similar authority that main issued
 
 Fields like `autoApprove` are never valid model arguments. See [`TOOLS_SECURITY.md`](TOOLS_SECURITY.md) and [`CREATING_BUILTIN_TOOLS.md`](CREATING_BUILTIN_TOOLS.md).
+
+The dedicated `agentApproval` bridge owns `agent-approval:request`, `agent-approval:get-autonomous-mode`, and `agent-approval:set-autonomous-mode`. The setter accepts only a boolean; enabling still requires confirmation in main, while disabling is immediate. `mcp:execute-tool` may receive only an optional one-use `approvalToken` execution context, which main consumes against the sender, exact namespaced tool name, and exact arguments before bypassing MCP's duplicate approval prompt.
 
 ## Change checklist
 

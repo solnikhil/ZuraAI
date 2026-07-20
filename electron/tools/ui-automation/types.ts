@@ -33,6 +33,18 @@ export interface UiAutomationWindow {
   elements: UiAutomationElement[]
 }
 
+export interface UiBlock {
+  element_id: string
+  source: 'uia' | 'msaa' | 'ocr'
+  background_safe: boolean
+  coordinate_space: 'desktop' | 'screenshot'
+  window_hwnd?: number
+  role: string
+  text: string
+  bounds: UiAutomationBounds
+  supported_actions: string[]
+}
+
 export type UiAppScreenshot =
   | {
       status: 'available'
@@ -41,6 +53,9 @@ export type UiAppScreenshot =
       screenHeight: number
       coordinateContext: unknown
       target?: unknown
+      ocr:
+        | { status: 'available'; element_count: number }
+        | { status: 'unavailable'; error: string; element_count: 0 }
     }
   | {
       status: 'unavailable'
@@ -59,6 +74,7 @@ export interface UiAppState {
   }
   screenshot: UiAppScreenshot
   windows: UiAutomationWindow[]
+  ui_blocks: UiBlock[]
   truncation: {
     max_depth: number
     max_elements: number

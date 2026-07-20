@@ -8,6 +8,8 @@ import {
   type ReactNode,
 } from 'react'
 
+export type IncomingFilesHandler = (files: File[]) => void
+
 interface ComposerDraftContextValue {
   /** Current draft text in the composer */
   draftText: string
@@ -15,6 +17,13 @@ interface ComposerDraftContextValue {
   setDraftText: (text: string) => void
   /** Clear the draft text */
   clearDraft: () => void
+  /**
+   * Deliver external files (e.g. window-level drop) to the active chat composer.
+   * Queues files when no handler is registered yet (e.g. chat view not mounted).
+   */
+  deliverIncomingFiles: (files: File[]) => void
+  /** ChatArea registers to receive delivered files. Returns unsubscribe. */
+  registerIncomingFilesHandler: (handler: IncomingFilesHandler) => () => void
 }
 
 const ComposerDraftContext = createContext<ComposerDraftContextValue | null>(null)
@@ -23,6 +32,8 @@ export function ComposerDraftProvider({ children }: { children: ReactNode }) {
   const [draftText, setDraftTextState] = useState('')
   // Keep a ref in sync so consumers can read latest without stale closures
   const draftRef = useRef('')
+  const incomingFilesHandlerRef = useRef<IncomingFilesHandler | null>(null)
+  const pendingIncomingFilesRef = useRef<File[]>([])
 
   const setDraftText = useCallback((text: string) => {
     draftRef.current = text
@@ -34,9 +45,43 @@ export function ComposerDraftProvider({ children }: { children: ReactNode }) {
     setDraftTextState('')
   }, [])
 
+  const deliverIncomingFiles = useCallback((files: File[]) => {
+    if (files.length === 0) return
+
+    const handler = incomingFilesHandlerRef.current
+    if (handler) {
+      handler(files)
+      return
+    }
+
+    pendingIncomingFilesRef.current = [...pendingIncomingFilesRef.current, ...files]
+  }, [])
+
+  const registerIncomingFilesHandler = useCallback((handler: IncomingFilesHandler) => {
+    incomingFilesHandlerRef.current = handler
+
+    if (pendingIncomingFilesRef.current.length > 0) {
+      const pending = pendingIncomingFilesRef.current
+      pendingIncomingFilesRef.current = []
+      handler(pending)
+    }
+
+    return () => {
+      if (incomingFilesHandlerRef.current === handler) {
+        incomingFilesHandlerRef.current = null
+      }
+    }
+  }, [])
+
   const contextValue = useMemo(
-    () => ({ draftText, setDraftText, clearDraft }),
-    [draftText, setDraftText, clearDraft]
+    () => ({
+      draftText,
+      setDraftText,
+      clearDraft,
+      deliverIncomingFiles,
+      registerIncomingFilesHandler,
+    }),
+    [draftText, setDraftText, clearDraft, deliverIncomingFiles, registerIncomingFilesHandler]
   )
 
   return (

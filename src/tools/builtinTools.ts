@@ -268,7 +268,7 @@ Safety rules:
         app_name: {
           type: 'string',
           description:
-            'Optional case-insensitive app/title substring to target a visible app window.',
+            'Optional case-insensitive owning process name or title substring. Prefer this over window_title for apps such as media players whose titles change continuously.',
         },
       },
       required: [],
@@ -392,7 +392,7 @@ Safety rules:
   },
   computer_list_windows: {
     description:
-      'List currently open application windows. Returns window titles and source ids that can be passed to computer_screenshot.window_id for app-specific visual capture. This is metadata, not visual screen context, and does not provide valid coordinates by itself.',
+      'List currently open application windows. Returns changing titles plus stable source ids, native HWNDs, process ids, and process names when available. Pass the source id to computer_screenshot.window_id for app-specific visual capture. This is metadata, not visual screen context, and does not provide valid coordinates by itself.',
     parameters: {
       type: 'object',
       description: 'No arguments required.',
@@ -404,7 +404,7 @@ Safety rules:
   },
   ui_get_app_state: {
     description:
-      'Inspect the current Windows desktop/app state for reliable Agent Mode UI automation. Returns active window metadata, a compact accessibility tree, stable element_id values, supported element actions, bounds, truncation metadata, and either a fresh targeted screenshot or an explicit screenshot_unavailable status. A missing screenshot does not invalidate the accessibility tree: continue with element_id UI Automation actions, but do not use coordinates without a separate successful screenshot.',
+      'Inspect the current Windows desktop/app state for reliable Agent Mode UI automation. Returns active window metadata, a compact accessibility tree, and flat ui_blocks merged from UI Automation, MSAA, and screenshot OCR. Blocks identify their coordinate space and whether they support background-safe actions. Also returns stable element_id values, bounds, truncation metadata, and either a fresh targeted screenshot or an explicit screenshot_unavailable status. Prefer processName or HWND for apps whose titles change. A missing screenshot does not invalidate accessibility blocks: continue with element_id actions, but do not use coordinates without a successful screenshot.',
     parameters: {
       type: 'object',
       description: 'Optional filters and compactness controls for state capture.',
