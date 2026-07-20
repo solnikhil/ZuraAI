@@ -80,9 +80,12 @@ export const CHAT_AREA_STYLES = `
           width: 100%;
           max-width: 100%;
           min-width: 0;
-          /* Skip layout/paint for off-screen messages — major long-chat RAM win */
-          content-visibility: auto;
-          contain-intrinsic-size: auto 180px;
+          /*
+           * Do not use content-visibility here. react-virtuoso already unmounts
+           * off-screen rows; content-visibility + wrong intrinsic sizes causes
+           * scroll-height thrash and laggy wheel flings.
+           */
+          contain: layout paint style;
         }
         .chat-scroll-rail {
           position: absolute;

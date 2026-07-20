@@ -116,9 +116,6 @@ export function StreamingProvider({ children }: { children: React.ReactNode }) {
   // Ref to track the latest state without causing re-renders
   const stateRef = useRef<StreamingMessageState>(INITIAL_STREAMING_STATE)
 
-  // Keep ref in sync with state
-  stateRef.current = streamingState
-
   /**
    * Start streaming for a new message
    * Resets all streaming state and marks the message as streaming
@@ -141,14 +138,23 @@ export function StreamingProvider({ children }: { children: React.ReactNode }) {
    */
   const updateStreaming = useCallback(
     (updates: Partial<Omit<StreamingMessageState, 'sessionId' | 'messageId' | 'isStreaming'>>) => {
+      const current = stateRef.current
+      if (!current.isStreaming) return
+
+      // Update the authoritative snapshot synchronously. React may defer the
+      // render while the user edits the composer; completion must still see
+      // every token/field received before that render commits.
+      const nextState = { ...current, ...updates }
+      stateRef.current = nextState
+
       setStreamingState((prev) => {
-        if (!prev.isStreaming) {
-          // Not currently streaming, ignore update
+        if (
+          !prev.isStreaming ||
+          prev.sessionId !== current.sessionId ||
+          prev.messageId !== current.messageId
+        )
           return prev
-        }
-        const newState = { ...prev, ...updates }
-        stateRef.current = newState
-        return newState
+        return { ...prev, ...updates }
       })
     },
     []

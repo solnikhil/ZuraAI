@@ -496,6 +496,12 @@ export default function ChatArea() {
     [displayActiveToolCalls, displayedIsLoading, isLoading]
   )
 
+  const handleMessageListStartReached = useCallback(() => {
+    if (hasOlderMessages && !isLoadingOlder) {
+      void handleLoadOlderMessages()
+    }
+  }, [handleLoadOlderMessages, hasOlderMessages, isLoadingOlder])
+
   if (!currentSessionId || (displayedMessages.length === 0 && !currentSessionIsLoading)) {
     return (
       <div
@@ -589,11 +595,7 @@ export default function ChatArea() {
             renderMessage={renderMessage}
             header={messageListHeader}
             footer={messageListFooter}
-            onStartReached={() => {
-              if (hasOlderMessages && !isLoadingOlder) {
-                void handleLoadOlderMessages()
-              }
-            }}
+            onStartReached={handleMessageListStartReached}
           />
         )}
       </div>

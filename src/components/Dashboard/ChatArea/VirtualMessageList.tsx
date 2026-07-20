@@ -6,10 +6,11 @@
  * 1. Only renders visible messages (DOM stays light)
  * 2. Smart auto-scroll that doesn't fight user interaction
  * 3. Streaming-aware: keeps pinned during token generation
+ * 4. Scroll position is tracked in refs — never re-renders the list on wheel/scroll
  */
 
-import React, { useRef, useState, useCallback, useEffect } from 'react'
-import { Virtuoso, VirtuosoHandle } from 'react-virtuoso'
+import React, { useRef, useCallback, useEffect, useMemo } from 'react'
+import { Virtuoso, type VirtuosoHandle, type Components } from 'react-virtuoso'
 import type { Message } from '../../../chat/types'
 
 interface VirtualMessageListProps {
@@ -33,13 +34,43 @@ interface VirtualMessageListProps {
   onStartReached?: () => void
 }
 
+const ITEM_WRAPPER_STYLE: React.CSSProperties = {
+  width: '100%',
+  maxWidth: 'min(735px, 100%)',
+  margin: '0 auto',
+  padding: '0 20px',
+}
+
+const LIST_SHELL_STYLE: React.CSSProperties = {
+  position: 'relative',
+  height: '100%',
+  width: '100%',
+  display: 'flex',
+  flexDirection: 'column',
+  // Own compositor layer so acrylic/backdrop chrome doesn't repaint with every scroll frame.
+  transform: 'translateZ(0)',
+  contain: 'layout paint style',
+}
+
+const VIRTUOSO_STYLE: React.CSSProperties = {
+  flex: 1,
+  overflowX: 'hidden',
+  // Smooth wheel scrolling on Windows/Electron without fighting Virtuoso.
+  overscrollBehavior: 'contain',
+}
+
+const FOOTER_PAD_STYLE: React.CSSProperties = { paddingBottom: '180px' }
+
+// Modest overscan: enough for smooth flings, not enough to rehydrate heavy markdown off-screen.
+const VIEWPORT_OVERSCAN = { top: 280, bottom: 360 }
+
 /**
  * VirtualMessageList - Virtualized chat message list with streaming-aware auto-scroll
  *
  * Uses react-virtuoso for efficient rendering of long message lists.
  * Implements the "don't fight the user" pattern for smooth scrolling.
  */
-export function VirtualMessageList({
+function VirtualMessageListComponent({
   messages,
   sessionId,
   isGenerating,
@@ -55,31 +86,20 @@ export function VirtualMessageList({
   const prevSessionRef = useRef(sessionId)
   const streamingScrollRafRef = useRef<number | null>(null)
 
-  // Track scroll state
-  const [atBottom, setAtBottom] = useState(true)
-  const [isScrolling, setIsScrolling] = useState(false)
-  const [userScrollLocked, setUserScrollLocked] = useState(false)
-
-  // Track viewport height so preRenderBuffer recalculates on window resize
-  const [viewportHeight, setViewportHeight] = useState(() =>
-    typeof window !== 'undefined' ? window.innerHeight : 800
-  )
+  // Scroll interaction state lives in refs so wheel/scroll never re-renders this list.
+  const atBottomRef = useRef(true)
+  const isScrollingRef = useRef(false)
+  const userScrollLockedRef = useRef(false)
+  const autoScrollEnabledRef = useRef(autoScrollEnabled)
+  const isGeneratingRef = useRef(isGenerating)
 
   useEffect(() => {
-    let rafId: number | null = null
-    const handleResize = () => {
-      if (rafId !== null) return
-      rafId = requestAnimationFrame(() => {
-        rafId = null
-        setViewportHeight(window.innerHeight)
-      })
-    }
-    window.addEventListener('resize', handleResize)
-    return () => {
-      window.removeEventListener('resize', handleResize)
-      if (rafId !== null) cancelAnimationFrame(rafId)
-    }
-  }, [])
+    autoScrollEnabledRef.current = autoScrollEnabled
+  }, [autoScrollEnabled])
+
+  useEffect(() => {
+    isGeneratingRef.current = isGenerating
+  }, [isGenerating])
 
   /**
    * followOutput callback - only auto-scroll when new messages are added
@@ -89,7 +109,10 @@ export function VirtualMessageList({
   const followOutput = useCallback(() => {
     const grew = messages.length > prevLenRef.current
     prevLenRef.current = messages.length
-    return grew ? 'auto' : false
+    if (!grew) return false
+    if (userScrollLockedRef.current) return false
+    if (!atBottomRef.current) return false
+    return 'auto'
   }, [messages.length])
 
   /** Scroll to bottom helper for session resets and pin recovery. */
@@ -106,6 +129,11 @@ export function VirtualMessageList({
 
     streamingScrollRafRef.current = requestAnimationFrame(() => {
       streamingScrollRafRef.current = null
+      if (!autoScrollEnabledRef.current) return
+      if (!isGeneratingRef.current) return
+      if (!atBottomRef.current) return
+      if (isScrollingRef.current) return
+      if (userScrollLockedRef.current) return
       scrollToBottom('auto')
     })
   }, [scrollToBottom])
@@ -116,40 +144,23 @@ export function VirtualMessageList({
   useEffect(() => {
     if (sessionId !== prevSessionRef.current) {
       prevSessionRef.current = sessionId
-      // Small delay to ensure messages are loaded
+      userScrollLockedRef.current = false
+      atBottomRef.current = true
       requestAnimationFrame(() => {
         scrollToBottom('auto')
-        setAtBottom(true)
       })
     }
   }, [sessionId, scrollToBottom])
 
   /**
-   * KEY: While streaming, keep pinned to bottom (only when safe)
-   *
-   * This solves the classic trap where streaming updates (token-by-token text growth)
-   * increase the height of the last bubble and you slowly drift upward.
-   *
-   * Only re-scroll if:
-   * - autoScrollEnabled is true
-   * - User is already at bottom
-   * - AI is generating
-   * - User is not actively scrolling
+   * While streaming, keep pinned to bottom when safe.
+   * Reads refs so token growth does not depend on scroll-state re-renders.
    */
   useEffect(() => {
     if (!autoScrollEnabled) return
-    if (atBottom && isGenerating && !isScrolling && !userScrollLocked) {
-      scheduleStreamingScrollToBottom()
-    }
-  }, [
-    atBottom,
-    isGenerating,
-    isScrolling,
-    streamingContent,
-    autoScrollEnabled,
-    userScrollLocked,
-    scheduleStreamingScrollToBottom,
-  ])
+    if (!isGenerating) return
+    scheduleStreamingScrollToBottom()
+  }, [autoScrollEnabled, isGenerating, streamingContent, scheduleStreamingScrollToBottom])
 
   useEffect(() => {
     return () => {
@@ -159,27 +170,48 @@ export function VirtualMessageList({
     }
   }, [])
 
-  // Keep a modest pre-render buffer for smooth wheel scrolling without over-rendering heavy messages.
-  // viewportHeight is tracked via state + resize listener above so it stays current.
-  const preRenderBuffer = Math.min(Math.max(Math.round(viewportHeight * 1.25), 480), 1200)
+  const handleAtBottomStateChange = useCallback((nextAtBottom: boolean) => {
+    atBottomRef.current = nextAtBottom
+    if (nextAtBottom) {
+      userScrollLockedRef.current = false
+    }
+  }, [])
+
+  const handleIsScrolling = useCallback((scrolling: boolean) => {
+    isScrollingRef.current = scrolling
+  }, [])
+
+  const handleStartReached = useCallback(() => {
+    onStartReached?.()
+  }, [onStartReached])
+
+  const handleWheelCapture = useCallback((event: React.WheelEvent) => {
+    // Only lock auto-follow when the user intentionally scrolls up mid-generation.
+    if (!isGeneratingRef.current) return
+    if (event.deltaY < 0) {
+      userScrollLockedRef.current = true
+    }
+  }, [])
 
   const renderItemContent = useCallback(
     (index: number, message: Message) => (
-      <div
-        key={message.id}
-        data-message-id={message.id}
-        style={{
-          width: '100%',
-          maxWidth: 'min(735px, 100%)',
-          margin: '0 auto',
-          padding: '0 20px',
-        }}
-      >
+      <div data-message-id={message.id} style={ITEM_WRAPPER_STYLE}>
         {renderMessage(index, message)}
       </div>
     ),
     [renderMessage]
   )
+
+  const computeItemKey = useCallback((_index: number, message: Message) => message.id, [])
+
+  const components = useMemo<Components<Message>>(() => {
+    const Header = header ? () => <>{header}</> : undefined
+    const Footer = footer
+      ? () => <div style={FOOTER_PAD_STYLE}>{footer}</div>
+      : () => <div style={FOOTER_PAD_STYLE} />
+
+    return { Header, Footer }
+  }, [header, footer])
 
   // Don't render virtuoso for empty lists
   if (messages.length === 0) {
@@ -187,49 +219,31 @@ export function VirtualMessageList({
   }
 
   return (
-    <div
-      data-select-all-scope="chat"
-      onWheelCapture={(event) => {
-        if (!isGenerating) return
-        if (event.deltaY < 0) {
-          setUserScrollLocked(true)
-        }
-      }}
-      style={{
-        position: 'relative',
-        height: '100%',
-        width: '100%',
-        display: 'flex',
-        flexDirection: 'column',
-      }}
-    >
+    <div data-select-all-scope="chat" onWheelCapture={handleWheelCapture} style={LIST_SHELL_STYLE}>
       <Virtuoso
         ref={virtuosoRef}
         data={messages}
         itemContent={renderItemContent}
+        computeItemKey={computeItemKey}
         followOutput={followOutput}
-        increaseViewportBy={{ top: preRenderBuffer, bottom: preRenderBuffer }}
+        increaseViewportBy={VIEWPORT_OVERSCAN}
+        defaultItemHeight={160}
         initialTopMostItemIndex={messages.length - 1}
-        atBottomStateChange={(nextAtBottom) => {
-          setAtBottom(nextAtBottom)
-          if (nextAtBottom) {
-            setUserScrollLocked(false)
-          }
-        }}
-        isScrolling={setIsScrolling}
-        startReached={() => {
-          onStartReached?.()
-        }}
-        style={{ flex: 1 }}
-        components={{
-          Header: header ? () => <>{header}</> : undefined,
-          Footer: footer
-            ? () => <div style={{ paddingBottom: '180px' }}>{footer}</div>
-            : () => <div style={{ paddingBottom: '180px' }} />,
-        }}
+        atBottomStateChange={handleAtBottomStateChange}
+        isScrolling={handleIsScrolling}
+        startReached={handleStartReached}
+        // Avoid smooth programmatic scrolls during stream — they stack and feel laggy.
+        style={VIRTUOSO_STYLE}
+        components={components}
       />
     </div>
   )
 }
+
+// Composer edits happen much more frequently than message-list identity
+// changes. Keep draft-only parent renders out of react-virtuoso while allowing
+// streamingContent and all other viewport props to invalidate normally.
+export const VirtualMessageList = React.memo(VirtualMessageListComponent)
+VirtualMessageList.displayName = 'VirtualMessageList'
 
 export default VirtualMessageList

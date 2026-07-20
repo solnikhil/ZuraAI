@@ -138,10 +138,14 @@ export class StreamingThrottler {
     updates: Partial<Message>,
     updateFn: (sessionId: string, messageId: string, updates: Partial<Message>) => void
   ): void {
+    const existing = this.pendingUpdates.get(key)
     this.pendingUpdates.set(key, {
       sessionId,
       messageId,
-      updates,
+      // Independent streaming updates carry different fields (content,
+      // thinking, tools, files). Keep the newest value for each field instead
+      // of replacing the entire pending snapshot when rendering is busy.
+      updates: existing ? { ...existing.updates, ...updates } : updates,
       timestamp: Date.now(),
     })
 

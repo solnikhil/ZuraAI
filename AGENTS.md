@@ -126,6 +126,7 @@ Memory / performance habits:
 Chat run lifecycle:
 
 - Send and regenerate share `ChatRunController` (one AbortController, clear phases, once-only finish). Details: `docs/CHAT_RUNTIME.md`.
+- In-flight assistant state keeps a synchronous authoritative snapshot so completion cannot miss tokens while React is rendering composer edits. Throttled partial updates merge by field, and draft-only renders are isolated from the virtualized message viewport.
 - Opaque run ids travel in trusted tool context, never as model-visible arguments.
 - Two distinct tools returning the same infrastructure failure stop further tool/model rounds and show a grounded failure message.
 
