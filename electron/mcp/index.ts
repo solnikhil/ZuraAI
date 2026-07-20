@@ -215,19 +215,22 @@ export function registerMcpHandlers(): void {
     }
   )
 
-  ipcMain.handle('mcp:execute-tool', async (event, namespacedToolName: string, args: unknown, executionContext?: unknown) => {
-    await manager.initialize()
-    const normalizedToolName = assertMcpToolName(namespacedToolName)
-    const normalizedArgs = assertArgumentsRecord(args)
-    const approvalToken = assertMcpExecutionContext(executionContext)
-    const approved = consumeToolApprovalAuthorization(
+  ipcMain.handle(
+    'mcp:execute-tool',
+    async (event, namespacedToolName: string, args: unknown, executionContext?: unknown) => {
+      await manager.initialize()
+      const normalizedToolName = assertMcpToolName(namespacedToolName)
+      const normalizedArgs = assertArgumentsRecord(args)
+      const approvalToken = assertMcpExecutionContext(executionContext)
+      const approved = consumeToolApprovalAuthorization(
       approvalToken,
-      event.sender.id,
-      normalizedToolName,
-      normalizedArgs
-    )
-    return executeMcpTool(manager, approvals, normalizedToolName, normalizedArgs, approved)
-  })
+      event.sender?.id ?? -1,
+        normalizedToolName,
+        normalizedArgs
+      )
+      return executeMcpTool(manager, approvals, normalizedToolName, normalizedArgs, approved)
+    }
+  )
 
   ipcMain.handle('mcp:resolve-approval', async (_event, requestId: string, approved: boolean) => {
     return approvals.resolveApproval(assertApprovalRequestId(requestId), approved === true)

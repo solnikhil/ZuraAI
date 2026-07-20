@@ -59,14 +59,16 @@ export function AgentToolApprovalProvider({ children }: { children: React.ReactN
             if (decision.approved && decision.approvalToken) {
               rememberToolApprovalToken(toolCall.id, decision.approvalToken)
             }
-            showToast(
-              decision.approved
-                ? decision.trusted
-                  ? 'Tool call trusted.'
-                  : 'Tool call approved.'
-                : 'Tool call rejected.',
-              decision.approved ? 'success' : 'warning'
-            )
+            if (!decision.autonomous) {
+              showToast(
+                decision.approved
+                  ? decision.trusted
+                    ? 'Tool call trusted.'
+                    : 'Tool call approved.'
+                  : 'Tool call rejected.',
+                decision.approved ? 'success' : 'warning'
+              )
+            }
             return decision.approved
           })
           .catch(() => false)

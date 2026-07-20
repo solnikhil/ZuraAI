@@ -38,4 +38,18 @@ describe('executeTool MCP routing', () => {
       serverName: 'Filesystem',
     })
   })
+
+  it('forwards a main-issued Agent Mode approval token to the MCP bridge', async () => {
+    await executeTool(
+      'mcp__filesystem__read_file',
+      { path: '/tmp/demo.txt' },
+      { approvalToken: 'one-use-token' }
+    )
+
+    expect(testWindow.mcp.executeTool).toHaveBeenCalledWith(
+      'mcp__filesystem__read_file',
+      { path: '/tmp/demo.txt' },
+      { approvalToken: 'one-use-token' }
+    )
+  })
 })

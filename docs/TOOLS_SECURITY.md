@@ -30,6 +30,12 @@ The token lives in execution context, not in model arguments. It is consumed bef
 
 Exact-repeat trust stores only main-generated signatures. Raw tokens are never persisted. Renderer `localStorage` is not a source of authority for code, terminal, filesystem, UI automation, or Computer Use.
 
+## Fully autonomous Agent Mode
+
+Fully autonomous mode is off by default. Enabling it requires a main-owned native confirmation and stores the resulting policy only through encrypted main-process storage. The renderer can request enable/disable and read the sanitized boolean, but renderer state is never the authority.
+
+When enabled, an Agent Mode approval request receives the same short-lived, one-use token bound to its sender, exact tool name, and canonical arguments as a manual approval. Built-in tools and MCP consume that exact token at their existing main boundaries. Autonomous mode does not weaken schemas, tool exposure, filesystem/network restrictions, run budgets, HWND ownership, cancellation, or Esc+Esc emergency stop. Direct IPC calls without a matching token and ordinary Chat-mode approval managers are not auto-approved. Disabling takes effect immediately without another confirmation.
+
 ## Background window (Windows agent)
 
 Reserving an external app window is approval-gated. Main stores the exact window identity and binds it to the current chat run. Observation and element actions must match that owner.

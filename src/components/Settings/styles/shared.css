@@ -1424,6 +1424,32 @@
   margin-top: 16px;
 }
 
+.extension-detail__autonomy-card[data-active='true'] {
+  background: color-mix(in srgb, var(--warning) 8%, var(--card));
+}
+
+.extension-detail__autonomy-heading {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.extension-detail__autonomy-heading svg,
+.extension-detail__autonomy-warning {
+  color: color-mix(in srgb, var(--warning) 78%, var(--foreground));
+}
+
+.extension-detail__autonomy-warning,
+.extension-detail__autonomy-error {
+  margin-top: 8px;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.extension-detail__autonomy-error {
+  color: var(--destructive);
+}
+
 .extension-detail__guidance-list {
   margin: 0;
   padding-left: 1.1rem;

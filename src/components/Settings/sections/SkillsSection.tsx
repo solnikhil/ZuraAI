@@ -50,7 +50,7 @@ interface ExtensionCatalogGroupProps {
   title?: string
   rows: CatalogRow[]
   isEnabled: (extensionId: CatalogExtensionId) => boolean
-  setEnabled: (extensionId: CatalogExtensionId, enabled: boolean) => void
+  setEnabled: (extensionId: CatalogExtensionId, enabled: boolean) => void | Promise<void>
   onOpen: (extensionId: CatalogExtensionId) => void
 }
 
@@ -73,13 +73,17 @@ export function SkillsSection({
     ? BUILT_IN_SKILLS.filter((skill) => skill.id !== 'computer_use' && skill.id !== 'terminal')
     : BUILT_IN_SKILLS
 
-  const catalogRows = useMemo(
-    () => visibleSkills.map(toCatalogRow),
-    [visibleSkills]
-  )
+  const catalogRows = useMemo(() => visibleSkills.map(toCatalogRow), [visibleSkills])
 
-  const setEnabled = (extensionId: CatalogExtensionId, enabled: boolean) => {
+  const setEnabled = async (extensionId: CatalogExtensionId, enabled: boolean) => {
     if (extensionId === 'computer_use') {
+      if (!enabled && window.agentApproval) {
+        try {
+          await window.agentApproval.setAutonomousMode(false)
+        } catch {
+          return
+        }
+      }
       onChange({
         skills: withComputerUseEnabled(skills, enabled),
       })
@@ -205,7 +209,7 @@ function ExtensionCatalogGroup({
                   size="icon"
                   className={`skills-catalog-row__toggle ${enabled ? 'skills-catalog-row__toggle--enabled' : ''}`}
                   aria-label={`${enabled ? 'Disable' : 'Enable'} ${row.name}`}
-                  onClick={() => setEnabled(row.id, !enabled)}
+                  onClick={() => void setEnabled(row.id, !enabled)}
                 >
                   {enabled ? <Check size={15} /> : <Plus size={16} />}
                 </Button>
@@ -233,7 +237,7 @@ function ExtensionCatalogGroup({
                     </DropdownMenuItem>
                     <DropdownMenuItem
                       className="zura-menu-item--compact"
-                      onClick={() => setEnabled(row.id, !enabled)}
+                      onClick={() => void setEnabled(row.id, !enabled)}
                     >
                       {enabled ? 'Disable' : 'Enable'}
                     </DropdownMenuItem>

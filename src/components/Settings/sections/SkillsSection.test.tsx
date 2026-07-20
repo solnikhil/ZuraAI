@@ -1,8 +1,8 @@
 import React from 'react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { SkillsSection } from './SkillsSection'
-import { defaultSkillsSettings } from '../../../skills'
+import { defaultSkillsSettings, withComputerUseEnabled } from '../../../skills'
 import { defaultSettingsConfig } from '../../../contexts/SettingsConfigContext'
 
 let isMac = false
@@ -37,6 +37,11 @@ vi.mock('./ExtensionDetailSection', () => ({
 describe('SkillsSection', () => {
   beforeEach(() => {
     isMac = false
+    window.agentApproval = {
+      requestApproval: vi.fn(),
+      getAutonomousMode: vi.fn(async () => ({ enabled: false })),
+      setAutonomousMode: vi.fn(async (enabled: boolean) => ({ enabled })),
+    }
   })
 
   it('renders a flat extensions catalog with actions', () => {
@@ -148,6 +153,29 @@ describe('SkillsSection', () => {
       expect.objectContaining({
         skills: expect.objectContaining({
           terminal: expect.objectContaining({ enabled: true }),
+        }),
+      })
+    )
+  })
+
+  it('labels desktop control as Agent Mode and disables autonomy with the extension', async () => {
+    const onChange = vi.fn()
+    render(
+      <SkillsSection
+        skills={withComputerUseEnabled(defaultSkillsSettings, true)}
+        onActiveExtensionChange={vi.fn()}
+        onChange={onChange}
+      />
+    )
+
+    expect(screen.getByText('Agent Mode')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /disable agent mode/i }))
+
+    await waitFor(() => expect(window.agentApproval?.setAutonomousMode).toHaveBeenCalledWith(false))
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        skills: expect.objectContaining({
+          computer_use: expect.objectContaining({ enabled: false }),
         }),
       })
     )

@@ -44,6 +44,25 @@ describe('preload MCP bridge', () => {
     await import('./preload')
   })
 
+  it('exposes main-owned Agent Mode autonomous policy controls', async () => {
+    const agentApproval = getExposedBridge<{
+      getAutonomousMode: () => Promise<{ enabled: boolean }>
+      setAutonomousMode: (enabled: boolean) => Promise<{ enabled: boolean }>
+    }>('agentApproval')
+    preloadMocks.invoke
+      .mockResolvedValueOnce({ enabled: false })
+      .mockResolvedValueOnce({ enabled: true })
+
+    await expect(agentApproval.getAutonomousMode()).resolves.toEqual({ enabled: false })
+    await expect(agentApproval.setAutonomousMode(true)).resolves.toEqual({ enabled: true })
+    expect(preloadMocks.invoke).toHaveBeenNthCalledWith(1, 'agent-approval:get-autonomous-mode')
+    expect(preloadMocks.invoke).toHaveBeenNthCalledWith(
+      2,
+      'agent-approval:set-autonomous-mode',
+      true
+    )
+  })
+
   it('exposes the narrow ChatGPT Codex account actions on the provider bridge', async () => {
     const providerRuntime = getExposedBridge<{
       signInCodex: () => Promise<boolean>

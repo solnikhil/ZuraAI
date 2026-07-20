@@ -87,10 +87,10 @@ export const BUILT_IN_SKILLS: BuiltInSkill[] = [
   },
   {
     id: 'computer_use',
-    name: 'Control This Desktop',
+    name: 'Agent Mode',
     description:
       'Let Agent Mode use native OS tools, screenshots, clicks, typing, scrolling, and app controls on this desktop.',
-    note: 'Desktop control actions require approval. Press Esc+Esc to emergency stop.',
+    note: 'Actions require approval unless Fully autonomous mode is explicitly enabled. Press Esc+Esc to emergency stop.',
     usageGuidance: [
       'Prefer native OS tools before screenshots or shell commands.',
       'Use screenshots when visual inspection is required, then analyze before performing any action.',
@@ -561,7 +561,7 @@ export function buildEnabledSkillsPrompt(
 
   if (normalized.computer_use.enabled) {
     skillLines.push(
-      '- Control This Desktop (`computer_use`): prefer native Windows tools for filesystem/app/window/UIA work, and use screenshots/click/type/scroll only when native tools cannot handle the task.'
+      '- Agent Mode (`computer_use`): prefer native Windows tools for filesystem/app/window/UIA work, and use screenshots/click/type/scroll only when native tools cannot handle the task.'
     )
     skillLines.push(
       '- For Desktop/file organization tasks, first inspect directories with `file_search`/`file_read`, propose changes, then use `file_move` after approval. Do not open Run/Explorer or use screenshots for simple file moves.'

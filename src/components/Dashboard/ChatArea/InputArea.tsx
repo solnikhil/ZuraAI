@@ -11,7 +11,6 @@ import {
   Square,
   Plus,
   FolderOpen,
-  Wrench,
   Brain,
   X,
 } from 'lucide-react'
@@ -45,13 +44,9 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuShortcut,
-  DropdownMenuSub,
-  DropdownMenuSubTrigger,
-  DropdownMenuSubContent,
 } from '@/components/ui/dropdown-menu'
 import { Switch } from '@/components/ui/switch'
 import { ComposerAttachments } from './ComposerAttachments'
-import McpLibraryDialog from '@/components/mcp/McpLibraryDialog'
 import { isSkillEnabled, withComputerUseEnabled } from '@/skills'
 import { isWindowsRuntime } from '@/utils/platform'
 
@@ -117,7 +112,6 @@ export function InputArea({
   const MAX_ATTACHMENTS = 10
   const [isDragging, setIsDragging] = React.useState(false)
   const [quickActionsOpen, setQuickActionsOpen] = React.useState(false)
-  const [mcpDialogMode, setMcpDialogMode] = React.useState<'resources' | 'prompts' | null>(null)
   const { textareaRef, adjustHeight } = useAutoResizeTextarea({
     minHeight: 36,
     maxHeight: 200,
@@ -384,62 +378,8 @@ export function InputArea({
             <span>Agent Mode requires Windows</span>
           </DropdownMenuItem>
         )}
-
-        <DropdownMenuSeparator />
-
-        <DropdownMenuSub>
-          <DropdownMenuSubTrigger className="zura-menu-sub-trigger--compact">
-            <Wrench className="h-3.5 w-3.5 text-[var(--theme-text-secondary)]" />
-            <span>MCP Library</span>
-          </DropdownMenuSubTrigger>
-          <DropdownMenuSubContent
-            sideOffset={8}
-            collisionPadding={12}
-            className="zura-menu-surface--compact w-[190px]"
-          >
-            <DropdownMenuItem
-              onSelect={() => {
-                setMcpDialogMode('resources')
-                setQuickActionsOpen(false)
-              }}
-              className="zura-menu-item--compact group/menu-item"
-            >
-              <Wrench className="h-3.5 w-3.5 text-[var(--theme-text-secondary)]" />
-              <span>Browse resources</span>
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onSelect={() => {
-                setMcpDialogMode('prompts')
-                setQuickActionsOpen(false)
-              }}
-              className="zura-menu-item--compact group/menu-item"
-            >
-              <Wrench className="h-3.5 w-3.5 text-[var(--theme-text-secondary)]" />
-              <span>Browse prompts</span>
-            </DropdownMenuItem>
-          </DropdownMenuSubContent>
-        </DropdownMenuSub>
       </DropdownMenuContent>
     </DropdownMenu>
-  )
-
-  const insertMcpTextIntoComposer = React.useCallback(
-    (text: string) => {
-      const hasMeaningfulInput = input.trim().length > 0
-      const separator = !hasMeaningfulInput
-        ? ''
-        : input.endsWith('\n\n')
-          ? ''
-          : input.endsWith('\n')
-            ? '\n'
-            : '\n\n'
-      const nextValue = hasMeaningfulInput ? `${input}${separator}${text}` : text
-      setInput(nextValue)
-      adjustHeight()
-      requestAnimationFrame(() => textareaRef.current?.focus())
-      onActivity?.()
-    },
-    [adjustHeight, input, onActivity, setInput, textareaRef]
   )
 
   // Throttled mouse-move activity signal (fire at most once per 2s)
@@ -453,212 +393,197 @@ export function InputArea({
   }, [onActivity])
 
   return (
-    <>
-      <div
-        className="w-full pb-0 pt-3"
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onDrop={handleDrop}
-        onMouseMove={handleMouseMoveActivity}
-      >
-        <div className={cn('relative mx-auto w-full', composerWidthClass)}>
-          <div
-            role="group"
-            aria-label="Chat composer"
-            className={cn(
-              'relative flex w-full flex-col overflow-hidden text-left cursor-text',
-              'theme-composer-surface',
-              shellRadiusClass,
-              shellPaddingClass,
-              isDragging && 'ring-2 ring-[var(--theme-accent)]'
+    <div
+      className="w-full pb-0 pt-3"
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+      onMouseMove={handleMouseMoveActivity}
+    >
+      <div className={cn('relative mx-auto w-full', composerWidthClass)}>
+        <div
+          role="group"
+          aria-label="Chat composer"
+          className={cn(
+            'relative flex w-full flex-col overflow-hidden text-left cursor-text',
+            'theme-composer-surface',
+            shellRadiusClass,
+            shellPaddingClass,
+            isDragging && 'ring-2 ring-[var(--theme-accent)]'
+          )}
+          onClick={handleContainerClick}
+        >
+          <AnimatePresence initial={false}>
+            {isDragging && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={fastTransition}
+                className="pointer-events-none absolute inset-2 z-20 flex items-center justify-center rounded-[26px] border border-dashed border-[var(--theme-accent)] bg-[color-mix(in_srgb,var(--theme-accent)_10%,var(--theme-surface))]"
+              >
+                <div className="flex items-center gap-3 rounded-full bg-[var(--theme-surface)] px-4 py-2 text-sm text-[var(--theme-text-primary)] shadow-lg">
+                  <ImagePlus className="h-4 w-4 text-[var(--theme-accent)]" />
+                  Drop files to attach them
+                </div>
+              </motion.div>
             )}
-            onClick={handleContainerClick}
-          >
-            <AnimatePresence initial={false}>
-              {isDragging && (
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  transition={fastTransition}
-                  className="pointer-events-none absolute inset-2 z-20 flex items-center justify-center rounded-[26px] border border-dashed border-[var(--theme-accent)] bg-[color-mix(in_srgb,var(--theme-accent)_10%,var(--theme-surface))]"
-                >
-                  <div className="flex items-center gap-3 rounded-full bg-[var(--theme-surface)] px-4 py-2 text-sm text-[var(--theme-text-primary)] shadow-lg">
-                    <ImagePlus className="h-4 w-4 text-[var(--theme-accent)]" />
-                    Drop files to attach them
-                  </div>
-                </motion.div>
+          </AnimatePresence>
+
+          {showAttachmentRail && (
+            <ComposerAttachments files={attachedFiles} onRemove={removeFile} />
+          )}
+
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFileSelect}
+            multiple
+            accept="image/*,.txt,.md,.markdown,.csv,.tsv,.json,.xml,.yaml,.yml"
+            className="hidden"
+          />
+
+          <div className="flex flex-col gap-2">
+            <Textarea
+              ref={textareaRef}
+              value={input}
+              placeholder={placeholder}
+              rows={1}
+              className={cn(
+                'block min-h-[44px] w-full appearance-none overflow-y-auto rounded-[18px] border-none bg-transparent px-2 py-2 text-[0.98rem] leading-[22px] md:text-[0.98rem] text-[var(--theme-text-primary)] placeholder:text-[var(--theme-text-muted)] shadow-none transition-colors duration-200 resize-none focus-visible:ring-0'
               )}
-            </AnimatePresence>
-
-            {showAttachmentRail && (
-              <ComposerAttachments files={attachedFiles} onRemove={removeFile} />
-            )}
-
-            <input
-              type="file"
-              ref={fileInputRef}
-              onChange={handleFileSelect}
-              multiple
-              accept="image/*,.txt,.md,.markdown,.csv,.tsv,.json,.xml,.yaml,.yml"
-              className="hidden"
+              onFocus={() => {
+                onFocusChange?.(true)
+                onActivity?.()
+              }}
+              onBlur={() => {
+                onFocusChange?.(false)
+              }}
+              onKeyDown={handleKeyDown}
+              onPaste={handlePaste}
+              onChange={(e) => {
+                setInput(e.target.value)
+                adjustHeight()
+                onActivity?.()
+              }}
             />
 
-            <div className="flex flex-col gap-2">
-              <Textarea
-                ref={textareaRef}
-                value={input}
-                placeholder={placeholder}
-                rows={1}
-                className={cn(
-                  'block min-h-[44px] w-full appearance-none overflow-y-auto rounded-[18px] border-none bg-transparent px-2 py-2 text-[0.98rem] leading-[22px] md:text-[0.98rem] text-[var(--theme-text-primary)] placeholder:text-[var(--theme-text-muted)] shadow-none transition-colors duration-200 resize-none focus-visible:ring-0'
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex min-w-0 flex-wrap items-center gap-2">
+                <div className={controlClusterClass}>{quickActionsMenu}</div>
+                {folderContextName && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        type="button"
+                        onClick={(e) => e.stopPropagation()}
+                        className="theme-control-btn inline-flex h-9 w-9 items-center justify-center rounded-full p-2 text-[var(--theme-text-muted)]"
+                        aria-label={`Folder chat: ${folderContextName}`}
+                      >
+                        <FolderOpen className="h-4 w-4" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="rounded-full">
+                      {folderContextName}
+                    </TooltipContent>
+                  </Tooltip>
                 )}
-                onFocus={() => {
-                  onFocusChange?.(true)
-                  onActivity?.()
-                }}
-                onBlur={() => {
-                  onFocusChange?.(false)
-                }}
-                onKeyDown={handleKeyDown}
-                onPaste={handlePaste}
-                onChange={(e) => {
-                  setInput(e.target.value)
-                  adjustHeight()
-                  onActivity?.()
-                }}
-              />
+                {assistantMode === 'agent' && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          disableAgentWorkspace()
+                        }}
+                        className="group inline-flex h-7 items-center gap-1.5 rounded-full border border-[var(--theme-border-subtle)] bg-[color-mix(in_srgb,var(--theme-accent)_14%,var(--theme-surface))] px-2.5 text-[11px] font-medium text-[var(--theme-text-primary)] transition-colors hover:bg-[color-mix(in_srgb,var(--theme-accent)_22%,var(--theme-surface))]"
+                        aria-label="Exit agent mode"
+                      >
+                        <Brain className="h-3.5 w-3.5 text-[var(--theme-accent)]" />
+                        <span>{activeAgentPillLabel}</span>
+                        <X className="h-3 w-3 text-[var(--theme-text-muted)] group-hover:text-[var(--theme-text-primary)]" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="rounded-full">
+                      Click to exit agent mode
+                    </TooltipContent>
+                  </Tooltip>
+                )}
+              </div>
 
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="flex min-w-0 flex-wrap items-center gap-2">
-                  <div className={controlClusterClass}>{quickActionsMenu}</div>
-                  {folderContextName && (
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <button
-                          type="button"
-                          onClick={(e) => e.stopPropagation()}
-                          className="theme-control-btn inline-flex h-9 w-9 items-center justify-center rounded-full p-2 text-[var(--theme-text-muted)]"
-                          aria-label={`Folder chat: ${folderContextName}`}
-                        >
-                          <FolderOpen className="h-4 w-4" />
-                        </button>
-                      </TooltipTrigger>
-                      <TooltipContent side="top" className="rounded-full">
-                        {folderContextName}
-                      </TooltipContent>
-                    </Tooltip>
+              <div className="flex min-w-0 items-center justify-end gap-2">
+                <div className={cn(controlClusterClass, 'min-w-0')}>
+                  {showContextRing && (
+                    <TokenUsageIndicator
+                      input={input}
+                      attachedFiles={attachedFiles}
+                      className="h-9 w-9 text-[var(--theme-text-muted)]"
+                    />
                   )}
-                  {assistantMode === 'agent' && (
+                  <ModelSelector minimal={true} popoverAlign="end" />
+                  {isLoading ? (
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <button
+                        <motion.button
                           type="button"
+                          initial={{ scale: 0.8, opacity: 0 }}
+                          animate={{ scale: 1, opacity: 1 }}
+                          whileHover={maybeAnimate(animationsEnabled, { scale: 1.04 })}
+                          whileTap={maybeAnimate(animationsEnabled, { scale: 0.96 })}
                           onClick={(e) => {
                             e.stopPropagation()
-                            disableAgentWorkspace()
+                            onStop?.()
                           }}
-                          className="group inline-flex h-7 items-center gap-1.5 rounded-full border border-[var(--theme-border-subtle)] bg-[color-mix(in_srgb,var(--theme-accent)_14%,var(--theme-surface))] px-2.5 text-[11px] font-medium text-[var(--theme-text-primary)] transition-colors hover:bg-[color-mix(in_srgb,var(--theme-accent)_22%,var(--theme-surface))]"
-                          aria-label="Exit agent mode"
+                          className={stopButtonClass}
                         >
-                          <Brain className="h-3.5 w-3.5 text-[var(--theme-accent)]" />
-                          <span>{activeAgentPillLabel}</span>
-                          <X className="h-3 w-3 text-[var(--theme-text-muted)] group-hover:text-[var(--theme-text-primary)]" />
-                        </button>
+                          <Square className="w-3.5 h-3.5 fill-current" />
+                        </motion.button>
                       </TooltipTrigger>
                       <TooltipContent side="top" className="rounded-full">
-                        Click to exit agent mode
+                        Stop generating
+                      </TooltipContent>
+                    </Tooltip>
+                  ) : (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <motion.button
+                          type="button"
+                          whileHover={
+                            canSend ? maybeAnimate(animationsEnabled, { scale: 1.04 }) : undefined
+                          }
+                          whileTap={
+                            canSend ? maybeAnimate(animationsEnabled, { scale: 0.96 }) : undefined
+                          }
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            if (canSend) {
+                              onSend()
+                              setInput('')
+                              adjustHeight(true)
+                              if (attachedFiles.length > 0) {
+                                onFilesChange([])
+                              }
+                            }
+                          }}
+                          disabled={!canSend}
+                          className={sendButtonClass}
+                        >
+                          <ArrowUp className="h-4 w-4" />
+                        </motion.button>
+                      </TooltipTrigger>
+                      <TooltipContent side="top" className="rounded-full">
+                        Send message
                       </TooltipContent>
                     </Tooltip>
                   )}
-                </div>
-
-                <div className="flex min-w-0 items-center justify-end gap-2">
-                  <div className={cn(controlClusterClass, 'min-w-0')}>
-                    {showContextRing && (
-                      <TokenUsageIndicator
-                        input={input}
-                        attachedFiles={attachedFiles}
-                        className="h-9 w-9 text-[var(--theme-text-muted)]"
-                      />
-                    )}
-                    <ModelSelector minimal={true} popoverAlign="end" />
-                    {isLoading ? (
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <motion.button
-                            type="button"
-                            initial={{ scale: 0.8, opacity: 0 }}
-                            animate={{ scale: 1, opacity: 1 }}
-                            whileHover={maybeAnimate(animationsEnabled, { scale: 1.04 })}
-                            whileTap={maybeAnimate(animationsEnabled, { scale: 0.96 })}
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              onStop?.()
-                            }}
-                            className={stopButtonClass}
-                          >
-                            <Square className="w-3.5 h-3.5 fill-current" />
-                          </motion.button>
-                        </TooltipTrigger>
-                        <TooltipContent side="top" className="rounded-full">
-                          Stop generating
-                        </TooltipContent>
-                      </Tooltip>
-                    ) : (
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <motion.button
-                            type="button"
-                            whileHover={
-                              canSend ? maybeAnimate(animationsEnabled, { scale: 1.04 }) : undefined
-                            }
-                            whileTap={
-                              canSend ? maybeAnimate(animationsEnabled, { scale: 0.96 }) : undefined
-                            }
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              if (canSend) {
-                                onSend()
-                                setInput('')
-                                adjustHeight(true)
-                                if (attachedFiles.length > 0) {
-                                  onFilesChange([])
-                                }
-                              }
-                            }}
-                            disabled={!canSend}
-                            className={sendButtonClass}
-                          >
-                            <ArrowUp className="h-4 w-4" />
-                          </motion.button>
-                        </TooltipTrigger>
-                        <TooltipContent side="top" className="rounded-full">
-                          Send message
-                        </TooltipContent>
-                      </Tooltip>
-                    )}
-                  </div>
                 </div>
               </div>
             </div>
           </div>
         </div>
       </div>
-
-      {mcpDialogMode && (
-        <McpLibraryDialog
-          open={true}
-          onOpenChange={(open) => {
-            if (!open) {
-              setMcpDialogMode(null)
-            }
-          }}
-          initialMode={mcpDialogMode}
-          onInsertText={insertMcpTextIntoComposer}
-        />
-      )}
-    </>
+    </div>
   )
 }
 

@@ -1,4 +1,5 @@
-import React, { useEffect, useRef } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
+import { AlertTriangle } from 'lucide-react'
 import { Card } from '@/components/ui/card'
 import { Switch } from '@/components/ui/switch'
 import { SkillLogo } from '@/components/shared'
@@ -18,7 +19,7 @@ export interface ExtensionDetailSectionProps {
   isSavingSecureSettings?: boolean
   initialPanel?: 'notifications'
   isEnabled: (extensionId: CatalogExtensionId) => boolean
-  setEnabled: (extensionId: CatalogExtensionId, enabled: boolean) => void
+  setEnabled: (extensionId: CatalogExtensionId, enabled: boolean) => void | Promise<void>
   onChange: (changes: {
     skills?: SkillsSettings
     assistantMode?: Settings['assistantMode']
@@ -72,7 +73,7 @@ export function ExtensionDetailSection({
         <div className="extension-detail__enable">
           <Switch
             checked={enabled}
-            onCheckedChange={(checked) => setEnabled(extensionId, checked)}
+            onCheckedChange={(checked) => void setEnabled(extensionId, checked)}
             aria-label={`${enabled ? 'Disable' : 'Enable'} ${catalogEntry.name}`}
           />
         </div>
@@ -102,6 +103,7 @@ export function ExtensionDetailSection({
       ) : extensionId === 'computer_use' ? (
         <>
           {skill ? <ExtensionInfoCard skill={skill} /> : null}
+          <AgentModeAutonomyCard enabled={enabled} />
           <Card className="settings-list-card extension-detail__note-card">
             <div className="settings-list-row">
               <div className="settings-list-row__meta">
@@ -128,6 +130,86 @@ export function ExtensionDetailSection({
         </Card>
       ) : null}
     </div>
+  )
+}
+
+function AgentModeAutonomyCard({ enabled }: { enabled: boolean }): React.ReactElement {
+  const [autonomous, setAutonomous] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    let active = true
+    void window.agentApproval
+      ?.getAutonomousMode()
+      .then((state) => {
+        if (active) setAutonomous(state.enabled)
+      })
+      .catch((cause: unknown) => {
+        if (active)
+          setError(cause instanceof Error ? cause.message : 'Autonomous mode is unavailable.')
+      })
+      .finally(() => {
+        if (active) setLoading(false)
+      })
+    if (!window.agentApproval) setLoading(false)
+    return () => {
+      active = false
+    }
+  }, [])
+
+  const setMode = async (nextEnabled: boolean) => {
+    if (!window.agentApproval) {
+      setError('Autonomous mode is available only in the desktop app.')
+      return
+    }
+    setLoading(true)
+    setError('')
+    try {
+      const state = await window.agentApproval.setAutonomousMode(nextEnabled)
+      setAutonomous(state.enabled)
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Autonomous mode could not be updated.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <Card
+      className="settings-list-card extension-detail__autonomy-card"
+      data-active={autonomous ? 'true' : 'false'}
+    >
+      <div className="settings-list-row">
+        <div className="settings-list-row__meta">
+          <div className="extension-detail__autonomy-heading">
+            <AlertTriangle size={15} aria-hidden="true" />
+            <h3 className="settings-list-row__label">Fully autonomous mode</h3>
+          </div>
+          <div className="settings-list-row__description">
+            Automatically approve Agent Mode tool actions, including terminal commands, code,
+            desktop control, file changes, app actions, and MCP tools.
+          </div>
+          <div className="extension-detail__autonomy-warning">
+            ZuraAI will ask for one native confirmation before enabling this. Tool validation,
+            bounded execution, and Esc+Esc emergency stop remain active.
+          </div>
+          {error ? (
+            <div className="extension-detail__autonomy-error" role="status">
+              {error}
+            </div>
+          ) : null}
+        </div>
+        <div className="settings-list-row__control">
+          <Switch
+            checked={autonomous}
+            disabled={!enabled || loading}
+            onCheckedChange={(checked) => void setMode(checked)}
+            aria-label="Fully autonomous mode"
+          />
+        </div>
+      </div>
+    </Card>
   )
 }
 

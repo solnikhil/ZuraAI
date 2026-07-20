@@ -26,7 +26,7 @@ export function ComputerUseSection({
   return (
     <div className="settings-section-layout">
       <div className="page-header">
-        <h2 className="page-title">Computer Use</h2>
+        <h2 className="page-title">Agent Mode</h2>
         <div className="page-subtitle">
           Let Agent mode use screenshots, clicks, typing, scrolling, and app controls on the desktop
           you are currently using.
@@ -39,7 +39,7 @@ export function ComputerUseSection({
             <div className="inline-flex items-center gap-2">
               <Monitor size={18} />
               <span className="text-xl font-semibold leading-none text-foreground sm:text-2xl lg:text-[28px]">
-                Desktop control
+                Agent Mode
               </span>
             </div>
           </div>
@@ -51,14 +51,14 @@ export function ComputerUseSection({
           </p>
 
           <DetailField
-            label="Control this desktop"
-            description="Use Computer Use on the desktop you are currently using while Agent mode is active."
+            label="Enable Agent Mode"
+            description="Let Agent Mode control the desktop you are currently using."
             control={
               <Switch
                 className="provider-hub-toggle"
                 checked={thisDesktopEnabled}
                 onCheckedChange={handleThisDesktopChange}
-                aria-label="Enable control this desktop"
+                aria-label="Enable Agent Mode"
               />
             }
           />

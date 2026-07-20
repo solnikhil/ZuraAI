@@ -485,6 +485,39 @@ describe('electron MCP handler registration', () => {
       })
     )
   })
+
+  it('consumes an exact main-issued token instead of prompting twice', async () => {
+    const mcpIndex = await import('./index')
+    const { issueToolApprovalAuthorization } = await import('../tools/toolApprovalAuthorizations')
+    mcpIndex.registerMcpHandlers()
+    const manager = getManagerInstance()
+    const approvals = indexMocks.approvalInstances[0]
+    const args = { path: 'demo.txt' }
+    const toolName = 'mcp__server__read_file'
+    manager.getExecutableTool.mockResolvedValueOnce({
+      server: {
+        id: 'server-1',
+        name: 'Server',
+        trustState: 'trusted',
+        transport: 'stdio',
+        requireApproval: true,
+      },
+      tool: { namespacedName: toolName, toolName: 'read_file' },
+      connection: {},
+    })
+    const token = issueToolApprovalAuthorization(7, toolName, args)
+
+    const result = await invokeHandler('mcp:execute-tool', { sender: { id: 7 } }, toolName, args, {
+      approvalToken: token,
+    })
+
+    expect(result).toMatchObject({
+      success: true,
+      metadata: { approvalState: 'approved' },
+    })
+    expect(approvals.requestApproval).not.toHaveBeenCalled()
+    expect(manager.executeTool).toHaveBeenCalledWith(toolName, args)
+  })
 })
 
 function getManagerInstance(): MockMcpManager {

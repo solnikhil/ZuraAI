@@ -147,6 +147,7 @@ All BrowserWindows use `nodeIntegration: false`, `contextIsolation: true`, and `
 - Tool media under `tool-media/{sessionId}/`
 - MCP config and runtime metadata (non-secret)
 - Encrypted secure-storage JSON
+- Main-owned Agent Mode autonomous-approval policy, encrypted through secure storage
 - Memories, scheduled tasks, analytics consent, artifact exports, etc.
 
 Main persistence rules (see also `docs/PERSISTENCE.md`):
@@ -165,7 +166,7 @@ Invokable handlers register through `electron/ipc/trustedIpc.ts`. Requests must 
 
 Primary files: `electron/preload.ts`, `src/electron/ipcChannelManifest.ts`, `src/electron.d.ts`, `electron/ipc/*`.
 
-Dedicated bridges include (non-exhaustive): `windowControls`, `appInfo`, `analytics`, `agentApproval`, `agentSkills`, `mcp`, `memory`, `scheduledTasks`, `artifacts`, `codeExecution`, `terminal`, `providerRuntime`, `backgroundWindow`, and a restricted generic `ipcRenderer` wrapper.
+Dedicated bridges include (non-exhaustive): `windowControls`, `appInfo`, `analytics`, `agentApproval`, `agentSkills`, `mcp`, `memory`, `scheduledTasks`, `artifacts`, `codeExecution`, `terminal`, `providerRuntime`, `backgroundWindow`, and a restricted generic `ipcRenderer` wrapper. `agentApproval` exposes request approval plus narrow get/set autonomous-mode calls. Enabling requires a main-owned native confirmation and persists only in encrypted main storage; renderer settings are never approval authority.
 
 When adding/renaming/removing a channel:
 
@@ -181,6 +182,8 @@ Details: `docs/IPC.md`.
 Agent mode can use narrow main-owned tools (active window, status, open path, snap layouts; on Windows also apps, UI automation, Computer Use). Mutating actions stay approval-gated. There is no global launcher overlay or renderer-provided shell.
 
 Windows agent runs may reserve one external window via `background_window_attach`. Main owns identity and scoping. Physical Computer Use needs a fresh main-issued screenshot ID. An approved targeted left click first maps its point to the smallest enabled/visible exact-HWND UIA/MSAA element with a provider-advertised Invoke, SelectionItem/Toggle, or default action. Successful provider activation remains background-safe and keeps the guard attached; provider failures propagate, while only an unsupported point may release the guard and use the verified foreground physical fallback. Delivery mode is evidence of dispatch, not semantic task completion.
+
+Agent Mode may enable a persisted Fully autonomous policy only after explicit confirmation in a main-owned native dialog. While enabled, the main approval handler issues the same short-lived, exact sender/tool/argument-bound one-use authorization that a manual approval would issue; it does not add model-visible authority flags or weaken validation, tool scope, run budgets, background-window ownership, or emergency stop. MCP execution consumes that exact token through its dedicated bridge so an Agent Mode approval is not requested twice. Chat-mode calls and direct renderer invocations without a valid token retain their normal approval behavior. Disabling is immediate and does not require confirmation.
 
 Installed-app discovery is main-owned (`app-index.json`). Launch requests are not proof a window appeared — verify with observation tools.
 
