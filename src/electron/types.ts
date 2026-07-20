@@ -62,6 +62,7 @@ export interface AgentApprovalOverlayRequest {
 export interface AgentApprovalOverlayDecision {
   approved: boolean
   trusted?: boolean
+  autonomous?: boolean
   /** Main-owned, one-use authorization bound to the sender, tool, and exact arguments. */
   approvalToken?: string
 }
@@ -894,6 +895,8 @@ export interface BackgroundWindowAPI {
 
 export interface AgentApprovalAPI {
   requestApproval: (request: AgentApprovalOverlayRequest) => Promise<AgentApprovalOverlayDecision>
+  getAutonomousMode: () => Promise<{ enabled: boolean }>
+  setAutonomousMode: (enabled: boolean) => Promise<{ enabled: boolean }>
 }
 
 export interface EmailNotificationsAPI {
@@ -921,7 +924,8 @@ export interface McpAPI {
   ) => Promise<McpPromptResult>
   executeTool: (
     namespacedToolName: string,
-    args: Record<string, unknown>
+    args: Record<string, unknown>,
+    executionContext?: { approvalToken: string }
   ) => Promise<McpToolExecutionResult>
   resolveApproval: (requestId: string, approved: boolean) => Promise<McpApprovalDecision>
   startOAuth: (serverId: string) => Promise<{ ok: boolean; status: McpAuthStatus; error?: string }>

@@ -19,6 +19,7 @@ import {
   getPendingMcpAddRequest,
 } from './mcpAddRequests'
 import { trackAnalyticsEvent } from '../analytics'
+import { consumeToolApprovalAuthorization } from '../tools/toolApprovalAuthorizations'
 
 const MCP_STATE_CHANGED_CHANNEL = 'mcp:state-changed'
 
@@ -214,11 +215,18 @@ export function registerMcpHandlers(): void {
     }
   )
 
-  ipcMain.handle('mcp:execute-tool', async (_event, namespacedToolName: string, args: unknown) => {
+  ipcMain.handle('mcp:execute-tool', async (event, namespacedToolName: string, args: unknown, executionContext?: unknown) => {
     await manager.initialize()
     const normalizedToolName = assertMcpToolName(namespacedToolName)
     const normalizedArgs = assertArgumentsRecord(args)
-    return executeMcpTool(manager, approvals, normalizedToolName, normalizedArgs)
+    const approvalToken = assertMcpExecutionContext(executionContext)
+    const approved = consumeToolApprovalAuthorization(
+      approvalToken,
+      event.sender.id,
+      normalizedToolName,
+      normalizedArgs
+    )
+    return executeMcpTool(manager, approvals, normalizedToolName, normalizedArgs, approved)
   })
 
   ipcMain.handle('mcp:resolve-approval', async (_event, requestId: string, approved: boolean) => {
@@ -358,6 +366,25 @@ function assertArgumentsRecord(args: unknown): Record<string, unknown> {
   return args as Record<string, unknown>
 }
 
+function assertMcpExecutionContext(value: unknown): string | undefined {
+  if (value === undefined) return undefined
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error('Invalid MCP execution context')
+  }
+  const record = value as Record<string, unknown>
+  if (Object.keys(record).some((key) => key !== 'approvalToken')) {
+    throw new Error('Invalid MCP execution context')
+  }
+  if (
+    typeof record.approvalToken !== 'string' ||
+    record.approvalToken.length < 1 ||
+    record.approvalToken.length > 200
+  ) {
+    throw new Error('Invalid MCP approval token')
+  }
+  return record.approvalToken
+}
+
 function extractServerId(serverConfig: unknown): string | null {
   if (
     typeof serverConfig !== 'object' ||
@@ -383,7 +410,8 @@ async function executeMcpTool(
   manager: McpManager,
   approvals: McpApprovalManager,
   namespacedToolName: string,
-  args: Record<string, unknown>
+  args: Record<string, unknown>,
+  autoApprove = false
 ): Promise<McpToolExecutionResult> {
   const startedAt = Date.now()
 
@@ -391,7 +419,7 @@ async function executeMcpTool(
     const executable = await manager.getExecutableTool(namespacedToolName)
     let approvalState: McpToolExecutionMetadata['approvalState'] = 'not-required'
 
-    if (executable.server.requireApproval) {
+    if (executable.server.requireApproval && !autoApprove) {
       const decision = await approvals.requestApproval({
         serverId: executable.server.id,
         serverName: executable.server.name,
@@ -406,6 +434,8 @@ async function executeMcpTool(
         const rejectedOutcome = decision.outcome === 'approved' ? 'rejected' : decision.outcome
         return buildRejectedExecutionResult(executable, rejectedOutcome, startedAt)
       }
+    } else if (executable.server.requireApproval && autoApprove) {
+      approvalState = 'approved'
     }
 
     const result = await manager.executeTool(namespacedToolName, args)

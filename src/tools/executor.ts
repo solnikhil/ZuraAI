@@ -60,7 +60,14 @@ export async function executeTool(
       })
 
       try {
-        const result = await Promise.race([window.mcp.executeTool(toolName, args), timeoutPromise])
+        const result = await Promise.race([
+          window.mcp.executeTool(
+            toolName,
+            args,
+            options.approvalToken ? { approvalToken: options.approvalToken } : undefined
+          ),
+          timeoutPromise,
+        ])
 
         return {
           ...result,

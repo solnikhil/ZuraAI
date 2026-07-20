@@ -1,4 +1,4 @@
-import { BrowserWindow, screen } from 'electron'
+import { BrowserWindow, dialog, screen } from 'electron'
 import { trustedIpcMain as ipcMain } from '../ipc/trustedIpc'
 import { getSecureValueAsync, setSecureValueAsync } from '../secureStorage'
 import {
@@ -6,6 +6,10 @@ import {
   clearToolApprovalAuthorizations,
   issueToolApprovalAuthorization,
 } from '../tools/toolApprovalAuthorizations'
+import {
+  isAgentAutonomousModeEnabled,
+  setAgentAutonomousModeEnabled,
+} from '../tools/agentAutonomousMode'
 
 export interface AgentApprovalOverlayRequest {
   id: string
@@ -20,6 +24,7 @@ export interface AgentApprovalOverlayRequest {
 export interface AgentApprovalOverlayDecision {
   approved: boolean
   trusted?: boolean
+  autonomous?: boolean
   approvalToken?: string
 }
 
@@ -31,12 +36,55 @@ let activeRequestId: string | null = null
 let resolveActive: ((decision: AgentApprovalOverlayDecision) => void) | null = null
 
 export function registerAgentApprovalOverlayHandlers(): void {
+  ipcMain.handle('agent-approval:get-autonomous-mode', async () => ({
+    enabled: await isAgentAutonomousModeEnabled(),
+  }))
+  ipcMain.handle('agent-approval:set-autonomous-mode', async (event, enabled: unknown) => {
+    if (typeof enabled !== 'boolean') throw new Error('Autonomous mode must be a boolean.')
+    if (!enabled) {
+      await setAgentAutonomousModeEnabled(false)
+      return { enabled: false }
+    }
+
+    const owner = BrowserWindow.fromWebContents(event.sender)
+    const options = {
+      type: 'warning' as const,
+      title: 'Enable fully autonomous mode?',
+      message: 'Agent Mode will approve tool actions automatically.',
+      detail:
+        'This includes terminal commands, code execution, desktop control, file changes, app actions, and MCP tools. ZuraAI will still enforce tool validation, scope limits, and the Esc+Esc emergency stop.',
+      buttons: ['Cancel', 'Enable fully autonomous mode'],
+      defaultId: 0,
+      cancelId: 0,
+      noLink: true,
+    }
+    const confirmation = owner
+      ? await dialog.showMessageBox(owner, options)
+      : await dialog.showMessageBox(options)
+    if (confirmation.response !== 1) {
+      return { enabled: await isAgentAutonomousModeEnabled() }
+    }
+    await setAgentAutonomousModeEnabled(true)
+    return { enabled: true }
+  })
+
   ipcMain.handle('agent-approval:request', async (event, payload: unknown) => {
     const request = normalizeApprovalRequest(payload)
     if (!request) {
       return { approved: false }
     }
     const signature = buildToolApprovalSignature(request.toolName, request.toolArguments)
+    if (await isAgentAutonomousModeEnabled()) {
+      return {
+        approved: true,
+        autonomous: true,
+        approvalToken: issueToolApprovalAuthorization(
+          event.sender.id,
+          request.toolName,
+          request.toolArguments
+        ),
+      }
+    }
     const trusted = await getTrustedSignatures()
     if (trusted.has(signature)) {
       return {
@@ -69,6 +117,8 @@ export function registerAgentApprovalOverlayHandlers(): void {
 
 export function unregisterAgentApprovalOverlayHandlers(): void {
   ipcMain.removeHandler('agent-approval:request')
+  ipcMain.removeHandler('agent-approval:get-autonomous-mode')
+  ipcMain.removeHandler('agent-approval:set-autonomous-mode')
 }
 
 export function destroyAgentApprovalOverlay(): void {

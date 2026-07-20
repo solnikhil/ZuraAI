@@ -550,6 +550,26 @@ contextBridge.exposeInMainWorld(
         request
       ) as Promise<AgentApprovalOverlayDecision>
     },
+    getAutonomousMode: () => {
+      assertAllowed(
+        'invoke',
+        'agent-approval:get-autonomous-mode',
+        AGENT_APPROVAL_INVOKE_CHANNELS
+      )
+      return ipcRenderer.invoke('agent-approval:get-autonomous-mode') as Promise<{
+        enabled: boolean
+      }>
+    },
+    setAutonomousMode: (enabled: boolean) => {
+      assertAllowed(
+        'invoke',
+        'agent-approval:set-autonomous-mode',
+        AGENT_APPROVAL_INVOKE_CHANNELS
+      )
+      return ipcRenderer.invoke('agent-approval:set-autonomous-mode', enabled === true) as Promise<{
+        enabled: boolean
+      }>
+    },
   })
 )
 
@@ -748,12 +768,21 @@ contextBridge.exposeInMainWorld(
         args
       ) as Promise<McpPromptResult>
     },
-    executeTool: (namespacedToolName: string, args: Record<string, unknown>) => {
+    executeTool: (
+      namespacedToolName: string,
+      args: Record<string, unknown>,
+      executionContext?: { approvalToken: string }
+    ) => {
       assertAllowed('invoke', 'mcp:execute-tool', MCP_INVOKE_CHANNELS)
+      const normalizedContext =
+        executionContext && typeof executionContext.approvalToken === 'string'
+          ? { approvalToken: executionContext.approvalToken }
+          : undefined
       return ipcRenderer.invoke(
         'mcp:execute-tool',
         namespacedToolName,
-        args
+        args,
+        normalizedContext
       ) as Promise<McpToolExecutionResult>
     },
     resolveApproval: (requestId: string, approved: boolean) => {

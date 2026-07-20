@@ -137,7 +137,13 @@ export const PRELOAD_CHANNEL_MANIFEST = {
       'agent-skills:install',
     ],
   },
-  agentApproval: { invoke: ['agent-approval:request'] },
+  agentApproval: {
+    invoke: [
+      'agent-approval:request',
+      'agent-approval:get-autonomous-mode',
+      'agent-approval:set-autonomous-mode',
+    ],
+  },
   backgroundWindow: {
     invoke: ['background-window:release-run'],
     on: ['background-window:run-stopped'],
