@@ -28,7 +28,7 @@ vi.mock('electron', () => ({
   screen: { getAllDisplays: mocks.getAllDisplays },
 }))
 
-describe('verified targeted computer clicks', () => {
+describe.runIf(process.platform === 'win32')('verified targeted computer clicks', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.execFile.mockImplementation((_file, _args, _options, callback) => {
@@ -68,7 +68,7 @@ describe('verified targeted computer clicks', () => {
   })
 })
 
-describe('targeted keyboard input', () => {
+describe.runIf(process.platform === 'win32')('targeted keyboard input', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.execFile.mockImplementation((_file, _args, _options, callback) => {

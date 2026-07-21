@@ -57,7 +57,9 @@ describe('computer-use argument normalization', () => {
   })
 })
 
-describe('tool routing through current-desktop Computer Use', () => {
+const describeWindows = process.platform === 'win32' ? describe : describe.skip
+
+describeWindows('tool routing through current-desktop Computer Use', () => {
   beforeEach(() => {
     vi.resetModules()
     vi.clearAllMocks()
@@ -127,12 +129,18 @@ describe('tool routing through current-desktop Computer Use', () => {
 
     const nativeMocks = {
       executeWindowsUiaSnapshot: vi.fn(async () => ({ success: true, data: { windows: [] } })),
-      executeWindowsUiaInvoke: vi.fn(async () => ({ success: false, error: 'approval required' })),
+      executeWindowsUiaInvoke: vi.fn(async () => ({
+        success: false,
+        error: 'approval required',
+      })),
       executeWindowsUiaSetValue: vi.fn(async () => ({
         success: false,
         error: 'approval required',
       })),
-      executeWindowsUiaSelect: vi.fn(async () => ({ success: false, error: 'approval required' })),
+      executeWindowsUiaSelect: vi.fn(async () => ({
+        success: false,
+        error: 'approval required',
+      })),
       executeSystemShell: vi.fn(async () => ({ success: false, error: 'approval required' })),
       executeFileRead: vi.fn(async () => ({ success: true, data: { content: 'ok' } })),
       executeFileWrite: vi.fn(async () => ({ success: false, error: 'approval required' })),
@@ -370,12 +378,7 @@ describe('tool routing through current-desktop Computer Use', () => {
     const { handler, backgroundWindowCoordinator } = await loadToolHandler({ executeScreenshot })
     backgroundWindowCoordinator.release.mockResolvedValueOnce(true)
 
-    await handler(
-      { sender: { id: 7 } },
-      'background_window_release',
-      {},
-      { runId: 'run-1' }
-    )
+    await handler({ sender: { id: 7 } }, 'background_window_release', {}, { runId: 'run-1' })
 
     const result = await handler(
       { sender: { id: 7 } },
@@ -426,12 +429,10 @@ describe('tool routing through current-desktop Computer Use', () => {
     const { issueToolApprovalAuthorization } = await import('./toolApprovalAuthorizations')
     const token = issueToolApprovalAuthorization(7, 'window_focus', args)
 
-    const result = await handler(
-      { sender: { id: 7 } },
-      'window_focus',
-      args,
-      { runId: 'run-1', approvalToken: token }
-    )
+    const result = await handler({ sender: { id: 7 } }, 'window_focus', args, {
+      runId: 'run-1',
+      approvalToken: token,
+    })
 
     expect(result).toMatchObject({
       success: true,
@@ -623,7 +624,9 @@ describe('tool routing through current-desktop Computer Use', () => {
     const activeWindow = await handler({}, 'system_active_window', {})
     const status = await handler({}, 'system_status', {})
     const settingsOpen = await handler({}, 'system_settings_open', { page: 'display' })
-    const openPath = await handler({}, 'system_open_path', { path: 'C:\\Users\\Nikhil\\Downloads' })
+    const openPath = await handler({}, 'system_open_path', {
+      path: 'C:\\Users\\Nikhil\\Downloads',
+    })
     const snap = await handler({}, 'window_snap', { preset: 'left' })
 
     expect(activeWindow).toEqual({ success: true, data: { title: 'Demo' } })

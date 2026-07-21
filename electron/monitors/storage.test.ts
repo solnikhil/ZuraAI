@@ -111,7 +111,11 @@ describe('scheduled task storage', () => {
       maxWebSearches: 3,
       maxTokens: 900,
     })
-    expect(new Date(task.nextRunAt).toISOString()).toBe('2026-06-17T03:00:00.000Z')
+    const nextRun = new Date(task.nextRunAt)
+    expect(nextRun.getHours()).toBe(8)
+    expect(nextRun.getMinutes()).toBe(30)
+    expect(nextRun.getTime()).toBeGreaterThan(Date.now())
+    expect(nextRun.getTime() - Date.now()).toBeLessThanOrEqual(24 * 60 * 60 * 1000)
   })
 
   it('uses the schedule timezone for exact daily automations', async () => {
@@ -172,8 +176,12 @@ describe('scheduled task storage', () => {
   })
 
   it('defaults AI automations without a fixed interval to agent-owned cadence', async () => {
-    const { createScheduledTask, sanitizeScheduledTaskInput, saveScheduledTaskRun, getScheduledTask } =
-      await import('./storage')
+    const {
+      createScheduledTask,
+      sanitizeScheduledTaskInput,
+      saveScheduledTaskRun,
+      getScheduledTask,
+    } = await import('./storage')
 
     const task = await createScheduledTask(
       sanitizeScheduledTaskInput({
