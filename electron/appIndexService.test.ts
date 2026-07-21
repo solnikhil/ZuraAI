@@ -195,7 +195,7 @@ function startAppsCallCount(runPowerShell: ReturnType<typeof vi.fn>): number {
     .length
 }
 
-describe('appIndexService', () => {
+describe.runIf(process.platform === 'win32')('appIndexService', () => {
   beforeEach(() => {
     vi.resetModules()
     vi.clearAllMocks()
