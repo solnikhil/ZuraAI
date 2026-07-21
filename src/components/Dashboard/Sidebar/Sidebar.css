@@ -215,6 +215,12 @@
   box-shadow: none;
 }
 
+/* A peek sidebar floats over app content, so it needs an opaque backing surface. */
+.sidebar-container.frosted.sidebar-container--peek,
+.sidebar-container.frosted.sidebar-container--peek-closing {
+  background: var(--theme-background);
+}
+
 .sidebar-container.frosted::after {
   content: '';
   position: absolute;

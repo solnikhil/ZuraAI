@@ -33,13 +33,20 @@ describe('defaultComputerUsePrompt', () => {
     expect(defaultComputerUsePrompt).toContain('full-screen computer_screenshot only')
     expect(defaultComputerUsePrompt).toContain('Never call window_focus')
     expect(defaultComputerUsePrompt).toContain('screenshot_unavailable')
+    expect(defaultComputerUsePrompt).toContain('computer_screenshot with reserve_background=false')
+    expect(defaultComputerUsePrompt).toContain(
+      'Do not take a default targeted screenshot between release and the physical action'
+    )
     expect(defaultComputerUsePrompt).toContain('ocr.elements')
     expect(defaultComputerUsePrompt).toContain('background_safe is always false')
     expect(defaultComputerUsePrompt).toContain('verify the semantic result')
-    expect(defaultComputerUsePrompt).toContain('smallest background-safe UIA/MSAA element')
+    expect(defaultComputerUsePrompt).toContain(
+      'meaningful enabled background-safe UIA/MSAA element'
+    )
+    expect(defaultComputerUsePrompt).toContain('Unnamed generic containers are never accepted')
     expect(defaultComputerUsePrompt).toContain('without focusing the app')
-    expect(defaultComputerUsePrompt).toContain('brings the exact app window to the foreground')
-    expect(defaultComputerUsePrompt).toContain('resolves the hit-tested control')
+    expect(defaultComputerUsePrompt).toContain('foreground_required without releasing the guard')
+    expect(defaultComputerUsePrompt).toContain('semanticOutcome=unverified')
     expect(defaultComputerUsePrompt).toContain('A focus transition can itself change pixels')
   })
 })

@@ -106,6 +106,26 @@ const SCHEDULED_TASK_TOOL_NAMES = new Set<string>([
 ])
 
 const observedToolSenders = new Set<number>()
+const FOREGROUND_FALLBACK_PERMIT_TTL_MS = 30_000
+const foregroundFallbackPermits = new Map<string, number>()
+
+function grantForegroundFallbackPermit(context?: ToolHandlerContext): void {
+  foregroundFallbackPermits.set(
+    computerSessionKey(context),
+    Date.now() + FOREGROUND_FALLBACK_PERMIT_TTL_MS
+  )
+}
+
+function clearForegroundFallbackPermit(context?: ToolHandlerContext): void {
+  foregroundFallbackPermits.delete(computerSessionKey(context))
+}
+
+function consumeForegroundFallbackPermit(context?: ToolHandlerContext): boolean {
+  const key = computerSessionKey(context)
+  const expiresAt = foregroundFallbackPermits.get(key)
+  foregroundFallbackPermits.delete(key)
+  return typeof expiresAt === 'number' && expiresAt >= Date.now()
+}
 
 function observeToolSender(sender: {
   id: number
@@ -171,6 +191,29 @@ async function executeReservedUiAction(
   return handler(args)
 }
 
+async function attachBackgroundWindowForRun(
+  hwnd: number,
+  context?: ToolHandlerContext
+) {
+  clearForegroundFallbackPermit(context)
+  const owner = requireBackgroundOwner(context)
+  const notifyRunStopped = (payload: {
+    runId: string
+    reason: 'stop-and-release' | 'stop-task' | 'target-lost' | 'overlay-failed'
+  }) => context?.sendToRenderer?.('background-window:run-stopped', payload)
+  const target = await backgroundWindowCoordinator.attach(
+    owner,
+    hwnd,
+    notifyRunStopped,
+    unregisterKillSwitch
+  )
+  registerKillSwitch(() => {
+    notifyRunStopped({ runId: owner.runId, reason: 'stop-task' })
+    void backgroundWindowCoordinator.release(owner, 'run-cancelled')
+  })
+  return target
+}
+
 async function releaseGuardForForegroundAction(context?: ToolHandlerContext): Promise<void> {
   if (!context?.runId) return
   await backgroundWindowCoordinator.release(requireBackgroundOwner(context), 'user-release')
@@ -184,16 +227,69 @@ async function executeReservedScreenshot(
   args: unknown,
   context?: ToolHandlerContext
 ): Promise<ToolResult> {
+  const normalizedArgs = normalizeScreenshotArgs(args)
   if (!context?.runId) {
-    return executeScreenshot(normalizeScreenshotArgs(args), {
+    return executeScreenshot(normalizedArgs, {
       sessionKey: computerSessionKey(context),
     })
   }
   const target = backgroundWindowCoordinator.status(requireBackgroundOwner(context))
+  if (normalizedArgs.reserve_background === false && target) {
+    return {
+      success: false,
+      error:
+        'Foreground fallback capture requires releasing the active background reservation first.',
+      data: {
+        status: 'blocked',
+        reason: 'background_release_required',
+        hwnd: target.hwnd,
+      },
+    }
+  }
   if (!target) {
-    return executeScreenshot(normalizeScreenshotArgs(args), {
+    if (
+      normalizedArgs.reserve_background === false &&
+      !consumeForegroundFallbackPermit(context)
+    ) {
+      return {
+        success: false,
+        error:
+          'reserve_background=false requires a fresh successful background_window_release in this Agent run.',
+        data: {
+          status: 'blocked',
+          reason: 'foreground_fallback_not_authorized',
+        },
+      }
+    }
+    const result = await executeScreenshot(normalizedArgs, {
       sessionKey: computerSessionKey(context),
     })
+    const capturedTarget = (result.data as { target?: { type?: unknown; hwnd?: unknown } } | undefined)
+      ?.target
+    if (
+      normalizedArgs.reserve_background !== false &&
+      result.success &&
+      capturedTarget?.type === 'window' &&
+      typeof capturedTarget.hwnd === 'number' &&
+      capturedTarget.hwnd > 0
+    ) {
+      const reserved = await attachBackgroundWindowForRun(
+        Math.trunc(capturedTarget.hwnd),
+        context
+      )
+      return {
+        ...result,
+        data: {
+          ...(result.data as Record<string, unknown>),
+          backgroundReservation: {
+            status: 'attached',
+            automatic: true,
+            target: reserved,
+          },
+        },
+      }
+    }
+    return result
   }
   // The attach lifecycle already owns Esc+Esc. Do not replace its callback with the
   // ordinary foreground Computer Use abort handler just to take a read-only capture.
@@ -211,6 +307,35 @@ async function executeWindowFocusWithBackgroundGuard(
   if (context?.runId) {
     const target = backgroundWindowCoordinator.status(requireBackgroundOwner(context))
     if (target) return backgroundWindowFocusBlocked(target)
+    const approval = requireApproval(args, 'window_focus')
+    if (approval) return approval
+    const record =
+      typeof args === 'object' && args !== null ? (args as Record<string, unknown>) : {}
+    const hwnd = typeof record.hwnd === 'number' ? Math.trunc(record.hwnd) : 0
+    if (hwnd <= 0) {
+      return {
+        success: false,
+        error:
+          'Agent Mode will not focus a title-matched window. Inspect the app to obtain its exact HWND and reserve it for background work.',
+        data: {
+          status: 'foreground_required',
+          action: 'window_focus',
+          reason: 'An exact HWND is required for background ownership.',
+        },
+      }
+    }
+    const reserved = await attachBackgroundWindowForRun(hwnd, context)
+    const observation = await executeUiGetAppState({ hwnd: reserved.hwnd })
+    return {
+      success: true,
+      data: {
+        status: 'background_attached',
+        requestedAction: 'window_focus',
+        focusChanged: false,
+        target: reserved,
+        observation: observation.data,
+      },
+    }
   }
   return executeWindowFocus(args)
 }
@@ -310,6 +435,7 @@ function normalizeScreenshotArgs(args: unknown): ScreenshotArgs {
     window_id: typeof r.window_id === 'string' ? r.window_id : undefined,
     window_title: typeof r.window_title === 'string' ? r.window_title : undefined,
     app_name: typeof r.app_name === 'string' ? r.app_name : undefined,
+    reserve_background: r.reserve_background !== false,
   }
 }
 
@@ -361,27 +487,13 @@ const toolHandlers: Record<BuiltinMainToolName, ToolHandler> = {
   background_window_attach: async (args, context) => {
     const approval = requireApproval(args, 'background_window_attach')
     if (approval) return approval
-    const owner = requireBackgroundOwner(context)
     const hwnd =
       typeof args === 'object' &&
       args !== null &&
       typeof (args as Record<string, unknown>).hwnd === 'number'
         ? Math.trunc((args as Record<string, unknown>).hwnd as number)
         : 0
-    const notifyRunStopped = (payload: {
-      runId: string
-      reason: 'stop-and-release' | 'stop-task' | 'target-lost' | 'overlay-failed'
-    }) => context?.sendToRenderer?.('background-window:run-stopped', payload)
-    const target = await backgroundWindowCoordinator.attach(
-      owner,
-      hwnd,
-      notifyRunStopped,
-      unregisterKillSwitch
-    )
-    registerKillSwitch(() => {
-      notifyRunStopped({ runId: owner.runId, reason: 'stop-task' })
-      void backgroundWindowCoordinator.release(owner, 'run-cancelled')
-    })
+    const target = await attachBackgroundWindowForRun(hwnd, context)
     const state = await executeUiGetAppState({ hwnd: target.hwnd })
     return { success: true, data: { status: 'attached', target, observation: state.data } }
   },
@@ -394,13 +506,22 @@ const toolHandlers: Record<BuiltinMainToolName, ToolHandler> = {
       requireBackgroundOwner(context),
       'user-release'
     )
+    if (released) grantForegroundFallbackPermit(context)
     return { success: true, data: { released } }
   },
   computer_screenshot: executeReservedScreenshot,
   computer_click: async (args, context) => {
     const n = normalizeClickArgs(args)
-    return executeClick(n.args, n.autoApprove, spotlightFn, computerSessionKey(context), () =>
-      releaseGuardForForegroundAction(context)
+    const hasBackgroundReservation = Boolean(
+      context?.runId && backgroundWindowCoordinator.status(requireBackgroundOwner(context))
+    )
+    return executeClick(
+      n.args,
+      n.autoApprove,
+      spotlightFn,
+      computerSessionKey(context),
+      () => releaseGuardForForegroundAction(context),
+      !hasBackgroundReservation
     )
   },
   computer_type: async (args, context) => {
@@ -420,12 +541,19 @@ const toolHandlers: Record<BuiltinMainToolName, ToolHandler> = {
     return executeKey(n.args, n.autoApprove, computerSessionKey(context))
   },
   computer_scroll: async (args, context) => {
-    await releaseGuardForForegroundAction(context)
+    if (context?.runId) {
+      const target = backgroundWindowCoordinator.status(requireBackgroundOwner(context))
+      if (target) return backgroundWindowPhysicalInputBlocked(target, 'computer_scroll')
+    }
     const n = normalizeScrollArgs(args)
     return executeScroll(n.args, n.autoApprove, spotlightFn, computerSessionKey(context))
   },
   computer_cursor_position: async (args, context) => {
-    await releaseGuardForForegroundAction(context)
+    if (context?.runId) {
+      const target = backgroundWindowCoordinator.status(requireBackgroundOwner(context))
+      if (target)
+        return backgroundWindowPhysicalInputBlocked(target, 'computer_cursor_position')
+    }
     const n = normalizeCursorArgs(args)
     return executeCursorPosition(n.args, n.autoApprove, spotlightFn, computerSessionKey(context))
   },

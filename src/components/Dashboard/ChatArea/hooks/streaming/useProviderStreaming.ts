@@ -1055,6 +1055,7 @@ export function useProviderStreaming({
             })
 
             const followUpRoundStart = accumulatedContent
+            const followUpThinkingBlockStart = localThinkingBlocks.length
             const recoveryTools = getVerificationRecoveryTools(
               tools,
               activeVerificationStrategy,
@@ -1077,11 +1078,26 @@ export function useProviderStreaming({
               })
               if (activeVerificationStrategy) {
                 accumulatedContent = followUpRoundStart
-                updateStreamingState({ content: accumulatedContent })
+                localThinkingBlocks = localThinkingBlocks.slice(0, followUpThinkingBlockStart)
+                const rollback = {
+                  content: accumulatedContent,
+                  thinking: undefined,
+                  thinkingDuration: undefined,
+                  thinkingBlocks: localThinkingBlocks,
+                }
+                updateStreamingState(rollback)
+                publishStreamingProgress(rollback)
                 researchRound += 1
-                verificationRecoveryUsed = !verificationRecoveryUsed
-                pendingVerificationStrategy = activeVerificationStrategy
-                continue
+                if (!verificationRecoveryUsed) {
+                  verificationRecoveryUsed = true
+                  pendingVerificationStrategy = activeVerificationStrategy
+                  continue
+                }
+                options.toolEventCallbacks?.onVerificationComplete?.(
+                  activeVerificationStrategy,
+                  false
+                )
+                break
               }
               const followUpClassifiable = {
                 roundContent: followUpRound.roundContent,

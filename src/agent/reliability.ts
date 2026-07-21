@@ -106,6 +106,7 @@ export function hasFreshMutationEvidence(toolResults: ToolCallResult[] | undefin
           screenshotId?: unknown
           status?: unknown
           state?: { state_id?: unknown }
+          delivery?: { mode?: unknown; semanticOutcome?: unknown }
         }
       | undefined
 
@@ -115,6 +116,12 @@ export function hasFreshMutationEvidence(toolResults: ToolCallResult[] | undefin
       typeof data.screenshotId === 'string' &&
       data.screenshotId.length > 0
     ) {
+      if (
+        data.delivery?.mode === 'background_automation' &&
+        data.delivery.semanticOutcome !== 'verified'
+      ) {
+        return false
+      }
       return true
     }
 
@@ -170,7 +177,7 @@ export function selectVerificationStrategy(
     return {
       category: 'app-window',
       reason: 'App, window, or UI Automation state changed and needs a structured state check.',
-      preferredTools: ['ui_get_app_state', 'ui_find', 'window_list'],
+      preferredTools: ['ui_get_app_state', 'ui_find', 'ui_wait_for', 'window_list'],
       mutatingToolNames,
     }
   }

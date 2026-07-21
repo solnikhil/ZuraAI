@@ -88,6 +88,11 @@ export function buildProviderRunCapabilities(
           /(?:reason|thinking|m3|nemotron)/i.test(settings.aiModel))
       : undefined
 
+  const codexReasoningEffort =
+    settings.modelProvider === 'codex'
+      ? (settings.codexReasoningEffort?.[settings.aiModel] ?? 'high')
+      : undefined
+
   return {
     modalities,
     reasoning,
@@ -95,8 +100,10 @@ export function buildProviderRunCapabilities(
       ? deepseekReasoning.enabled && deepseekReasoning.effort !== 'none'
       : (nvidiaEnableThinking ?? alibabaEnableThinking),
     reasoningEffort:
-      deepseekReasoning?.enabled && deepseekReasoning.effort !== 'none'
-        ? deepseekReasoning.effort
-        : undefined,
+      codexReasoningEffort && codexReasoningEffort !== 'none'
+        ? codexReasoningEffort
+        : deepseekReasoning?.enabled && deepseekReasoning.effort !== 'none'
+          ? deepseekReasoning.effort
+          : undefined,
   }
 }

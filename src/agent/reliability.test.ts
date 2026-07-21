@@ -120,6 +120,31 @@ describe('agent reliability helpers', () => {
     ).toBe(false)
   })
 
+  it('does not treat unverified background dispatch as semantic progress', () => {
+    expect(
+      hasFreshMutationEvidence([
+        {
+          toolCall: {
+            id: 'click-1',
+            name: 'computer_click',
+            arguments: { screenshot_id: 'before-1', x: 10, y: 20 },
+          },
+          result: {
+            success: true,
+            data: {
+              visualChange: 'changed',
+              screenshotId: 'after-1',
+              delivery: {
+                mode: 'background_automation',
+                semanticOutcome: 'unverified',
+              },
+            },
+          },
+        },
+      ])
+    ).toBe(false)
+  })
+
   it('selects structured state verification for ui element actions', () => {
     const strategy = selectVerificationStrategy([
       {
@@ -131,9 +156,28 @@ describe('agent reliability helpers', () => {
     expect(strategy).toEqual(
       expect.objectContaining({
         category: 'app-window',
-        preferredTools: ['ui_get_app_state', 'ui_find', 'window_list'],
+        preferredTools: ['ui_get_app_state', 'ui_find', 'ui_wait_for', 'window_list'],
       })
     )
+  })
+
+  it('accepts ui_wait_for as app launch verification evidence', () => {
+    const strategy = selectVerificationStrategy([
+      {
+        toolCall: { id: 'launch-1', name: 'app_launch', arguments: { appUserModelId: 'Notepad' } },
+        result: { success: true },
+      },
+    ])
+
+    expect(strategy).not.toBeNull()
+    expect(
+      didVerificationSucceed(strategy!, [
+        {
+          toolCall: { id: 'wait-1', name: 'ui_wait_for', arguments: { query: 'Notepad' } },
+          result: { success: true, data: { state: { title: 'Untitled - Notepad' } } },
+        },
+      ])
+    ).toBe(true)
   })
 
   it('does not force verification for read-only inspection tools', () => {

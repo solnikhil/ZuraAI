@@ -32,7 +32,12 @@ describe('background window tool policy', () => {
   })
 
   it('keeps shared keyboard input out of a reserved background window', () => {
-    for (const action of ['computer_key', 'computer_type'] as const) {
+    for (const action of [
+      'computer_cursor_position',
+      'computer_key',
+      'computer_scroll',
+      'computer_type',
+    ] as const) {
       expect(backgroundWindowPhysicalInputBlocked(target, action)).toEqual(
         expect.objectContaining({
           success: false,

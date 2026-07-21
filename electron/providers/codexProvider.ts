@@ -6,7 +6,15 @@ import {
   type ProviderStreamEvent,
   providerErrorCodeForStatus,
 } from '@zura/provider-core'
-import { streamText, type ModelMessage } from 'ai'
+import {
+  jsonSchema,
+  streamText,
+  tool,
+  type AssistantContent,
+  type ModelMessage,
+  type ToolContent,
+  type ToolSet,
+} from 'ai'
 import type { ProviderRuntimeStreamRequest } from '../../src/providers/providerRuntimeTypes'
 import { getSecureValueAsync, setSecureValueAsync } from '../secureStorage'
 
@@ -33,6 +41,7 @@ export const CODEX_PROVIDER_MODELS = [
     displayName: 'GPT-5.4',
     enabled: true,
     supportsDeepThinking: true,
+    supportsToolCall: true,
     modelType: 'reasoning',
   },
 ] as const
@@ -482,13 +491,6 @@ function parseRequestBody(body: BodyInit | null | undefined): string {
   delete parsed.max_output_tokens
   delete parsed.metadata
   parsed.store = false
-  if (Array.isArray(parsed.tools) && parsed.tools.length > 0) {
-    throw new ProviderError({
-      provider: 'codex',
-      code: 'bad_request',
-      message: 'ChatGPT Codex does not accept ZuraAI tool definitions.',
-    })
-  }
   return JSON.stringify(parsed)
 }
 
@@ -559,17 +561,53 @@ export function buildCodexMessages(messages: ProviderRuntimeStreamRequest['messa
 } {
   const system: string[] = []
   const modelMessages: ModelMessage[] = []
+  const toolNamesByCallId = new Map<string, string>()
   for (const message of messages) {
     const text = textFromContent(message.content)
-    if (!text) continue
     if (message.role === 'system' || message.role === 'developer') {
-      system.push(text)
+      if (text) system.push(text)
     } else if (message.role === 'assistant') {
-      modelMessages.push({ role: 'assistant', content: text })
+      if (!message.tool_calls?.length) {
+        if (text) modelMessages.push({ role: 'assistant', content: text })
+        continue
+      }
+      const content: AssistantContent = []
+      if (text) content.push({ type: 'text', text })
+      for (const toolCall of message.tool_calls ?? []) {
+        if (!toolCall.id || !toolCall.function.name) continue
+        let input: unknown
+        try {
+          input = JSON.parse(toolCall.function.arguments || '{}')
+        } catch {
+          input = {}
+        }
+        toolNamesByCallId.set(toolCall.id, toolCall.function.name)
+        content.push({
+          type: 'tool-call',
+          toolCallId: toolCall.id,
+          toolName: toolCall.function.name,
+          input,
+        })
+      }
+      if (content.length > 0) modelMessages.push({ role: 'assistant', content })
     } else if (message.role === 'tool') {
-      modelMessages.push({ role: 'user', content: `[Tool result]\n${text}` })
+      const toolCallId = message.tool_call_id
+      const toolName = toolCallId ? toolNamesByCallId.get(toolCallId) : undefined
+      if (toolCallId && toolName) {
+        const content: ToolContent = [
+          {
+            type: 'tool-result',
+            toolCallId,
+            toolName,
+            output: { type: 'text', value: text },
+          },
+        ]
+        modelMessages.push({ role: 'tool', content })
+      } else if (text) {
+        modelMessages.push({ role: 'user', content: `[Tool result]\n${text}` })
+      }
     } else {
-      modelMessages.push({ role: 'user', content: text })
+      if (text) modelMessages.push({ role: 'user', content: text })
     }
   }
   if (modelMessages.length === 0) {
@@ -580,6 +618,31 @@ export function buildCodexMessages(messages: ProviderRuntimeStreamRequest['messa
     })
   }
   return { system: system.length ? system.join('\n\n') : undefined, messages: modelMessages }
+}
+
+function buildCodexTools(definitions: ProviderRuntimeStreamRequest['tools']): ToolSet | undefined {
+  if (!definitions?.length) return undefined
+  return Object.fromEntries(
+    definitions.map((definition) => [
+      definition.function.name,
+      tool({
+        description: definition.function.description,
+        inputSchema: jsonSchema(
+          (definition.function.parameters ?? {
+            type: 'object',
+            properties: {},
+            additionalProperties: false,
+          }) as never
+        ),
+      }),
+    ])
+  )
+}
+
+function buildCodexToolChoice(request: ProviderRuntimeStreamRequest) {
+  return typeof request.toolChoice === 'object'
+    ? ({ type: 'tool', toolName: request.toolChoice.function.name } as const)
+    : request.toolChoice
 }
 
 function mapUsage(usage: {
@@ -606,13 +669,6 @@ export async function* streamCodexProviderEvents(
   request: ProviderRuntimeStreamRequest,
   options: CodexProviderRuntimeOptions
 ): AsyncGenerator<ProviderStreamEvent> {
-  if (request.tools?.length) {
-    throw new ProviderError({
-      provider: 'codex',
-      code: 'bad_request',
-      message: 'ChatGPT Codex does not accept ZuraAI tool definitions.',
-    })
-  }
   if (request.messages.some((message) => message.images?.length)) {
     throw new ProviderError({
       provider: 'codex',
@@ -635,6 +691,8 @@ export async function* streamCodexProviderEvents(
       messages: prompt.messages,
       maxRetries: 0,
       abortSignal: request.signal,
+      tools: buildCodexTools(request.tools),
+      toolChoice: buildCodexToolChoice(request),
       providerOptions: {
         openai: {
           store: false,
@@ -645,24 +703,42 @@ export async function* streamCodexProviderEvents(
     })
 
     let finished = false
+    let toolCallIndex = 0
     for await (const part of result.fullStream) {
       if (part.type === 'text-delta' && part.text) {
         yield { type: 'text-delta', delta: part.text }
       } else if (part.type === 'reasoning-delta' && part.text) {
         yield { type: 'reasoning-delta', delta: part.text }
-      } else if (part.type === 'tool-call' || part.type === 'tool-input-start') {
-        throw new ProviderError({
-          provider: 'codex',
-          code: 'invalid_response',
-          message: 'ChatGPT Codex returned an unexpected tool call, so ZuraAI stopped the request.',
-        })
+      } else if (part.type === 'tool-call') {
+        yield {
+          type: 'tool-call-delta',
+          delta: [
+            {
+              index: toolCallIndex++,
+              id: part.toolCallId,
+              type: 'function',
+              function: {
+                name: part.toolName,
+                arguments: JSON.stringify(part.input ?? {}),
+              },
+            },
+          ],
+        }
       } else if (part.type === 'error') {
         throw part.error
       } else if (part.type === 'abort') {
         throw new DOMException('ChatGPT Codex request was cancelled.', 'AbortError')
       } else if (part.type === 'finish') {
         yield { type: 'usage', usage: mapUsage(part.totalUsage) }
-        yield { type: 'finish', finishReason: part.finishReason }
+        yield {
+          type: 'finish',
+          finishReason:
+            part.finishReason === 'tool-calls'
+              ? 'tool_calls'
+              : part.finishReason === 'content-filter'
+                ? 'content_filter'
+                : part.finishReason,
+        }
         finished = true
       }
     }
@@ -764,6 +840,12 @@ export async function listCodexModels(
         record.reasoning === true ||
         (Array.isArray(record.supported_reasoning_efforts) &&
           record.supported_reasoning_efforts.length > 0)
+      const supportedReasoningEfforts = Array.isArray(record.supported_reasoning_efforts)
+        ? record.supported_reasoning_efforts.filter(
+            (effort): effort is 'low' | 'medium' | 'high' | 'xhigh' =>
+              effort === 'low' || effort === 'medium' || effort === 'high' || effort === 'xhigh'
+          )
+        : []
       return [
         {
           code,
@@ -771,7 +853,9 @@ export async function listCodexModels(
           enabled: true,
           maxContext: context,
           supportsDeepThinking: reasoning,
+          supportsToolCall: true,
           modelType: reasoning ? 'reasoning' : 'chat',
+          ...(supportedReasoningEfforts.length > 0 ? { supportedReasoningEfforts } : {}),
         },
       ]
     })

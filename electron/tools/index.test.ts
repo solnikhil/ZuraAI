@@ -158,6 +158,23 @@ describe('tool routing through current-desktop Computer Use', () => {
       createMcpAddRequest: vi.fn(() => ({ requestId: 'request-1', status: 'pending' })),
     }
 
+    const uiMocks = {
+      executeUiGetAppState: vi.fn(async () => ({
+        success: true,
+        data: { state: { state_id: 'state-1', windows: [] } },
+      })),
+      executeUiFind: vi.fn(async () => ({ success: true, data: { matches: [] } })),
+      executeUiWaitFor: vi.fn(async () => ({ success: true, data: { matches: [] } })),
+      executeUiClick: vi.fn(async () => ({ success: true, data: { status: 'completed' } })),
+      executeUiTypeText: vi.fn(async () => ({ success: true, data: { status: 'completed' } })),
+      executeUiSetValue: vi.fn(async () => ({ success: true, data: { status: 'completed' } })),
+      executeUiSelect: vi.fn(async () => ({ success: true, data: { status: 'completed' } })),
+      executeUiScroll: vi.fn(async () => ({ success: true, data: { status: 'completed' } })),
+      executeUiFocus: vi.fn(async () => ({ success: false, error: 'foreground required' })),
+      executeUiKey: vi.fn(async () => ({ success: false, error: 'foreground required' })),
+      getUiAutomationElementTarget: vi.fn(() => null),
+    }
+
     const backgroundWindowCoordinator = {
       status: vi.fn(() => null),
       attach: vi.fn(),
@@ -173,6 +190,7 @@ describe('tool routing through current-desktop Computer Use', () => {
     vi.doMock('./app-management', () => nativeMocks)
     vi.doMock('./window-management', () => nativeMocks)
     vi.doMock('./os-integration', () => nativeMocks)
+    vi.doMock('./ui-automation', () => uiMocks)
     vi.doMock('../mcp/mcpAddRequests', () => nativeMocks)
     vi.doMock('./background-window', () => ({ backgroundWindowCoordinator }))
     vi.doMock('./webSearch', () => ({
@@ -203,7 +221,7 @@ describe('tool routing through current-desktop Computer Use', () => {
     expect(handler).not.toBeNull()
     return {
       handler: handler as NonNullable<typeof handler>,
-      handlers: { ...computerUse, ...nativeMocks },
+      handlers: { ...computerUse, ...nativeMocks, ...uiMocks },
       backgroundWindowCoordinator,
     }
   }
@@ -229,6 +247,7 @@ describe('tool routing through current-desktop Computer Use', () => {
         window_id: undefined,
         window_title: 'Settings',
         app_name: undefined,
+        reserve_background: true,
       },
       { sessionKey: 'unscoped' }
     )
@@ -299,7 +318,140 @@ describe('tool routing through current-desktop Computer Use', () => {
     expect(handlers.executeWindowFocus).not.toHaveBeenCalled()
   })
 
-  it('does not release a background reservation for keyboard or text input', async () => {
+  it('automatically reserves an exact window returned by a targeted Agent screenshot', async () => {
+    const executeScreenshot = vi.fn(async () => ({
+      success: true,
+      data: {
+        action: 'screenshot',
+        screenshotId: 'shot-1',
+        target: { type: 'window', hwnd: 393776, id: 'window:393776:0', title: 'Discord' },
+      },
+    }))
+    const { handler, backgroundWindowCoordinator } = await loadToolHandler({ executeScreenshot })
+    const target = {
+      hwnd: 393776,
+      processId: 1780,
+      processStartTimeMs: 123456,
+      title: 'Discord',
+    }
+    backgroundWindowCoordinator.attach.mockResolvedValue(target)
+
+    const result = await handler(
+      { sender: { id: 7 } },
+      'computer_screenshot',
+      { app_name: 'Discord' },
+      { runId: 'run-1' }
+    )
+
+    expect(result).toMatchObject({
+      success: true,
+      data: {
+        screenshotId: 'shot-1',
+        backgroundReservation: { status: 'attached', automatic: true, target },
+      },
+    })
+    expect(backgroundWindowCoordinator.attach).toHaveBeenCalledWith(
+      { runId: 'run-1', senderWebContentsId: 7 },
+      393776,
+      expect.any(Function),
+      expect.any(Function)
+    )
+  })
+
+  it('keeps an explicit foreground-fallback screenshot from reattaching the guard', async () => {
+    const executeScreenshot = vi.fn(async () => ({
+      success: true,
+      data: {
+        action: 'screenshot',
+        screenshotId: 'shot-foreground',
+        target: { type: 'window', hwnd: 393776, id: 'window:393776:0', title: 'Discord' },
+      },
+    }))
+    const { handler, backgroundWindowCoordinator } = await loadToolHandler({ executeScreenshot })
+    backgroundWindowCoordinator.release.mockResolvedValueOnce(true)
+
+    await handler(
+      { sender: { id: 7 } },
+      'background_window_release',
+      {},
+      { runId: 'run-1' }
+    )
+
+    const result = await handler(
+      { sender: { id: 7 } },
+      'computer_screenshot',
+      { app_name: 'Discord', reserve_background: false },
+      { runId: 'run-1' }
+    )
+
+    expect(result).toMatchObject({
+      success: true,
+      data: { screenshotId: 'shot-foreground' },
+    })
+    expect(executeScreenshot).toHaveBeenCalledWith(
+      expect.objectContaining({ app_name: 'Discord', reserve_background: false }),
+      { sessionKey: '7:run-1' }
+    )
+    expect(backgroundWindowCoordinator.attach).not.toHaveBeenCalled()
+  })
+
+  it('rejects a foreground-fallback screenshot without a fresh release permit', async () => {
+    const { handler, handlers, backgroundWindowCoordinator } = await loadToolHandler()
+
+    const result = await handler(
+      { sender: { id: 7 } },
+      'computer_screenshot',
+      { app_name: 'Discord', reserve_background: false },
+      { runId: 'run-1' }
+    )
+
+    expect(result).toMatchObject({
+      success: false,
+      data: { status: 'blocked', reason: 'foreground_fallback_not_authorized' },
+    })
+    expect(handlers.executeScreenshot).not.toHaveBeenCalled()
+    expect(backgroundWindowCoordinator.attach).not.toHaveBeenCalled()
+  })
+
+  it('converts an approved Agent Mode focus request into background ownership', async () => {
+    const { handler, handlers, backgroundWindowCoordinator } = await loadToolHandler()
+    const target = {
+      hwnd: 393776,
+      processId: 1780,
+      processStartTimeMs: 123456,
+      title: 'Discord',
+    }
+    backgroundWindowCoordinator.attach.mockResolvedValue(target)
+    const args = { hwnd: 393776 }
+    const { issueToolApprovalAuthorization } = await import('./toolApprovalAuthorizations')
+    const token = issueToolApprovalAuthorization(7, 'window_focus', args)
+
+    const result = await handler(
+      { sender: { id: 7 } },
+      'window_focus',
+      args,
+      { runId: 'run-1', approvalToken: token }
+    )
+
+    expect(result).toMatchObject({
+      success: true,
+      data: {
+        status: 'background_attached',
+        focusChanged: false,
+        target,
+      },
+    })
+    expect(backgroundWindowCoordinator.attach).toHaveBeenCalledWith(
+      { runId: 'run-1', senderWebContentsId: 7 },
+      393776,
+      expect.any(Function),
+      expect.any(Function)
+    )
+    expect(handlers.executeUiGetAppState).toHaveBeenCalledWith({ hwnd: 393776 })
+    expect(handlers.executeWindowFocus).not.toHaveBeenCalled()
+  })
+
+  it('does not release a background reservation for shared physical input', async () => {
     const { handler, handlers, backgroundWindowCoordinator } = await loadToolHandler()
     backgroundWindowCoordinator.status.mockReturnValue({
       hwnd: 67850,
@@ -320,8 +472,20 @@ describe('tool routing through current-desktop Computer Use', () => {
       { screenshot_id: 'shot-1', text: 'Hector' },
       { runId: 'run-1' }
     )
+    const scrollResult = await handler(
+      { sender: { id: 7 } },
+      'computer_scroll',
+      { screenshot_id: 'shot-1', x: 10, y: 20, direction: 'down' },
+      { runId: 'run-1' }
+    )
+    const cursorResult = await handler(
+      { sender: { id: 7 } },
+      'computer_cursor_position',
+      { screenshot_id: 'shot-1', x: 10, y: 20 },
+      { runId: 'run-1' }
+    )
 
-    for (const result of [keyResult, typeResult]) {
+    for (const result of [keyResult, typeResult, scrollResult, cursorResult]) {
       expect(result).toEqual(
         expect.objectContaining({
           success: false,
@@ -332,6 +496,35 @@ describe('tool routing through current-desktop Computer Use', () => {
     expect(backgroundWindowCoordinator.release).not.toHaveBeenCalled()
     expect(handlers.executeKey).not.toHaveBeenCalled()
     expect(handlers.executeType).not.toHaveBeenCalled()
+    expect(handlers.executeScroll).not.toHaveBeenCalled()
+    expect(handlers.executeCursorPosition).not.toHaveBeenCalled()
+  })
+
+  it('disables physical click fallback while a background reservation exists', async () => {
+    const { handler, handlers, backgroundWindowCoordinator } = await loadToolHandler()
+    backgroundWindowCoordinator.status.mockReturnValue({
+      hwnd: 393776,
+      processId: 1780,
+      processStartTimeMs: 123456,
+      title: 'Discord',
+    })
+
+    await handler(
+      { sender: { id: 7 } },
+      'computer_click',
+      { screenshot_id: 'shot-1', x: 458, y: 371 },
+      { runId: 'run-1' }
+    )
+
+    expect(handlers.executeClick).toHaveBeenCalledWith(
+      { screenshot_id: 'shot-1', x: 458, y: 371, button: 'left' },
+      false,
+      expect.any(Function),
+      '7:run-1',
+      expect.any(Function),
+      false
+    )
+    expect(backgroundWindowCoordinator.release).not.toHaveBeenCalled()
   })
 
   it('routes native Windows tools through execute-tool', async () => {

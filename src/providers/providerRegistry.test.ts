@@ -86,7 +86,7 @@ describe('providerRegistry', () => {
     expect(getProviderCredentialError(settings, 'groq')).toContain('Groq API key is required')
     expect(modelSupportsTools('alibaba', 'qwen-max')).toBe(true)
     expect(modelSupportsTools('nvidia', 'minimaxai/minimax-m3')).toBe(false)
-    expect(modelSupportsTools('codex', 'gpt-5.4')).toBe(false)
+    expect(modelSupportsTools('codex', 'gpt-5.4')).toBe(true)
 
     expect(getAvailableModelOptions(settings)).toEqual([
       { id: 'openai/gpt-4.1', provider: 'openrouter', displayName: 'GPT-4.1' },

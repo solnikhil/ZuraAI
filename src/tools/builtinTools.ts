@@ -247,7 +247,7 @@ Safety rules:
   },
   computer_screenshot: {
     description:
-      'Capture visual context for Computer Use. Prefer targeting a specific app/window with window_id, window_title, or app_name. Returns a base64 PNG, dimensions, OCR-derived text elements with screenshot-relative bounds when Windows OCR is available, and a run-scoped screenshotId that must be passed to the next physical action. OCR elements are visual grounding only and are never background-safe.',
+      'Capture visual context for Computer Use. Prefer targeting a specific app/window with window_id, window_title, or app_name. In Agent Mode a targeted capture reserves that exact window by default. Set reserve_background=false only after explicitly releasing the reservation when a foreground-only physical action is necessary; this prevents the capture from immediately reattaching the guard. Returns a run-scoped screenshotId required by the next physical action.',
     parameters: {
       type: 'object',
       description: 'Arguments for capturing a display or a specific app/window.',
@@ -269,6 +269,12 @@ Safety rules:
           type: 'string',
           description:
             'Optional case-insensitive owning process name or title substring. Prefer this over window_title for apps such as media players whose titles change continuously.',
+        },
+        reserve_background: {
+          type: 'boolean',
+          description:
+            'Agent Mode only. Defaults to true. Set false for the targeted screenshot immediately before an explicitly approved foreground action so automatic background reservation does not make that action impossible.',
+          default: true,
         },
       },
       required: [],
@@ -342,7 +348,7 @@ Safety rules:
   },
   computer_scroll: {
     description:
-      'Scroll at specific coordinates from the latest screen image returned by computer_screenshot. Requires a prior computer_screenshot in the current action sequence; computer_list_windows is not enough. Move the cursor to the screen position first, then scroll.',
+      'Foreground-only physical scroll at coordinates from the latest computer_screenshot. It is rejected while an Agent Mode background window is reserved so the agent cannot move or scroll the user\'s shared desktop; use background-safe ui_* actions instead.',
     parameters: {
       type: 'object',
       description: 'Arguments for scrolling.',
@@ -373,7 +379,7 @@ Safety rules:
   },
   computer_cursor_position: {
     description:
-      'Move the cursor to specific coordinates from the latest screen image returned by computer_screenshot without clicking. Requires a prior computer_screenshot in the current action sequence; computer_list_windows is not enough. Use to hover over elements.',
+      'Foreground-only cursor movement at coordinates from the latest computer_screenshot. It is rejected while an Agent Mode background window is reserved so the agent cannot disturb the user\'s shared pointer.',
     parameters: {
       type: 'object',
       description: 'Arguments for moving the cursor.',
@@ -1102,7 +1108,8 @@ Safety rules:
     origin: 'builtin-main',
   },
   window_focus: {
-    description: 'Focus a Windows app window by hwnd or title. Requires approval.',
+    description:
+      'Request control of a Windows app window. In Agent Mode, an exact hwnd is automatically reserved for background work and focus is not changed; title-only targeting is rejected. Outside Agent Mode this focuses the window. Requires approval.',
     parameters: {
       type: 'object',
       description: 'Arguments for focusing a window.',

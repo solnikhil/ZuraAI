@@ -52,6 +52,15 @@ describe('builtInMainToolManifest', () => {
     }
   })
 
+  it('exposes an explicit foreground screenshot path without weakening the default reservation', () => {
+    const screenshot = builtInMainToolManifest.computer_screenshot
+    expect(screenshot.parameters.properties.reserve_background).toMatchObject({
+      type: 'boolean',
+      default: true,
+    })
+    expect(screenshot.description).toContain('reserve_background=false')
+  })
+
   it('advertises AI automation support in scheduled task tools', () => {
     const create = builtInMainToolManifest.scheduled_task_create
     const update = builtInMainToolManifest.scheduled_task_update

@@ -15,6 +15,7 @@ export interface ProviderRuntimeStreamRequest {
     ServiceAssistantMessage & {
       images?: string[]
       thinking?: string
+      tool_call_id?: string
     }
   >
   temperature?: number

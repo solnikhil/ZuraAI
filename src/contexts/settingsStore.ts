@@ -648,6 +648,7 @@ export function getInitialConfigSettings(settings: Settings): Partial<SettingsCo
     deepseekReasoning: settings.deepseekReasoning,
     deepseekLastEffort: settings.deepseekLastEffort,
     openRouterReasoningEffort: settings.openRouterReasoningEffort,
+    codexReasoningEffort: settings.codexReasoningEffort,
     nvidiaReasoningEffort: settings.nvidiaReasoningEffort,
     temperature: settings.temperature,
     maxTokens: settings.maxTokens,

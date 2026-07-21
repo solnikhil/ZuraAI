@@ -25,11 +25,11 @@ export function backgroundWindowFocusBlocked(target: BackgroundWindowTarget): To
 
 export function backgroundWindowPhysicalInputBlocked(
   target: BackgroundWindowTarget,
-  action: 'computer_key' | 'computer_type'
+  action: 'computer_cursor_position' | 'computer_key' | 'computer_scroll' | 'computer_type'
 ): ToolResult {
   const message =
-    `${action} cannot release a reserved background window or send shared keyboard input. ` +
-    'Resolve the intended outcome with the target-scoped accessibility tree and ui_click, ui_type_text, ui_set_value, or ui_select. For a shortcut, search accelerator_key/access_key and invoke the matching element. If no semantic action exists, report foreground_required instead of focusing the app.'
+    `${action} cannot release a reserved background window or emit shared physical input. ` +
+    'Resolve the intended outcome with the target-scoped accessibility tree and ui_click, ui_type_text, ui_set_value, ui_select, or ui_scroll. For a shortcut, search accelerator_key/access_key and invoke the matching element. If no semantic action exists, report foreground_required instead of focusing the app or moving the user\'s input devices.'
   return {
     success: false,
     error: message,

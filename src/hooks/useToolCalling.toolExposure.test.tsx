@@ -62,9 +62,22 @@ function makeSettings(overrides: Partial<MockSettingsShape> = {}): MockSettingsS
   }
 }
 
+// These Computer Use tools remain supported in main for reversibility but are
+// intentionally not exposed to the model in agent mode (background-safe ui_*
+// tools and window_list cover the same needs). Keep them out of the expected
+// exposure surface.
+const UNEXPOSED_COMPUTER_USE_TOOL_NAMES = [
+  'computer_type',
+  'computer_key',
+  'computer_scroll',
+  'computer_cursor_position',
+  'computer_list_windows',
+]
+
 const COMPUTER_USE_TOOL_NAMES = getBuiltinToolDefinitions()
   .filter((tool) => tool.category === 'computer-use')
   .map((tool) => tool.name)
+  .filter((name) => !UNEXPOSED_COMPUTER_USE_TOOL_NAMES.includes(name))
 
 const DESKTOP_OS_TOOL_NAMES = [
   'system_active_window',
@@ -199,6 +212,15 @@ describe('useToolCalling - MCP registry hydration', () => {
 })
 
 describe('useToolCalling - Computer Use tool exposure gating', () => {
+  it('exposes enabled tools to ChatGPT Codex models', () => {
+    mockSettings.settings = makeSettings({
+      modelProvider: 'codex',
+      aiModel: 'gpt-5.4',
+    })
+
+    expect(getExposedToolNames()).toContain('web_search')
+  })
+
   it('sanity: derives a non-empty Computer Use surface from the manifest', () => {
     expect(COMPUTER_USE_TOOL_NAMES.length).toBeGreaterThan(0)
     expect(COMPUTER_USE_TOOL_NAMES).toContain('ui_get_app_state')

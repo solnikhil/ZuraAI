@@ -197,6 +197,7 @@ describe('ChatGPT Codex transport', () => {
         stream: true,
         max_output_tokens: 100,
         metadata: { unsafe: true },
+        tools: [{ type: 'function', name: 'lookup' }],
       }),
     })
 
@@ -211,6 +212,7 @@ describe('ChatGPT Codex transport', () => {
     expect(headers.get('session_id')).toBe('session-123')
     const body = JSON.parse(String(init?.body))
     expect(body).toMatchObject({ model: 'gpt-5.4', stream: true, store: false })
+    expect(body.tools).toEqual([{ type: 'function', name: 'lookup' }])
     expect(body).not.toHaveProperty('max_output_tokens')
     expect(body).not.toHaveProperty('metadata')
   })
@@ -279,6 +281,53 @@ describe('ChatGPT Codex provider stream', () => {
     })
   })
 
+  it('preserves native assistant tool calls and their matching results', () => {
+    expect(
+      buildCodexMessages([
+        { role: 'user', content: 'Look it up' },
+        {
+          role: 'assistant',
+          content: '',
+          tool_calls: [
+            {
+              id: 'call_1',
+              type: 'function',
+              function: { name: 'lookup', arguments: '{"query":"ZuraAI"}' },
+            },
+          ],
+        },
+        { role: 'tool', tool_call_id: 'call_1', content: 'Found it' },
+      ])
+    ).toEqual({
+      system: undefined,
+      messages: [
+        { role: 'user', content: 'Look it up' },
+        {
+          role: 'assistant',
+          content: [
+            {
+              type: 'tool-call',
+              toolCallId: 'call_1',
+              toolName: 'lookup',
+              input: { query: 'ZuraAI' },
+            },
+          ],
+        },
+        {
+          role: 'tool',
+          content: [
+            {
+              type: 'tool-result',
+              toolCallId: 'call_1',
+              toolName: 'lookup',
+              output: { type: 'text', value: 'Found it' },
+            },
+          ],
+        },
+      ],
+    })
+  })
+
   it('normalizes AI SDK text, reasoning, usage, and finish events', async () => {
     const streamTextImpl = vi.fn(() => ({
       fullStream: (async function* () {
@@ -327,16 +376,93 @@ describe('ChatGPT Codex provider stream', () => {
     )
   })
 
-  it.each([
-    [
-      'tool definitions',
-      request({ tools: [{ type: 'function', function: { name: 'x', parameters: {} } }] }),
-    ],
-    [
-      'image inputs',
-      request({ messages: [{ role: 'user', content: 'x', images: ['data:image/png;base64,a'] }] }),
-    ],
-  ])('rejects unsupported %s before starting the SDK stream', async (_label, input) => {
+  it('sends tool schemas and normalizes native Codex tool calls', async () => {
+    const streamTextImpl = vi.fn((options: { tools?: Record<string, unknown> }) => ({
+      fullStream: (async function* () {
+        yield {
+          type: 'tool-input-start',
+          id: 'call_1',
+          toolName: 'lookup',
+        }
+        yield {
+          type: 'tool-call',
+          toolCallId: 'call_1',
+          toolName: 'lookup',
+          input: { query: 'ZuraAI' },
+        }
+        yield {
+          type: 'tool-call',
+          toolCallId: 'call_2',
+          toolName: 'lookup',
+          input: { query: 'Codex' },
+        }
+        yield {
+          type: 'finish',
+          finishReason: 'tool-calls',
+          totalUsage: { inputTokens: 4, outputTokens: 2, totalTokens: 6 },
+        }
+      })(),
+      options,
+    }))
+    const events = []
+    for await (const event of streamCodexProviderEvents(
+      request({
+        tools: [
+          {
+            type: 'function',
+            function: {
+              name: 'lookup',
+              description: 'Look something up',
+              parameters: {
+                type: 'object',
+                properties: { query: { type: 'string' } },
+                required: ['query'],
+              },
+            },
+          },
+        ],
+        toolChoice: 'auto',
+      }),
+      { appVersion: '0.0.6', streamTextImpl: streamTextImpl as never }
+    )) {
+      events.push(event)
+    }
+
+    expect(streamTextImpl).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tools: expect.objectContaining({ lookup: expect.any(Object) }),
+        toolChoice: 'auto',
+      })
+    )
+    expect(events).toContainEqual({
+      type: 'tool-call-delta',
+      delta: [
+        {
+          index: 0,
+          id: 'call_1',
+          type: 'function',
+          function: { name: 'lookup', arguments: '{"query":"ZuraAI"}' },
+        },
+      ],
+    })
+    expect(events).toContainEqual({
+      type: 'tool-call-delta',
+      delta: [
+        {
+          index: 1,
+          id: 'call_2',
+          type: 'function',
+          function: { name: 'lookup', arguments: '{"query":"Codex"}' },
+        },
+      ],
+    })
+    expect(events).toContainEqual({ type: 'finish', finishReason: 'tool_calls' })
+  })
+
+  it('rejects image inputs before starting the SDK stream', async () => {
+    const input = request({
+      messages: [{ role: 'user', content: 'x', images: ['data:image/png;base64,a'] }],
+    })
     const events = streamCodexProviderEvents(input, { appVersion: '0.0.6' })
     await expect(events.next()).rejects.toThrow(/does not accept/)
   })
@@ -373,7 +499,9 @@ describe('ChatGPT Codex model discovery', () => {
         enabled: true,
         maxContext: 400000,
         supportsDeepThinking: true,
+        supportsToolCall: true,
         modelType: 'reasoning',
+        supportedReasoningEfforts: ['low', 'high'],
       },
     ])
     const [url, init] = fetchMock.mock.calls[0]

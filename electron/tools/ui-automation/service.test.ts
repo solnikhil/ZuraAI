@@ -249,7 +249,7 @@ describe('strict background UI automation actions', () => {
     const result = await tryBackgroundActivateAtPoint({ hwnd: 100, x: 20, y: 20 })
 
     expect(result).toMatchObject({
-      status: 'activated',
+      status: 'dispatched',
       source: 'uia',
       action: 'click',
       role: 'Button',
@@ -269,6 +269,49 @@ describe('strict background UI automation actions', () => {
       reason: 'No background-safe UIA or MSAA action owns the requested point.',
     })
     expect(mocks.runPowerShell).toHaveBeenCalledTimes(1)
+  })
+
+  it('rejects unnamed generic containers as background click targets', async () => {
+    const snapshot = rawSnapshot(['Invoke'])
+    snapshot.windows[0]!.elements[0]!.name = ''
+    snapshot.windows[0]!.elements[0]!.controlType = 'Grouping'
+    mocks.runPowerShell.mockResolvedValueOnce({ stdout: JSON.stringify(snapshot), stderr: '' })
+
+    await expect(
+      tryBackgroundActivateAtPoint({ hwnd: 100, x: 20, y: 20, sessionKey: 'generic-target' })
+    ).resolves.toEqual({
+      status: 'unsupported',
+      reason: 'No background-safe UIA or MSAA action owns the requested point.',
+    })
+    expect(mocks.runPowerShell).toHaveBeenCalledTimes(1)
+  })
+
+  it('blocks an identical provider action from repeating in the same run', async () => {
+    mocks.runPowerShell
+      .mockResolvedValueOnce({ stdout: JSON.stringify(rawSnapshot(['Invoke'])), stderr: '' })
+      .mockResolvedValueOnce({ stdout: '{"action":"invoke"}', stderr: '' })
+      .mockResolvedValueOnce({ stdout: JSON.stringify(rawSnapshot(['Invoke'])), stderr: '' })
+
+    const first = await tryBackgroundActivateAtPoint({
+      hwnd: 100,
+      x: 20,
+      y: 20,
+      sessionKey: 'repeat-run',
+    })
+    const second = await tryBackgroundActivateAtPoint({
+      hwnd: 100,
+      x: 20,
+      y: 20,
+      sessionKey: 'repeat-run',
+    })
+
+    expect(first).toMatchObject({ status: 'dispatched', semanticOutcome: 'unverified' })
+    expect(second).toMatchObject({
+      status: 'blocked',
+      element_id: expect.stringMatching(/^uie_/),
+      reason: expect.stringContaining('already dispatched'),
+    })
+    expect(mocks.runPowerShell).toHaveBeenCalledTimes(3)
   })
 
   it('normalizes singleton PowerShell windows, elements, and supported patterns', async () => {

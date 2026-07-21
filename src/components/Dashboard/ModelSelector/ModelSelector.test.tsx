@@ -44,6 +44,14 @@ const openRouterReasoningModel = {
   openRouterReasoningDetected: true,
 }
 
+const codexReasoningModel = {
+  code: 'gpt-5.4',
+  displayName: 'GPT-5.4',
+  provider: 'codex',
+  supportsDeepThinking: true,
+  supportedReasoningEfforts: ['low', 'high'],
+}
+
 let mockCurrentModel = fireworksModel
 let mockCurrentName = 'DeepSeek V3.2'
 const setIsOpen = vi.fn()
@@ -61,6 +69,7 @@ vi.mock('./useModelSelector', () => ({
       groq: [],
       ollama: [],
       openrouter: mockCurrentModel.provider === 'openrouter' ? [mockCurrentModel] : [],
+      codex: mockCurrentModel.provider === 'codex' ? [mockCurrentModel] : [],
     },
     currentModel: mockCurrentModel,
     currentName: mockCurrentName,
@@ -157,6 +166,29 @@ describe('ModelSelector', () => {
       openRouterReasoningEffort: {
         'nex-agi/nex-n2-pro:free': 'xhigh',
       },
+    })
+  })
+
+  it('changes the reasoning effort for ChatGPT Codex models', async () => {
+    mockSettings = {
+      modelProvider: 'codex',
+      aiModel: 'gpt-5.4',
+      openRouterReasoningEffort: {},
+      codexReasoningEffort: { 'gpt-5.4': 'low' },
+    }
+    mockCurrentModel = codexReasoningModel
+    mockCurrentName = 'GPT-5.4'
+
+    render(<ModelSelector minimal={true} />)
+
+    expect(screen.getByText('L')).toBeInTheDocument()
+    expect(await screen.findByText('Reasoning')).toBeInTheDocument()
+    fireEvent.click(screen.getByText('Low'))
+    expect(screen.queryByRole('menuitem', { name: /^medium$/i })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('menuitem', { name: /^high$/i }))
+
+    expect(updateSettings).toHaveBeenCalledWith({
+      codexReasoningEffort: { 'gpt-5.4': 'high' },
     })
   })
 })

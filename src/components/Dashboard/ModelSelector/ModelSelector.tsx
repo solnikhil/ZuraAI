@@ -6,12 +6,7 @@ import { useModelSelector } from './useModelSelector'
 import { ModelSelectorDropdown } from './ModelSelectorDropdown'
 import { ModelIcon } from './ModelIcon'
 import { getModelAttributes } from '../../../utils/modelUtils'
-import {
-  DEEPSEEK_REASONING_EFFORTS,
-  getDeepseekReasoning,
-  setDeepseekReasoningEffort,
-} from '../../../utils/deepseekReasoning'
-import type { DeepSeekReasoningEffort } from '../../../contexts/SettingsConfigContext'
+import { getModelSelectorReasoning } from './modelSelectorReasoning'
 import { DropdownMenu, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
@@ -34,37 +29,8 @@ export default function ModelSelector({ minimal, popoverAlign = 'start' }: Model
     }
   })
 
-  // Reasoning effort is shown for the active DeepSeek model. It stays visible
-  // (greyed) when reasoning is disabled so the control is discoverable; the
-  // enable/disable toggle itself lives in Provider Hub. Levels: none → xhigh.
-  const deepseekReasoning = getDeepseekReasoning(settings, settings.aiModel)
-  const isDeepseekModel = settings.modelProvider === 'deepseek'
-  const isOpenRouterReasoningModel =
-    settings.modelProvider === 'openrouter' &&
-    currentModel?.openRouterReasoningDetected === true &&
-    currentModel?.supportsDeepThinking === true
-  const isNvidiaReasoningModel =
-    settings.modelProvider === 'nvidia' && currentModel?.supportsDeepThinking === true
-  // Show reasoning section for reasoning-capable models (DeepSeek only when enabled)
-  const showReasoningSection =
-    (isDeepseekModel && deepseekReasoning.enabled) ||
-    isOpenRouterReasoningModel ||
-    isNvidiaReasoningModel
-  // Reasoning is active when a level other than 'none' is selected
-  const reasoningEffort = isOpenRouterReasoningModel
-    ? settings.openRouterReasoningEffort?.[settings.aiModel] || 'high'
-    : isNvidiaReasoningModel
-      ? settings.nvidiaReasoningEffort?.[settings.aiModel] || 'high'
-      : deepseekReasoning.effort
-  const reasoningEnabled = reasoningEffort !== 'none'
-  // Show badge on trigger only when reasoning is actually enabled
-  const showReasoningBadge = showReasoningSection && reasoningEnabled
-  const compactReasoningEffortLabel =
-    reasoningEffort === 'xhigh'
-      ? 'XH'
-      : reasoningEffort === 'none'
-        ? 'N'
-        : reasoningEffort.charAt(0).toUpperCase()
+  // The model picker owns per-model reasoning effort selection.
+  const reasoning = getModelSelectorReasoning(settings, currentModel)
   const showLeadingIcon = !minimal
 
   return (
@@ -99,9 +65,9 @@ export default function ModelSelector({ minimal, popoverAlign = 'start' }: Model
               >
                 {currentName}
               </span>
-              {showReasoningBadge && (
+              {reasoning.show && reasoning.enabled && (
                 <span className="inline-flex shrink-0 items-center border-l border-[var(--theme-border-subtle)] pl-1.5 text-[0.68rem] font-semibold leading-none text-[var(--theme-text-tertiary)]">
-                  {compactReasoningEffortLabel}
+                  {reasoning.compactLabel}
                 </span>
               )}
               <ChevronDown
@@ -127,33 +93,11 @@ export default function ModelSelector({ minimal, popoverAlign = 'start' }: Model
         selectedModelCode={settings.aiModel}
         selectedModelProvider={settings.modelProvider}
         onModelSelect={handleSelect}
-        showReasoning={showReasoningSection}
-        reasoningEnabled={reasoningEnabled}
-        reasoningEffort={reasoningEffort}
-        reasoningEfforts={DEEPSEEK_REASONING_EFFORTS}
-        onReasoningEffortChange={(effort: DeepSeekReasoningEffort) => {
-          if (isOpenRouterReasoningModel) {
-            updateSettings({
-              openRouterReasoningEffort: {
-                ...(settings.openRouterReasoningEffort ?? {}),
-                [settings.aiModel]: effort,
-              },
-            })
-            return
-          }
-
-          if (isNvidiaReasoningModel) {
-            updateSettings({
-              nvidiaReasoningEffort: {
-                ...(settings.nvidiaReasoningEffort ?? {}),
-                [settings.aiModel]: effort,
-              },
-            })
-            return
-          }
-
-          updateSettings(setDeepseekReasoningEffort(settings, settings.aiModel, effort))
-        }}
+        showReasoning={reasoning.show}
+        reasoningEnabled={reasoning.enabled}
+        reasoningEffort={reasoning.effort}
+        reasoningEfforts={reasoning.efforts}
+        onReasoningEffortChange={(effort) => updateSettings(reasoning.settingsPatch(effort))}
       />
     </DropdownMenu>
   )

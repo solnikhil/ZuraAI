@@ -71,6 +71,8 @@ export interface ConfiguredModel {
   supportsImageGeneration?: boolean
   supportsVideoRecognition?: boolean
   openRouterReasoningDetected?: boolean
+  /** Reasoning efforts advertised by the provider for this exact model. */
+  supportedReasoningEfforts?: DeepSeekReasoningEffort[]
 }
 
 type ProviderKey = ProviderId
@@ -140,6 +142,8 @@ export interface SettingsConfig {
    * model picker owns effort selection after detection.
    */
   openRouterReasoningEffort?: Record<string, DeepSeekReasoningEffort>
+  /** Per-model ChatGPT Codex reasoning effort selected in the dashboard model picker. */
+  codexReasoningEffort?: Record<string, DeepSeekReasoningEffort>
   /**
    * Per-model NVIDIA reasoning effort preferences, keyed by configured
    * NVIDIA model `code`. The dashboard model picker controls this; NVIDIA NIM
@@ -295,6 +299,7 @@ export const defaultSettingsConfig: SettingsConfig = {
       displayName: 'GPT-5.4',
       enabled: true,
       supportsDeepThinking: true,
+      supportsToolCall: true,
       modelType: 'reasoning',
     },
   ],
@@ -448,6 +453,7 @@ export const defaultSettingsConfig: SettingsConfig = {
   deepseekReasoning: {},
   deepseekLastEffort: 'high',
   openRouterReasoningEffort: {},
+  codexReasoningEffort: {},
   nvidiaReasoningEffort: {},
 }
 

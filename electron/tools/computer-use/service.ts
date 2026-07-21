@@ -44,6 +44,15 @@ interface ScreenshotSessionState {
 const MAX_SCREENSHOT_SESSIONS = 32
 const screenshotSessions = new Map<string, ScreenshotSessionState>()
 
+class ComputerActionPolicyError extends Error {
+  constructor(
+    message: string,
+    readonly data: Record<string, unknown>
+  ) {
+    super(message)
+  }
+}
+
 function screenshotHash(image: string): string {
   return createHash('sha256').update(image).digest('base64url')
 }
@@ -246,7 +255,11 @@ async function executeAction(
       },
     }
   } catch (e) {
-    return { success: false, error: e instanceof Error ? e.message : `${action} failed` }
+    return {
+      success: false,
+      error: e instanceof Error ? e.message : `${action} failed`,
+      ...(e instanceof ComputerActionPolicyError ? { data: e.data } : {}),
+    }
   }
 }
 
@@ -276,7 +289,8 @@ export async function executeClick(
   autoApprove: boolean,
   showSpotlight?: (opts: { x: number; y: number; label?: string }) => Promise<void>,
   sessionKey = 'unscoped',
-  prepareForeground?: () => Promise<void>
+  prepareForeground?: () => Promise<void>,
+  allowForegroundFallback = true
 ): Promise<ToolResult> {
   let desktopPoint: DesktopPoint
   let screenshotState: ScreenshotSessionState
@@ -302,8 +316,9 @@ export async function executeClick(
           hwnd: screenshotState.targetHwnd,
           x: desktopPoint.x,
           y: desktopPoint.y,
+          sessionKey,
         })
-        if (background.status === 'activated') {
+        if (background.status === 'dispatched') {
           return {
             mode: 'background_automation',
             targeted: true,
@@ -311,6 +326,25 @@ export async function executeClick(
             ...background,
           }
         }
+        if (background.status === 'blocked') {
+          throw new ComputerActionPolicyError(background.reason, {
+            status: 'blocked',
+            reason: 'repeated_action',
+            hwnd: screenshotState.targetHwnd,
+            element_id: background.element_id,
+            message: background.reason,
+          })
+        }
+      }
+      if (!allowForegroundFallback) {
+        const message =
+          'No meaningful background-safe UI element owns this point. The reserved app was not focused and no physical click was sent.'
+        throw new ComputerActionPolicyError(message, {
+          status: 'foreground_required',
+          action: 'computer_click',
+          hwnd: screenshotState.targetHwnd,
+          reason: message,
+        })
       }
       await prepareForeground?.()
       await showSpotlight?.({ x: desktopPoint.x, y: desktopPoint.y, label: 'Click' })

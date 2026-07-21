@@ -3,6 +3,7 @@
  */
 
 import type { ActiveProviderId } from '../../../providers'
+import type { DeepSeekReasoningEffort } from '../../../contexts/SettingsConfigContext'
 
 export interface ModelWithProvider {
   code: string
@@ -18,6 +19,7 @@ export interface ModelWithProvider {
   supportsImageGeneration?: boolean
   supportsVideoRecognition?: boolean
   openRouterReasoningDetected?: boolean
+  supportedReasoningEfforts?: DeepSeekReasoningEffort[]
 }
 
 export type GroupedModels = Record<string, ModelWithProvider[]>

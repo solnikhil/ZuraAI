@@ -239,7 +239,7 @@ const PROVIDERS: Record<ProviderId, ProviderDefinition> = {
     accentColor: '#10a37f',
     capabilities: {
       supportsStreaming: true,
-      supportsTools: false,
+      supportsTools: true,
       supportsVisionUploads: false,
       supportsReasoning: true,
       supportsImageGeneration: false,
@@ -260,7 +260,7 @@ const PROVIDERS: Record<ProviderId, ProviderDefinition> = {
     },
     models: {
       settingsModelKey: 'codexModels',
-      supportsTools: () => false,
+      supportsTools: () => true,
     },
   },
   groq: {

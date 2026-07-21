@@ -166,12 +166,13 @@ describe('computer-use screenshot sessions', () => {
       target: { type: 'window', id: 'window:22:0', title: 'Target', hwnd: 22 },
     })
     mocks.tryBackgroundActivateAtPoint.mockResolvedValueOnce({
-      status: 'activated',
+      status: 'dispatched',
       element_id: 'uie_button',
       source: 'uia',
       action: 'click',
       role: 'Button',
       name: 'Play',
+      semanticOutcome: 'unverified',
     })
     const prepareForeground = vi.fn(async () => undefined)
     const service = await import('./service')
@@ -196,13 +197,49 @@ describe('computer-use screenshot sessions', () => {
           mode: 'background_automation',
           targeted: true,
           backgroundSafe: true,
-          status: 'activated',
+          status: 'dispatched',
           element_id: 'uie_button',
           source: 'uia',
+          semanticOutcome: 'unverified',
         },
       },
     })
     expect(prepareForeground).not.toHaveBeenCalled()
+    expect(mocks.performClick).not.toHaveBeenCalled()
+  })
+
+  it('returns foreground_required without physical fallback for a reserved app', async () => {
+    mocks.captureScreenshot.mockResolvedValue({
+      image: 'same-image',
+      width: 100,
+      height: 100,
+      coordinateContext,
+      target: { type: 'window', id: 'window:22:0', title: 'Target', hwnd: 22 },
+    })
+    const service = await import('./service')
+    const screenshot = await service.executeScreenshot(
+      { window_id: 'window:22:0' },
+      { sessionKey: 'sender:reserved' }
+    )
+    const screenshotId = (screenshot.data as { screenshotId: string }).screenshotId
+
+    const result = await service.executeClick(
+      { screenshot_id: screenshotId, x: 10, y: 20 },
+      true,
+      undefined,
+      'sender:reserved',
+      undefined,
+      false
+    )
+
+    expect(result).toMatchObject({
+      success: false,
+      data: {
+        status: 'foreground_required',
+        action: 'computer_click',
+        hwnd: 22,
+      },
+    })
     expect(mocks.performClick).not.toHaveBeenCalled()
   })
 

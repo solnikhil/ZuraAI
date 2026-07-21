@@ -1725,7 +1725,7 @@ describe('useProviderStreaming', () => {
     expect(streamResult.toolResults).toEqual([movedResult, verifiedResult])
   })
 
-  it('continues after failed verification recovery until a later verification succeeds', async () => {
+  it('stops after one failed verification recovery instead of looping to the safety cap', async () => {
     const streamCalls: Array<{ tools?: Array<{ function: { name: string } }> }> = []
     let invocation = 0
     mocks.createProviderStreamClient.mockReturnValue({
@@ -1751,28 +1751,8 @@ describe('useProviderStreaming', () => {
           return
         }
 
-        if (invocation === 4) {
-          yield {
-            type: 'tool-call-delta',
-            delta: [
-              {
-                index: 0,
-                id: 'verify_1',
-                type: 'function',
-                function: {
-                  name: 'file_search',
-                  arguments: '{"root":"Desktop/Images","query":"a.png"}',
-                },
-              },
-            ],
-          }
-          yield { type: 'finish', finishReason: 'tool_calls' }
-          return
-        }
-
-        if (invocation === 5) {
-          yield { type: 'text-delta', delta: 'Verified after retry.' }
-        }
+        yield { type: 'reasoning-delta', delta: 'Repeated verification narration.' }
+        yield { type: 'text-delta', delta: 'Unverified claim.' }
         yield { type: 'finish', finishReason: 'stop' }
       },
     })
@@ -1785,32 +1765,14 @@ describe('useProviderStreaming', () => {
       },
       result: { success: true },
     }
-    const verifiedResult = {
-      toolCall: {
-        id: 'verify_1',
-        name: 'file_search',
-        arguments: { root: 'Desktop/Images', query: 'a.png' },
-      },
-      result: { success: true, data: { results: ['Desktop/Images/a.png'] } },
-    }
-    const handleToolCalls = vi
-      .fn()
-      .mockResolvedValueOnce({
-        hasTools: true,
-        toolResults: [movedResult],
-        formattedResults: [{ role: 'tool', tool_call_id: 'move_1', content: 'Moved file' }],
-        needsFollowUp: true,
-        shouldContinueResearch: true,
-        executionSummary: buildExecutionSummary(),
-      })
-      .mockResolvedValueOnce({
-        hasTools: true,
-        toolResults: [verifiedResult],
-        formattedResults: [{ role: 'tool', tool_call_id: 'verify_1', content: 'Found file' }],
-        needsFollowUp: true,
-        shouldContinueResearch: true,
-        executionSummary: buildExecutionSummary(),
-      })
+    const handleToolCalls = vi.fn().mockResolvedValueOnce({
+      hasTools: true,
+      toolResults: [movedResult],
+      formattedResults: [{ role: 'tool', tool_call_id: 'move_1', content: 'Moved file' }],
+      needsFollowUp: true,
+      shouldContinueResearch: true,
+      executionSummary: buildExecutionSummary(),
+    })
     const onVerificationComplete = vi.fn()
 
     const { result } = renderHook(() =>
@@ -1856,19 +1818,16 @@ describe('useProviderStreaming', () => {
       toolEventCallbacks: { onVerificationComplete },
     })
 
-    expect(invocation).toBe(5)
+    expect(invocation).toBe(3)
     expect(streamCalls[2]?.tools?.map((tool) => tool.function.name)).toEqual(['file_search'])
-    expect(streamCalls[3]?.tools?.map((tool) => tool.function.name)).toEqual([
-      'file_move',
-      'file_search',
-    ])
     expect(onVerificationComplete).toHaveBeenCalledWith(
       expect.objectContaining({ category: 'file' }),
-      true
+      false
     )
-    expect(onVerificationComplete).not.toHaveBeenCalledWith(expect.anything(), false)
-    expect(streamResult.content).toBe('Verified after retry.')
-    expect(streamResult.content).not.toContain('I made a change')
+    expect(streamResult.content).not.toContain('Unverified claim.')
+    expect(streamResult.toolResults).toEqual([movedResult])
+    expect(streamResult.thinkingBlocks.filter((block) => block.type === 'thinking')).toEqual([])
+    expect(streamResult.thinkingBlocks.filter((block) => block.type === 'tool')).toHaveLength(1)
   })
 
   it('allows an evidenced multi-step UI workflow before terminal read-only verification', async () => {

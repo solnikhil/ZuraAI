@@ -82,4 +82,16 @@ describe('chat run configuration', () => {
 
     expect(result.enableThinking).toBe(false)
   })
+
+  it('forwards the selected ChatGPT Codex reasoning effort', () => {
+    const result = buildProviderRunCapabilities(
+      settings({
+        modelProvider: 'codex',
+        aiModel: 'gpt-5.4',
+        codexReasoningEffort: { 'gpt-5.4': 'xhigh' },
+      })
+    )
+
+    expect(result.reasoningEffort).toBe('xhigh')
+  })
 })

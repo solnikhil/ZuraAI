@@ -43,11 +43,6 @@ const COMPUTER_USE_TOOLS = [
   'ui_key',
   'computer_screenshot',
   'computer_click',
-  'computer_type',
-  'computer_key',
-  'computer_scroll',
-  'computer_cursor_position',
-  'computer_list_windows',
 ]
 
 const NATIVE_WINDOWS_AGENT_TOOLS = [

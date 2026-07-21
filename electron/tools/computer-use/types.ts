@@ -11,6 +11,7 @@ export interface ScreenshotArgs {
   window_id?: string
   window_title?: string
   app_name?: string
+  reserve_background?: boolean
 }
 
 export interface ClickArgs {

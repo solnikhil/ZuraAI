@@ -742,14 +742,54 @@ export function getUiAutomationElementTarget(
 
 export type BackgroundPointActivationResult =
   | {
-      status: 'activated'
+      status: 'dispatched'
       element_id: string
       source: 'uia' | 'msaa'
       action: 'click' | 'select'
       role: string
       name: string
+      semanticOutcome: 'unverified'
     }
+  | { status: 'blocked'; reason: string; element_id: string }
   | { status: 'unsupported'; reason: string }
+
+const BACKGROUND_ACTIVATION_TTL_MS = 120_000
+const MAX_BACKGROUND_ACTIVATION_SESSIONS = 64
+const lastBackgroundActivationBySession = new Map<
+  string,
+  { hwnd: number; elementId: string; action: 'click' | 'select'; updatedAt: number }
+>()
+
+function pruneBackgroundActivationSessions(now: number): void {
+  for (const [sessionKey, activation] of lastBackgroundActivationBySession) {
+    if (now - activation.updatedAt > BACKGROUND_ACTIVATION_TTL_MS) {
+      lastBackgroundActivationBySession.delete(sessionKey)
+    }
+  }
+  while (lastBackgroundActivationBySession.size >= MAX_BACKGROUND_ACTIVATION_SESSIONS) {
+    const oldestSessionKey = lastBackgroundActivationBySession.keys().next().value
+    if (typeof oldestSessionKey !== 'string') break
+    lastBackgroundActivationBySession.delete(oldestSessionKey)
+  }
+}
+
+const GENERIC_CONTAINER_ROLES = new Set([
+  'custom',
+  'document',
+  'group',
+  'grouping',
+  'pane',
+  'text',
+  'window',
+])
+
+function isMeaningfulBackgroundTarget(element: UiAutomationElement): boolean {
+  const role = element.role.trim().toLowerCase()
+  const name = element.name.trim()
+  if (!name && GENERIC_CONTAINER_ROLES.has(role)) return false
+  if (element.source === 'msaa' && !name) return false
+  return true
+}
 
 function boundsContainPoint(bounds: UiAutomationBounds, x: number, y: number): boolean {
   return (
@@ -770,6 +810,7 @@ export async function tryBackgroundActivateAtPoint(args: {
   hwnd: number
   x: number
   y: number
+  sessionKey?: string
 }): Promise<BackgroundPointActivationResult> {
   if (!isWindows())
     return { status: 'unsupported', reason: 'Windows UI automation is unavailable.' }
@@ -802,6 +843,7 @@ export async function tryBackgroundActivateAtPoint(args: {
         element.enabled &&
         element.visible &&
         element.background_safe &&
+        isMeaningfulBackgroundTarget(element) &&
         (element.supported_actions.includes('click') ||
           element.supported_actions.includes('select')) &&
         boundsContainPoint(element.bounds, args.x, args.y)
@@ -818,14 +860,39 @@ export async function tryBackgroundActivateAtPoint(args: {
   const entry = elementCache.get(element.element_id)
   if (!entry) throw new Error('The resolved accessibility element expired before activation.')
   const action = element.supported_actions.includes('click') ? 'click' : 'select'
+  const sessionKey = args.sessionKey || 'unscoped'
+  pruneBackgroundActivationSessions(now)
+  const previous = lastBackgroundActivationBySession.get(sessionKey)
+  if (
+    previous &&
+    Date.now() - previous.updatedAt <= BACKGROUND_ACTIVATION_TTL_MS &&
+    previous.hwnd === args.hwnd &&
+    previous.elementId === element.element_id &&
+    previous.action === action
+  ) {
+    return {
+      status: 'blocked',
+      reason:
+        'The same background UI element action was already dispatched consecutively. Inspect fresh app state or choose a different semantic action instead of repeating it.',
+      element_id: element.element_id,
+    }
+  }
   await runUiaAction(action === 'click' ? 'invoke' : 'select', entry)
+  lastBackgroundActivationBySession.delete(sessionKey)
+  lastBackgroundActivationBySession.set(sessionKey, {
+    hwnd: args.hwnd,
+    elementId: element.element_id,
+    action,
+    updatedAt: Date.now(),
+  })
   return {
-    status: 'activated',
+    status: 'dispatched',
     element_id: element.element_id,
     source: element.source,
     action,
     role: element.role,
     name: element.name.slice(0, 160),
+    semanticOutcome: 'unverified',
   }
 }
 
