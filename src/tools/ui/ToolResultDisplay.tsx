@@ -94,10 +94,10 @@ function ScheduledTaskResultCard({
   const titleFromArgs =
     typeof toolArguments?.title === 'string' ? toolArguments.title.trim() : ''
 
-  let title = 'Schedule'
-  let subtitle = ''
-  let actionLabel = 'Schedule'
-  let statusLabel = error ? 'Failed' : 'Done'
+  let title: string
+  let subtitle: string
+  let actionLabel: string
+  let statusLabel: string
 
   if (toolName === 'scheduled_task_create') {
     actionLabel = 'Schedule created'

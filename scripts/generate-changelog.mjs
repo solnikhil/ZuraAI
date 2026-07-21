@@ -1,5 +1,6 @@
 #!/usr/bin/env bun
 import { execFileSync } from 'node:child_process'
+import { readFileSync } from 'node:fs'
 
 function parseArgs(argv) {
   const args = {
@@ -32,17 +33,45 @@ function formatSubject(subject) {
 }
 
 const { fromTag, toRef } = parseArgs(process.argv.slice(2))
+const releaseVersion = (process.env.GITHUB_REF_NAME || toRef).replace(/^v/, '')
+
+function readCuratedRelease(version) {
+  let changelog
+
+  try {
+    changelog = readFileSync('CHANGELOG.md', 'utf8')
+  } catch {
+    return ''
+  }
+
+  const escapedVersion = version.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const section = changelog.match(
+    new RegExp(
+      `^## \\[${escapedVersion}\\](?:\\s+-[^\\n]*)?\\r?\\n([\\s\\S]*?)(?=^## \\[|^\\[[^\\]]+\\]:|(?![\\s\\S]))`,
+      'm',
+    ),
+  )
+
+  return section?.[1]?.trim() || ''
+}
+
+const curatedRelease = readCuratedRelease(releaseVersion)
+const version = process.env.GITHUB_REF_NAME || toRef
+
+console.log(`## ZuraAI ${version}`)
+console.log('')
+
+if (curatedRelease) {
+  console.log(curatedRelease)
+  process.exit(0)
+}
+
 const range = fromTag ? `${fromTag}..${toRef}` : toRef
 const commits = git(['log', '--pretty=format:%s', range])
   .split('\n')
   .map(formatSubject)
   .filter(Boolean)
   .filter((subject) => !/^merge\b/i.test(subject))
-
-const version = process.env.GITHUB_REF_NAME || toRef
-
-console.log(`## ZuraAI ${version}`)
-console.log('')
 
 if (commits.length === 0) {
   console.log('- Maintenance release.')

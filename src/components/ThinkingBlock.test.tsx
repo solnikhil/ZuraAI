@@ -28,7 +28,7 @@ describe('ThinkingBlock tool visibility', () => {
       />
     )
 
-    expect(screen.getByText('Artifact Create: text')).toBeInTheDocument()
+    expect(screen.getByText('Artifact Create: New Text Artifact')).toBeInTheDocument()
     expect(screen.getByText('Failed')).toBeInTheDocument()
     expect(screen.getByText('Input')).toBeInTheDocument()
     expect(screen.getByText('Output')).toBeInTheDocument()

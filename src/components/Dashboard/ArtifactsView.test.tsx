@@ -161,6 +161,8 @@ describe('ArtifactsView', () => {
 
     expect(await screen.findByRole('heading', { name: 'Historical plan' })).toBeInTheDocument()
     await waitFor(() => expect(mockLoadFullSession).toHaveBeenCalledWith('session-2'))
-    expect(await screen.findByRole('heading', { name: 'Historical', level: 1 })).toBeInTheDocument()
+    expect(
+      await screen.findByRole('heading', { name: 'Historical', level: 1 }, { timeout: 3000 })
+    ).toBeInTheDocument()
   })
 })

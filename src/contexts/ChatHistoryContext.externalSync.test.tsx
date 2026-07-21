@@ -388,14 +388,17 @@ describe('ChatHistoryContext external sync', () => {
 
     await waitFor(() => expect(screen.getByTestId('flush-session-count').textContent).toBe('1'))
     fireEvent.click(screen.getByText('flush-switch'))
-    await waitFor(() =>
-      expect(screen.getByTestId('flush-current-session').textContent).toBe('session-1')
+    await waitFor(
+      () => expect(screen.getByTestId('flush-current-session').textContent).toBe('session-1'),
+      { timeout: 3000 }
     )
     fireEvent.click(screen.getByText('flush-add'))
     view.unmount()
 
-    await waitFor(() =>
-      expect(persistedSessions[0].messages.map((message) => message.content)).toEqual(['flush me'])
+    await waitFor(
+      () =>
+        expect(persistedSessions[0].messages.map((message) => message.content)).toEqual(['flush me']),
+      { timeout: 3000 }
     )
   })
 

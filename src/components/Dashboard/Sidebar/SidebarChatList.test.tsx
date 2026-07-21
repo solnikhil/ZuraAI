@@ -5,6 +5,8 @@ import type { ChatSession, Folder } from '../../../chat/types'
 import type { GroupedSessions } from './utils/groupSessions'
 import SidebarChatList from './SidebarChatList'
 
+vi.mock('../foldersFeature', () => ({ FOLDERS_SECTION_ENABLED: true }))
+
 vi.mock('./ChatRow', () => ({
   default: ({ session }: { session: ChatSession }) => (
     <div data-testid={`chat-${session.id}`}>{session.title}</div>

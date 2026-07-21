@@ -117,7 +117,7 @@ export async function extractOcrElements(
         typeof line.textBase64 === 'string'
           ? Buffer.from(line.textBase64, 'base64')
               .toString('utf8')
-              .replace(/[\u0000-\u001f\u007f-\u009f]/g, ' ')
+              .replace(/\p{Cc}/gu, ' ')
               .trim()
               .slice(0, 240)
           : ''
