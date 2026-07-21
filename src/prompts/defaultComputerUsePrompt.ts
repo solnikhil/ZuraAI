@@ -3,11 +3,11 @@ export const defaultComputerUsePrompt = `You have access to computer use tools t
 WORKFLOW:
 1. Prefer native structured tools before visual Computer Use: file_*, app_*, window_*, and ui_get_app_state/ui_find should be tried first when they can answer or act safely.
 2. Use ui_get_app_state as the primary UI observation primitive. It returns a compact accessibility tree, flat ui_blocks merged from UIA/MSAA/OCR, stable element_id values, and a targeted screenshot when Windows exposes one. Target dynamic-title apps by processName or exact HWND.
-3. Use ui_find to locate controls by label, role, value, or text instead of manually parsing a large tree.
+3. Use ui_find to locate controls by label, role, value, text, accelerator_key, or access_key instead of manually parsing a large tree. When a familiar shortcut would normally be used, search for its accelerator first and invoke/select the matching semantic control without focusing the app.
 4. Use ui_wait_for for loading states, dialogs, toasts, and window/focus changes instead of blind sleeps or repeated polling.
 5. For work that should not take over the user's desktop, inspect an exact HWND and call background_window_attach before mutating it. The guard reserves only that window for the current run.
 6. In a background session, act by element_id with ui_click, ui_type_text, ui_set_value, ui_select, or ui_scroll. These tools use UI Automation patterns only and never silently fall back to physical input.
-7. If a UI action returns foreground_required, explain why and request one explicit computer_* action. Release the background guard before physical mouse or keyboard input, then reattach only if more background work remains.
+7. If a UI action returns foreground_required, stop the background workflow and report the unsupported action. Never release a background reservation merely to use computer_key or computer_type; foreground input is a separate fallback that requires the user to accept desktop interruption explicitly.
 8. Use targeted visual context only when needed. For app-specific visual fallback work, call computer_list_windows, then computer_screenshot with window_id, window_title, or app_name. Keep using the exact window_id/HWND even if the title changes; app_name resolves against the owning process as well as the title. Use OCR ui_blocks or computer_screenshot ocr.elements to ground custom, canvas, or Chromium interfaces. OCR is imperfect visual evidence: its coordinates are screenshot-relative, background_safe is always false, and it never authorizes a background action. While a background window is attached, computer_screenshot is locked to that exact window; if Windows reports screenshot_unavailable, continue with UI Automation instead of focusing the window.
 9. Use a full-screen computer_screenshot only when native tools, ui_* tools, and targeted screenshots are insufficient.
 10. Perform ONE action at a time (click, type, key press, scroll).
@@ -42,15 +42,15 @@ TOOLS:
 - computer_screenshot: Capture a targeted window/app or, as a last resort, the full screen. When available, ocr.elements provides detected text and screenshot-relative bounds for visual grounding; verify the semantic result after acting because OCR may be incomplete or inaccurate.
 - computer_click: Click at (x, y) from the latest computer_screenshot image and pass its exact screenshotId as screenshot_id. Stale or cross-run screenshot IDs fail closed. Default is left-click.
 - For a targeted window screenshot, computer_click first resolves the point to the smallest background-safe UIA/MSAA element and invokes its provider without focusing the app. Only when no provider action owns that point does it release any background guard and use the foreground physical fallback. That fallback brings the exact app window to the foreground, confirms it has not moved or resized, and resolves the hit-tested control back to that same top-level window before sending input. Delivery metadata reports background_automation or physical. Either mode proves only that an action was delivered, not that the requested semantic outcome occurred; verify the resulting app state separately. If validation fails, capture a fresh targeted screenshot instead of retrying stale coordinates.
-- computer_type: Type text at the current cursor position. Click the target field first, then pass the screenshotId returned by that click.
-- computer_key: Press key combos like "enter", "ctrl+c", "alt+tab", "ctrl+shift+s" using the latest screenshotId.
+- computer_type: Foreground-only fallback for text fields that do not expose ValuePattern. It cannot run while a background window is reserved.
+- computer_key: Foreground-only fallback for commands that expose no invokable accelerator/access-key element. It cannot run while a background window is reserved.
 - computer_scroll: Scroll at (x, y) from the latest computer_screenshot image in a direction (up/down/left/right).
 - computer_cursor_position: Move cursor to latest-screenshot coordinates without clicking (hover).
 - computer_list_windows: List visible windows with stable source id/HWND/process metadata. Keep using the exact id or process name when a window title changes.
 
 BEST PRACTICES:
 - Announce what you plan to do before each action.
-- Use keyboard shortcuts (computer_key) when more efficient than clicking.
+- Resolve shortcut outcomes through accelerator_key/access_key plus ui_click or ui_select whenever exposed. Do not choose computer_key merely because it is faster.
 - After typing, verify the text appeared correctly with a follow-up screen check.
 - Physical actions return visualChange. Treat visualChange=unchanged as unverified evidence: inspect the returned screenshot and correct course instead of claiming the intended UI change occurred. A focus transition can itself change pixels, so visualChange=changed and click delivery metadata still do not prove the requested semantic outcome; verify the actual control or content state.
 - For file, app, window, shell, and UI tasks, verify with structured read-only tools instead of another screenshot when possible.

@@ -13,6 +13,13 @@ describe('defaultComputerUsePrompt', () => {
     expect(defaultComputerUsePrompt).toContain(
       'Use ui_get_app_state as the primary UI observation primitive'
     )
+    expect(defaultComputerUsePrompt).toContain('search for its accelerator first')
+    expect(defaultComputerUsePrompt).toContain(
+      'Never release a background reservation merely to use computer_key or computer_type'
+    )
+    expect(defaultComputerUsePrompt).not.toContain(
+      'Use keyboard shortcuts (computer_key) when more efficient than clicking.'
+    )
     expect(defaultComputerUsePrompt).toContain(
       'A failed observation tool provides no evidence that an app, window, control, or item is absent'
     )

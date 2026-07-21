@@ -299,6 +299,41 @@ describe('tool routing through current-desktop Computer Use', () => {
     expect(handlers.executeWindowFocus).not.toHaveBeenCalled()
   })
 
+  it('does not release a background reservation for keyboard or text input', async () => {
+    const { handler, handlers, backgroundWindowCoordinator } = await loadToolHandler()
+    backgroundWindowCoordinator.status.mockReturnValue({
+      hwnd: 67850,
+      processId: 25044,
+      processStartTimeMs: 123456,
+      title: 'Discord',
+    })
+
+    const keyResult = await handler(
+      { sender: { id: 7 } },
+      'computer_key',
+      { screenshot_id: 'shot-1', key: 'ctrl+k' },
+      { runId: 'run-1' }
+    )
+    const typeResult = await handler(
+      { sender: { id: 7 } },
+      'computer_type',
+      { screenshot_id: 'shot-1', text: 'Hector' },
+      { runId: 'run-1' }
+    )
+
+    for (const result of [keyResult, typeResult]) {
+      expect(result).toEqual(
+        expect.objectContaining({
+          success: false,
+          data: expect.objectContaining({ status: 'foreground_required', hwnd: 67850 }),
+        })
+      )
+    }
+    expect(backgroundWindowCoordinator.release).not.toHaveBeenCalled()
+    expect(handlers.executeKey).not.toHaveBeenCalled()
+    expect(handlers.executeType).not.toHaveBeenCalled()
+  })
+
   it('routes native Windows tools through execute-tool', async () => {
     const { handler, handlers } = await loadToolHandler()
 

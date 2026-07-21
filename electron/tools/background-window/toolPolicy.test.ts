@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   backgroundWindowFocusBlocked,
+  backgroundWindowPhysicalInputBlocked,
   normalizeBackgroundScreenshotResult,
   scopeScreenshotToBackgroundTarget,
 } from './toolPolicy'
@@ -28,6 +29,21 @@ describe('background window tool policy', () => {
         }),
       })
     )
+  })
+
+  it('keeps shared keyboard input out of a reserved background window', () => {
+    for (const action of ['computer_key', 'computer_type'] as const) {
+      expect(backgroundWindowPhysicalInputBlocked(target, action)).toEqual(
+        expect.objectContaining({
+          success: false,
+          data: expect.objectContaining({
+            status: 'foreground_required',
+            action,
+            hwnd: 67850,
+          }),
+        })
+      )
+    }
   })
 
   it('returns a typed blocked result when Windows cannot capture the reserved window', () => {

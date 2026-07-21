@@ -42,6 +42,8 @@ interface RawElement {
   parentRuntimeId?: string
   name?: string
   value?: string
+  acceleratorKey?: string
+  accessKey?: string
   automationId?: string
   controlType?: string
   className?: string
@@ -210,6 +212,8 @@ function buildUiBlocks(windows: UiAutomationWindow[], ocr?: OcrExtraction): UiBl
         window_hwnd: windowHwnd,
         role: element.role,
         text,
+        accelerator_key: element.accelerator_key,
+        access_key: element.access_key,
         bounds: element.bounds,
         supported_actions: element.supported_actions,
       })
@@ -257,6 +261,8 @@ function buildWindows(rawWindows: RawWindow[], now: number): UiAutomationWindow[
         background_safe: supportedActions.length > 0,
         name: raw.name || '',
         value: raw.value || undefined,
+        accelerator_key: raw.acceleratorKey || undefined,
+        access_key: raw.accessKey || undefined,
         role: raw.controlType || 'Custom',
         automation_id: raw.automationId || '',
         class_name: raw.className || '',
@@ -378,6 +384,8 @@ function Walk($el, $parentRuntimeId, $depth) {
       parentRuntimeId = $parentRuntimeId
       name = [string]$child.Current.Name
       value = Get-Value $child
+      acceleratorKey = [string]$child.Current.AcceleratorKey
+      accessKey = [string]$child.Current.AccessKey
       automationId = [string]$child.Current.AutomationId
       controlType = $child.Current.ControlType.ProgrammaticName.Replace('ControlType.', '')
       className = [string]$child.Current.ClassName
@@ -651,12 +659,20 @@ function matchElement(element: UiAutomationElement, args: UiFindArgs): boolean {
   if (args.role && element.role.toLowerCase() !== args.role.toLowerCase()) return false
   if (args.name && !textMatches(element.name, args.name)) return false
   if (args.value && !textMatches(element.value, args.value)) return false
+  if (args.accelerator_key && !textMatches(element.accelerator_key, args.accelerator_key))
+    return false
+  if (args.access_key && !textMatches(element.access_key, args.access_key)) return false
   const text = args.text || args.query
   if (
     text &&
-    ![element.name, element.value, element.automation_id, element.role].some((candidate) =>
-      textMatches(candidate, text)
-    )
+    ![
+      element.name,
+      element.value,
+      element.automation_id,
+      element.role,
+      element.accelerator_key,
+      element.access_key,
+    ].some((candidate) => textMatches(candidate, text))
   )
     return false
   if (typeof args.enabled === 'boolean' && element.enabled !== args.enabled) return false
@@ -698,6 +714,8 @@ function parseFindArgs(args: unknown): UiFindArgs {
     role: typeof r.role === 'string' ? r.role : undefined,
     name: typeof r.name === 'string' ? r.name : undefined,
     value: typeof r.value === 'string' ? r.value : undefined,
+    accelerator_key: typeof r.accelerator_key === 'string' ? r.accelerator_key : undefined,
+    access_key: typeof r.access_key === 'string' ? r.access_key : undefined,
     text: typeof r.text === 'string' ? r.text : undefined,
     enabled: boolFilterArg(args, 'enabled'),
     visible: boolFilterArg(args, 'visible'),

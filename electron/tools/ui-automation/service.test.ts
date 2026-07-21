@@ -87,6 +87,8 @@ function makeState(): UiAppState {
                 parent_element_id: 'uie_parent',
                 name: 'Save',
                 value: 'Ready',
+                accelerator_key: 'Ctrl+S',
+                access_key: 'Alt+S',
                 role: 'Button',
                 automation_id: 'save-button',
                 class_name: 'Button',
@@ -149,6 +151,14 @@ describe('ui automation findElementsInState', () => {
     expect(matches.map((match) => match.element_id)).toEqual(['uie_disabled'])
   })
 
+  it('finds semantic controls by accelerator and access key', () => {
+    expect(
+      findElementsInState(makeState(), { accelerator_key: 'ctrl+s', access_key: 'alt+s' }).map(
+        (match) => match.element_id
+      )
+    ).toEqual(['uie_save'])
+  })
+
   it('respects result limits', () => {
     const matches = findElementsInState(makeState(), {
       role: 'Button',
@@ -177,6 +187,8 @@ const rawSnapshot = (supportedPatterns: string[] = ['Invoke', 'Value']) => ({
         {
           runtimeId: '1.2.3',
           name: 'Save',
+          acceleratorKey: 'Ctrl+S',
+          accessKey: 'Alt+S',
           automationId: 'save-button',
           controlType: 'Button',
           className: 'Button',
@@ -282,8 +294,14 @@ describe('strict background UI automation actions', () => {
     expect(state.windows).toHaveLength(1)
     expect(state.windows[0]?.elements).toHaveLength(1)
     expect(state.windows[0]?.elements[0]?.supported_actions).toEqual(['click'])
+    expect(state.windows[0]?.elements[0]).toMatchObject({
+      accelerator_key: 'Ctrl+S',
+      access_key: 'Alt+S',
+    })
     const snapshotPowerShell = mocks.runPowerShell.mock.calls[0]?.[0] as string
     expect(snapshotPowerShell).toContain('supportedPatterns = @(Get-PatternNames $child)')
+    expect(snapshotPowerShell).toContain('acceleratorKey = [string]$child.Current.AcceleratorKey')
+    expect(snapshotPowerShell).toContain('accessKey = [string]$child.Current.AccessKey')
     expect(snapshotPowerShell).toContain('$elements = @(Walk $window $null 1)')
     expect(snapshotPowerShell).toContain('elements = @($elements)')
     expect(snapshotPowerShell).toContain('[ZuraLegacyAccessibility]::Capture')
@@ -323,6 +341,8 @@ describe('strict background UI automation actions', () => {
           coordinate_space: 'desktop',
           window_hwnd: 100,
           text: 'Save',
+          accelerator_key: 'Ctrl+S',
+          access_key: 'Alt+S',
           supported_actions: ['click'],
         }),
         expect.objectContaining({

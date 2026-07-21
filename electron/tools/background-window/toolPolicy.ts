@@ -23,6 +23,25 @@ export function backgroundWindowFocusBlocked(target: BackgroundWindowTarget): To
   }
 }
 
+export function backgroundWindowPhysicalInputBlocked(
+  target: BackgroundWindowTarget,
+  action: 'computer_key' | 'computer_type'
+): ToolResult {
+  const message =
+    `${action} cannot release a reserved background window or send shared keyboard input. ` +
+    'Resolve the intended outcome with the target-scoped accessibility tree and ui_click, ui_type_text, ui_set_value, or ui_select. For a shortcut, search accelerator_key/access_key and invoke the matching element. If no semantic action exists, report foreground_required instead of focusing the app.'
+  return {
+    success: false,
+    error: message,
+    data: {
+      status: 'foreground_required',
+      action,
+      hwnd: target.hwnd,
+      reason: message,
+    },
+  }
+}
+
 export function normalizeBackgroundScreenshotResult(
   result: ToolResult,
   target: BackgroundWindowTarget

@@ -87,6 +87,7 @@ import type { BuiltinToolExecutionContext } from '../../src/electron/types'
 import { backgroundWindowCoordinator } from './background-window'
 import {
   backgroundWindowFocusBlocked,
+  backgroundWindowPhysicalInputBlocked,
   normalizeBackgroundScreenshotResult,
   scopeScreenshotToBackgroundTarget,
 } from './background-window/toolPolicy'
@@ -403,12 +404,18 @@ const toolHandlers: Record<BuiltinMainToolName, ToolHandler> = {
     )
   },
   computer_type: async (args, context) => {
-    await releaseGuardForForegroundAction(context)
+    if (context?.runId) {
+      const target = backgroundWindowCoordinator.status(requireBackgroundOwner(context))
+      if (target) return backgroundWindowPhysicalInputBlocked(target, 'computer_type')
+    }
     const n = normalizeTypeArgs(args)
     return executeType(n.args, n.autoApprove, computerSessionKey(context))
   },
   computer_key: async (args, context) => {
-    await releaseGuardForForegroundAction(context)
+    if (context?.runId) {
+      const target = backgroundWindowCoordinator.status(requireBackgroundOwner(context))
+      if (target) return backgroundWindowPhysicalInputBlocked(target, 'computer_key')
+    }
     const n = normalizeKeyArgs(args)
     return executeKey(n.args, n.autoApprove, computerSessionKey(context))
   },

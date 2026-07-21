@@ -12,6 +12,8 @@ export interface UiAutomationElement {
   parent_element_id?: string
   name: string
   value?: string
+  accelerator_key?: string
+  access_key?: string
   role: string
   automation_id: string
   class_name: string
@@ -41,6 +43,8 @@ export interface UiBlock {
   window_hwnd?: number
   role: string
   text: string
+  accelerator_key?: string
+  access_key?: string
   bounds: UiAutomationBounds
   supported_actions: string[]
 }
@@ -89,6 +93,8 @@ export interface UiFindArgs {
   role?: string
   name?: string
   value?: string
+  accelerator_key?: string
+  access_key?: string
   text?: string
   enabled?: boolean
   visible?: boolean

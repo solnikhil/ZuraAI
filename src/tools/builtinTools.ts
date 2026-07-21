@@ -303,7 +303,7 @@ Safety rules:
   },
   computer_type: {
     description:
-      'Type text in the app captured by the required screenshot_id. The exact captured window is automatically focused and verified for delivery, then the user\'s prior app is restored when safe. Click the target input field first.',
+      'Foreground-only fallback for text fields that do not expose UI Automation ValuePattern. It is rejected while a background window is reserved. Otherwise the app captured by screenshot_id is focused and verified briefly, then the user\'s prior app is restored when safe.',
     parameters: {
       type: 'object',
       description: 'Arguments for typing text.',
@@ -321,7 +321,7 @@ Safety rules:
   },
   computer_key: {
     description:
-      'Press a key or key combination only in the app captured by the required screenshot_id. The exact captured window is automatically focused and verified for delivery, then the user\'s prior app is restored when safe. Format: "enter", "ctrl+c", "shift+ctrl+s".',
+      'Foreground-only fallback for commands that expose no invokable accelerator/access-key control. It is rejected while a background window is reserved. Otherwise the app captured by screenshot_id is focused and verified briefly, then the user\'s prior app is restored when safe.',
     parameters: {
       type: 'object',
       description: 'Arguments for pressing keys.',
@@ -434,7 +434,7 @@ Safety rules:
   },
   ui_find: {
     description:
-      'Search the latest or requested ui_get_app_state accessibility tree for elements by role, label/name, value, text, enabled/visible/focused state, or parent element_id. Use this instead of manually parsing a large tree.',
+      'Search the latest or requested ui_get_app_state accessibility tree for elements by role, label/name, value, accelerator/access key, text, enabled/visible/focused state, or parent element_id. For a requested shortcut, search accelerator_key first and invoke the matching semantic control instead of sending keyboard input.',
     parameters: {
       type: 'object',
       description: 'Search filters for the accessibility tree.',
@@ -453,6 +453,14 @@ Safety rules:
         },
         name: { type: 'string', description: 'Substring of the element label/name.' },
         value: { type: 'string', description: 'Substring of the element value.' },
+        accelerator_key: {
+          type: 'string',
+          description: 'UI Automation accelerator, such as Ctrl+K, exposed by the app.',
+        },
+        access_key: {
+          type: 'string',
+          description: 'UI Automation access key exposed by the app.',
+        },
         text: {
           type: 'string',
           description: 'Text substring to match across accessible text fields.',
@@ -482,6 +490,8 @@ Safety rules:
         role: { type: 'string', description: 'Exact role/control type to wait for.' },
         name: { type: 'string', description: 'Element label/name substring to wait for.' },
         value: { type: 'string', description: 'Element value substring to wait for.' },
+        accelerator_key: { type: 'string', description: 'Accelerator key to wait for.' },
+        access_key: { type: 'string', description: 'Access key to wait for.' },
         text: { type: 'string', description: 'Text substring to wait for.' },
         enabled: { type: 'boolean', description: 'Optional enabled-state filter.' },
         visible: { type: 'boolean', description: 'Optional visible-state filter.' },
