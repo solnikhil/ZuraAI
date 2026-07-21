@@ -7,6 +7,7 @@ import RemindersView from './RemindersView'
 
 const mockSetDraftText = vi.fn()
 const mockSetDashboardView = vi.fn()
+const mockSwitchSession = vi.fn()
 
 vi.mock('@/contexts/ComposerDraftContext', () => ({
   useComposerDraft: () => ({ setDraftText: mockSetDraftText }),
@@ -14,6 +15,13 @@ vi.mock('@/contexts/ComposerDraftContext', () => ({
 
 vi.mock('@/contexts/AppShellContext', () => ({
   useAppShell: () => ({ setDashboardView: mockSetDashboardView }),
+}))
+
+vi.mock('@/contexts/ChatHistoryContext', () => ({
+  useChatHistory: () => ({
+    switchSession: mockSwitchSession,
+    sessions: [{ id: 'automation-chat-1', title: 'Automation run' }],
+  }),
 }))
 
 const lookoutTask: ScheduledTaskDefinition = {
@@ -44,6 +52,22 @@ const reminderTask: ScheduledTaskDefinition = {
   nextRunAt: Date.now() + 604_800_000,
 }
 
+const automationTask: ScheduledTaskDefinition = {
+  id: 'task-3',
+  type: 'ai_automation',
+  title: 'AI news brief',
+  enabled: true,
+  urls: [],
+  instructions: '',
+  intervalPreset: '30m',
+  schedule: { kind: 'agent', intervalPreset: '30m' },
+  prompt: 'Summarize AI news',
+  automationMode: 'prompt',
+  createdAt: 1,
+  updatedAt: 1,
+  nextRunAt: Date.now() + 3_600_000,
+}
+
 const run: ScheduledTaskRun = {
   id: 'run-1',
   taskId: 'task-1',
@@ -60,17 +84,29 @@ const run: ScheduledTaskRun = {
   aiSummary: 'The changelog added a new API release.',
 }
 
-describe('RemindersView', () => {
+const automationRun: ScheduledTaskRun = {
+  id: 'run-2',
+  taskId: 'task-3',
+  startedAt: 4,
+  finishedAt: 5,
+  status: 'unchanged',
+  logs: [],
+  outputText: 'Fresh AI headlines today.',
+  automationChatSessionId: 'automation-chat-1',
+}
+
+describe('RemindersView (Schedules)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockSetDraftText.mockClear()
+    mockSwitchSession.mockClear()
     window.scheduledTasks = {
-      list: vi.fn().mockResolvedValue([lookoutTask, reminderTask]),
-      create: vi.fn(),
+      list: vi.fn().mockResolvedValue([lookoutTask, reminderTask, automationTask]),
+      create: vi.fn().mockResolvedValue(reminderTask),
       update: vi.fn().mockResolvedValue(lookoutTask),
       delete: vi.fn().mockResolvedValue(true),
       runNow: vi.fn(),
-      listRuns: vi.fn().mockResolvedValue([run]),
+      listRuns: vi.fn().mockResolvedValue([run, automationRun]),
       getRun: vi.fn(),
       resolveSummary: vi.fn(),
       resolveAutomationRun: vi.fn(),
@@ -80,17 +116,35 @@ describe('RemindersView', () => {
     }
   })
 
-  it('renders a centered panel with All Tasks group', async () => {
+  it('renders Schedules title and all task types', async () => {
     render(<RemindersView />)
 
-    expect(await screen.findByRole('heading', { name: 'Reminders & Lookouts' })).toBeInTheDocument()
-    expect(screen.getByRole('tab', { name: 'All 2' })).toHaveAttribute('aria-selected', 'true')
-    const allTasks = screen.getByRole('region', { name: 'All tasks' })
+    expect(await screen.findByRole('heading', { name: 'Schedules' })).toBeInTheDocument()
+    expect(
+      screen.getByText(/only run while ZuraAI is open/i)
+    ).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'All 3' })).toHaveAttribute('aria-selected', 'true')
+    const allTasks = screen.getByRole('region', { name: 'All schedules' })
 
     expect(within(allTasks).getByText('Review weekly launches')).toBeInTheDocument()
     expect(within(allTasks).getByText('Watch changelog')).toBeInTheDocument()
+    expect(within(allTasks).getByText('AI news brief')).toBeInTheDocument()
     expect(within(allTasks).getByText('Reminder')).toBeInTheDocument()
     expect(within(allTasks).getByText('Lookout')).toBeInTheDocument()
+    expect(within(allTasks).getByText('Automation')).toBeInTheDocument()
+    expect(within(allTasks).getByText('Prompt only')).toBeInTheDocument()
+    expect(within(allTasks).getByText(/Last: Changed/i)).toBeInTheDocument()
+  })
+
+  it('opens create form from New button', async () => {
+    render(<RemindersView />)
+
+    fireEvent.click(await screen.findByRole('button', { name: /new/i }))
+
+    expect(
+      screen.getByRole('complementary', { name: /create schedule for new schedule/i })
+    ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Create schedule' })).toBeInTheDocument()
   })
 
   it('sets draft text when Ask agent is clicked', async () => {
@@ -104,57 +158,77 @@ describe('RemindersView', () => {
     expect(mockSetDashboardView).toHaveBeenCalledWith('chat')
   })
 
-  it('opens logs in the side drawer', async () => {
+  it('opens history in the side drawer with type-aware status labels', async () => {
     render(<RemindersView />)
 
-    const allTasks = await screen.findByRole('region', { name: 'All tasks' })
+    const allTasks = await screen.findByRole('region', { name: 'All schedules' })
     const row = within(allTasks).getByText('Watch changelog').closest('article')
     expect(row).not.toBeNull()
-    fireEvent.click(within(row as HTMLElement).getByRole('button', { name: 'Logs' }))
+    fireEvent.click(within(row as HTMLElement).getByRole('button', { name: 'History' }))
 
     expect(
-      screen.getByRole('complementary', { name: /logs for watch changelog/i })
+      screen.getByRole('complementary', { name: /run history for watch changelog/i })
     ).toBeInTheDocument()
-    expect(document.querySelector('.reminders-view__drawer-divider')).toBeInTheDocument()
+    expect(screen.getByText('Changed')).toBeInTheDocument()
     expect(screen.getByText('The changelog added a new API release.')).toBeInTheDocument()
     expect(screen.getByText('New API release notes')).toBeInTheDocument()
   })
 
-  it('opens task details and sets draft text for agent edit prompt', async () => {
+  it('opens edit form when Edit is chosen', async () => {
     render(<RemindersView />)
 
-    const allTasks = await screen.findByRole('region', { name: 'All tasks' })
+    const allTasks = await screen.findByRole('region', { name: 'All schedules' })
     const row = within(allTasks).getByText('Review weekly launches').closest('article')
     expect(row).not.toBeNull()
     const menuTrigger = within(row as HTMLElement).getByRole('button', { name: 'More actions' })
     menuTrigger.focus()
     fireEvent.keyDown(menuTrigger, { key: 'ArrowDown' })
-    fireEvent.click(await screen.findByRole('menuitem', { name: /edit/i }))
+    fireEvent.click(await screen.findByRole('menuitem', { name: /^edit$/i }))
 
-    const detailsDrawer = screen.getByRole('complementary', {
-      name: /details for review weekly launches/i,
-    })
-    expect(within(detailsDrawer).getByText('Task details')).toBeInTheDocument()
     expect(
-      within(detailsDrawer).getByRole('heading', { name: 'Review weekly launches' })
+      screen.getByRole('complementary', { name: /edit schedule for edit review weekly launches/i })
     ).toBeInTheDocument()
-    expect(within(detailsDrawer).getByText('Type')).toBeInTheDocument()
-    expect(within(detailsDrawer).getByText('Status')).toBeInTheDocument()
-    expect(within(detailsDrawer).getByText('Schedule')).toBeInTheDocument()
-    expect(within(detailsDrawer).getByText('Next run')).toBeInTheDocument()
-    expect(within(detailsDrawer).getByText('Reminder text')).toBeInTheDocument()
-    expect(within(detailsDrawer).getByText('Review launch notes')).toBeInTheDocument()
+    expect(screen.getByDisplayValue('Review weekly launches')).toBeInTheDocument()
+    expect(screen.getByDisplayValue('Review launch notes')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Save changes' })).toBeInTheDocument()
+  })
 
-    fireEvent.click(within(detailsDrawer).getByRole('button', { name: 'Edit this with agent' }))
+  it('confirms before deleting a schedule', async () => {
+    render(<RemindersView />)
 
-    expect(mockSetDraftText).toHaveBeenCalledWith(expect.stringContaining('Task id: task-2'))
+    const allTasks = await screen.findByRole('region', { name: 'All schedules' })
+    const row = within(allTasks).getByText('Watch changelog').closest('article')
+    expect(row).not.toBeNull()
+    const menuTrigger = within(row as HTMLElement).getByRole('button', { name: 'More actions' })
+    menuTrigger.focus()
+    fireEvent.keyDown(menuTrigger, { key: 'ArrowDown' })
+    fireEvent.click(await screen.findByRole('menuitem', { name: /delete/i }))
+
+    expect(screen.getByRole('heading', { name: 'Delete schedule?' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
+
+    await vi.waitFor(() => {
+      expect(window.scheduledTasks.delete).toHaveBeenCalledWith('task-1')
+    })
+  })
+
+  it('opens automation run chat from history', async () => {
+    render(<RemindersView />)
+
+    const allTasks = await screen.findByRole('region', { name: 'All schedules' })
+    const row = within(allTasks).getByText('AI news brief').closest('article')
+    expect(row).not.toBeNull()
+    fireEvent.click(within(row as HTMLElement).getByRole('button', { name: 'History' }))
+
+    fireEvent.click(await screen.findByRole('button', { name: /open run chat/i }))
+    expect(mockSwitchSession).toHaveBeenCalledWith('automation-chat-1')
     expect(mockSetDashboardView).toHaveBeenCalledWith('chat')
   })
 
   it('uses shadcn dropdown triggers for row actions', async () => {
     render(<RemindersView />)
 
-    const allTasks = await screen.findByRole('region', { name: 'All tasks' })
+    const allTasks = await screen.findByRole('region', { name: 'All schedules' })
     const row = within(allTasks).getByText('Watch changelog').closest('article')
     expect(row).not.toBeNull()
     const trigger = within(row as HTMLElement).getByRole('button', { name: 'More actions' })
@@ -163,16 +237,15 @@ describe('RemindersView', () => {
     expect(trigger).toHaveAttribute('data-variant', 'ghost')
   })
 
-  it('renders compact empty state for empty group', async () => {
+  it('renders empty state with create shortcuts', async () => {
     window.scheduledTasks.list = vi.fn().mockResolvedValue([])
     window.scheduledTasks.listRuns = vi.fn().mockResolvedValue([])
 
     render(<RemindersView />)
 
-    expect(await screen.findByText('No matching tasks')).toBeInTheDocument()
-    expect(
-      screen.getByText('Ask the agent to create a reminder, lookout, or AI automation.')
-    ).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Remind me tomorrow at 9 AM' })).toBeInTheDocument()
+    expect(await screen.findByText('No schedules yet')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'New reminder' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'New lookout' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'New automation' })).toBeInTheDocument()
   })
 })

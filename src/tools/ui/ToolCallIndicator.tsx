@@ -1,5 +1,6 @@
 import React from 'react'
 import {
+  Bell,
   Box,
   Loader2,
   Globe,
@@ -23,6 +24,11 @@ const toolIcons: Record<string, React.ReactNode> = {
   computer_scroll: <Monitor size={16} />,
   computer_cursor_position: <MousePointer size={16} />,
   computer_list_windows: <Monitor size={16} />,
+  scheduled_task_create: <Bell size={16} />,
+  scheduled_task_update: <Bell size={16} />,
+  scheduled_task_delete: <Bell size={16} />,
+  scheduled_task_list: <Bell size={16} />,
+  scheduled_task_get_logs: <Bell size={16} />,
 }
 
 const toolDisplayNames: Record<string, string> = {
@@ -35,6 +41,11 @@ const toolDisplayNames: Record<string, string> = {
   computer_scroll: 'Scroll',
   computer_cursor_position: 'Move Cursor',
   computer_list_windows: 'List Windows',
+  scheduled_task_create: 'Create schedule',
+  scheduled_task_update: 'Update schedule',
+  scheduled_task_delete: 'Delete schedule',
+  scheduled_task_list: 'List schedules',
+  scheduled_task_get_logs: 'Schedule history',
 }
 
 interface ToolCallIndicatorProps {
@@ -90,6 +101,21 @@ export default function ToolCallIndicator({
         if (toolName === 'computer_scroll') return `Scrolling ${args?.direction ?? '?'}…`
         if (toolName === 'computer_cursor_position')
           return `Moving cursor to (${args?.x ?? '?'}, ${args?.y ?? '?'})…`
+        if (toolName.startsWith('scheduled_task_')) {
+          const title =
+            typeof args?.title === 'string' && args.title.trim()
+              ? args.title.trim()
+              : typeof args?.id === 'string'
+                ? args.id.slice(0, 8)
+                : null
+          if (toolName === 'scheduled_task_create')
+            return title ? `Creating schedule “${title}”…` : 'Creating schedule…'
+          if (toolName === 'scheduled_task_update')
+            return title ? `Updating schedule “${title}”…` : 'Updating schedule…'
+          if (toolName === 'scheduled_task_delete') return 'Deleting schedule…'
+          if (toolName === 'scheduled_task_list') return 'Listing schedules…'
+          if (toolName === 'scheduled_task_get_logs') return 'Checking schedule history…'
+        }
         return argumentSummary
           ? `Running ${displayName}: ${argumentSummary}`
           : `Running ${displayName}...`

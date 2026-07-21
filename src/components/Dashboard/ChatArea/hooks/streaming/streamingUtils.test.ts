@@ -295,7 +295,7 @@ describe('streamingUtils final synthesis helpers', () => {
     )
 
     expect(messages[0].role).toBe('system')
-    expect(String(messages[0].content)).toContain('AGENT VERIFICATION REQUIRED')
+    expect(String(messages[0].content)).toContain('AGENT VERIFICATION CHECKPOINT')
     expect(String(messages[0].content)).toContain('file_search, file_read')
     expect(messages.some((message) => message.content === 'Research context')).toBe(true)
     expect(messages.some((message) => message.role === 'tool')).toBe(true)

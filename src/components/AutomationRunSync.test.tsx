@@ -149,4 +149,53 @@ describe('AutomationRunSync', () => {
       })
     )
   })
+
+  it('parses agent-owned next_run markers and strips them from the chat message', async () => {
+    runProviderStream.mockResolvedValue({
+      content: 'Fresh AI news brief.\n\n[[next_run:+45m]]',
+      model: 'openrouter/fake-model',
+    })
+    render(<AutomationRunSync />)
+    await waitFor(() => expect(automationRunCallback).toBeDefined())
+
+    automationRunCallback?.({
+      requestId: 'request-2',
+      taskId: 'task-2',
+      taskTitle: 'AI news',
+      prompt: 'Summarize AI news',
+      instructions: '',
+      automationMode: 'prompt',
+      scheduleKind: 'agent',
+      contextSources: [],
+      allowedTools: [],
+      approvalMode: 'read_only',
+      outputDestinations: ['log'],
+      notifyPolicy: 'every_run',
+      budgets: {},
+    })
+
+    await waitFor(() => expect(resolveAutomationRun).toHaveBeenCalled())
+
+    expect(updateStreamingMessage).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.any(String),
+      expect.objectContaining({ content: 'Fresh AI news brief.' }),
+      { persist: true }
+    )
+    expect(resolveAutomationRun).toHaveBeenCalledWith(
+      expect.objectContaining({
+        outputText: 'Fresh AI news brief.\n\n[[next_run:+45m]]',
+        nextRunInMs: 45 * 60 * 1000,
+      })
+    )
+    expect(runProviderStream).toHaveBeenCalledWith(
+      expect.objectContaining({
+        messages: [
+          expect.objectContaining({
+            content: expect.stringContaining('You own the run cadence'),
+          }),
+        ],
+      })
+    )
+  })
 })

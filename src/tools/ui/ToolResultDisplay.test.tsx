@@ -40,6 +40,40 @@ describe('ToolResultDisplay', () => {
     expect(screen.getByText('Saved')).toBeInTheDocument()
   })
 
+  it('renders scheduled task create/update summaries', () => {
+    render(
+      <ToolResultDisplay
+        toolName="scheduled_task_create"
+        result={{
+          id: 'task-1',
+          type: 'reminder',
+          title: 'Call dentist',
+          enabled: true,
+        }}
+        toolArguments={{ type: 'reminder', title: 'Call dentist' }}
+      />
+    )
+
+    expect(screen.getByText('Schedule created')).toBeInTheDocument()
+    expect(screen.getByText(/Call dentist · Reminder · Active/)).toBeInTheDocument()
+    expect(screen.getByText('Created')).toBeInTheDocument()
+  })
+
+  it('renders scheduled task list summaries', () => {
+    render(
+      <ToolResultDisplay
+        toolName="scheduled_task_list"
+        result={[
+          { id: '1', title: 'Morning brief' },
+          { id: '2', title: 'Watch changelog' },
+        ]}
+      />
+    )
+
+    expect(screen.getByText('Schedules listed')).toBeInTheDocument()
+    expect(screen.getByText(/2 schedules · Morning brief, Watch changelog/)).toBeInTheDocument()
+  })
+
   it('renders an MCP add review and approves add/connect', async () => {
     const approvePendingAddRequest = vi.fn(async () => ({
       requestId: 'request-1',

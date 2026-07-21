@@ -22,7 +22,16 @@ describe('shouldShowLiveToolResultCard', () => {
   })
 
   it('shows only allowlisted product-surface tools', () => {
-    for (const toolName of ['artifact_create', 'artifact_update', 'mcp_request_add']) {
+    for (const toolName of [
+      'artifact_create',
+      'artifact_update',
+      'mcp_request_add',
+      'scheduled_task_create',
+      'scheduled_task_update',
+      'scheduled_task_delete',
+      'scheduled_task_list',
+      'scheduled_task_get_logs',
+    ]) {
       expect(shouldShowLiveToolResultCard(toolName)).toBe(true)
     }
   })
@@ -30,15 +39,18 @@ describe('shouldShowLiveToolResultCard', () => {
 
 describe('shouldSuppressNoisyToolUi', () => {
   it('suppresses high-churn tools from the thinking timeline', () => {
+    expect(shouldSuppressNoisyToolUi('code_execution')).toBe(true)
+  })
+
+  it('keeps schedule tools visible so agent schedule work is obvious', () => {
     for (const toolName of [
-      'code_execution',
       'scheduled_task_create',
       'scheduled_task_update',
       'scheduled_task_delete',
       'scheduled_task_list',
       'scheduled_task_get_logs',
     ]) {
-      expect(shouldSuppressNoisyToolUi(toolName)).toBe(true)
+      expect(shouldSuppressNoisyToolUi(toolName)).toBe(false)
     }
   })
 

@@ -97,6 +97,36 @@ function isSuccessfulMutatingResult(result: ToolCallResult): boolean {
   return false
 }
 
+export function hasFreshMutationEvidence(toolResults: ToolCallResult[] | undefined): boolean {
+  return (toolResults || []).some((result) => {
+    if (!isSuccessfulMutatingResult(result)) return false
+    const data = result.result?.data as
+      | {
+          visualChange?: unknown
+          screenshotId?: unknown
+          status?: unknown
+          state?: { state_id?: unknown }
+        }
+      | undefined
+
+    if (
+      VISUAL_MUTATION_TOOLS.has(result.toolCall.name) &&
+      data?.visualChange === 'changed' &&
+      typeof data.screenshotId === 'string' &&
+      data.screenshotId.length > 0
+    ) {
+      return true
+    }
+
+    return (
+      isAppWindowMutation(result.toolCall.name) &&
+      data?.status === 'completed' &&
+      typeof data.state?.state_id === 'string' &&
+      data.state.state_id.length > 0
+    )
+  })
+}
+
 export function selectVerificationStrategy(
   toolResults: ToolCallResult[] | undefined
 ): AgentVerificationStrategy | null {
@@ -194,13 +224,17 @@ export function buildAgentVerificationPrompt(
   options?: { recoveryAttempt?: boolean }
 ): string {
   const recoveryPrefix = options?.recoveryAttempt
-    ? '*** AGENT VERIFICATION RECOVERY REQUIRED *** The previous verification attempt did not clearly verify the outcome. Make exactly one more verification attempt, then stop.\n'
-    : '*** AGENT VERIFICATION REQUIRED ***\n'
+    ? '*** AGENT VERIFICATION RECOVERY REQUIRED *** The previous verification attempt did not clearly verify the outcome. Make exactly one more read-only verification attempt, then stop.\n'
+    : '*** AGENT VERIFICATION CHECKPOINT ***\n'
+
+  const workflowInstruction = options?.recoveryAttempt
+    ? 'This is the recovery attempt: call only one of the preferred read-only tools. Do not make another mutation.\n'
+    : 'If the requested UI workflow is not complete and fresh post-action evidence shows the last step succeeded, you may perform exactly one necessary next UI action. That action is progress, not verification, and will create a fresh checkpoint. Otherwise use a preferred read-only tool now.\n'
 
   return `${recoveryPrefix}A mutating Agent mode action just completed: ${strategy.mutatingToolNames.join(', ')}.
 Reason: ${strategy.reason}
 Use the safest read-only verification path now. Prefer these tools, in order: ${strategy.preferredTools.join(', ')}.
-Do not make another mutating change during verification. Do not provide the final answer until the result is verified.
+${workflowInstruction}Do not provide the final answer until the requested outcome is verified.
 Verification must directly show the requested outcome, not merely that a tool ran. An unchanged image is not proof of success.
 If verification fails, make at most one bounded recovery attempt. If it still cannot be verified, report the failure clearly instead of continuing blind.`
 }

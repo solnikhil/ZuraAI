@@ -401,7 +401,7 @@ export default function SidebarChatList({
               <div className="sidebar-chatlist__utility-actions">
                 {remindersEnabled
                   ? renderUtilityAction(
-                      'Reminders',
+                      'Schedules',
                       <Bell size={16} className="sidebar-header__icon" />,
                       onOpenReminders
                     )

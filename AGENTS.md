@@ -127,6 +127,7 @@ Chat run lifecycle:
 
 - Send and regenerate share `ChatRunController` (one AbortController, clear phases, once-only finish). Details: `docs/CHAT_RUNTIME.md`.
 - In-flight assistant state keeps a synchronous authoritative snapshot so completion cannot miss tokens while React is rendering composer edits. Throttled partial updates merge by field, and draft-only renders are isolated from the virtualized message viewport.
+- Agent verification uses checkpoints rather than treating every UI mutation as a terminal outcome. A changed action with fresh main-issued screenshot/UI state may advance one necessary step in a multi-action UI workflow; it remains progress evidence, not proof of task completion. Verification alternates between normal agent rounds and recovery rounds exposing only the strategy's preferred read-only tools until success, user cancellation, or the global safety cap; failed attempts do not inject deterministic assistant copy.
 - Opaque run ids travel in trusted tool context, never as model-visible arguments.
 - Two distinct tools returning the same infrastructure failure stop further tool/model rounds and show a grounded failure message.
 
@@ -182,7 +183,7 @@ Details: `docs/IPC.md`.
 
 Agent mode can use narrow main-owned tools (active window, status, open path, snap layouts; on Windows also apps, UI automation, Computer Use). Mutating actions stay approval-gated. There is no global launcher overlay or renderer-provided shell.
 
-Windows agent runs may reserve one external window via `background_window_attach`. Main owns identity and scoping. Physical Computer Use needs a fresh main-issued screenshot ID. An approved targeted left click first maps its point to the smallest enabled/visible exact-HWND UIA/MSAA element with a provider-advertised Invoke, SelectionItem/Toggle, or default action. Successful provider activation remains background-safe and keeps the guard attached; provider failures propagate, while only an unsupported point may release the guard and use the verified foreground physical fallback. Delivery mode is evidence of dispatch, not semantic task completion.
+Windows agent runs may reserve one external window via `background_window_attach`. Main owns identity and scoping. Physical Computer Use needs a fresh main-issued screenshot ID. An approved targeted left click first maps its point to the smallest enabled/visible exact-HWND UIA/MSAA element with a provider-advertised Invoke, SelectionItem/Toggle, or default action. Successful provider activation remains background-safe and keeps the guard attached; provider failures propagate, while only an unsupported point may release the guard and use the verified foreground physical fallback. Keyboard and text actions require a window-targeted screenshot and are automatically bound to its main-issued exact HWND; main briefly foregrounds and verifies that window before input, then restores the user's previous foreground window only if the target retained focus, so a concurrent user focus change is not overwritten. Whole-screen keyboard input is rejected, and the model cannot supply or replace the HWND. Delivery mode is evidence of dispatch, not semantic task completion.
 
 Window capture identity is anchored to the desktop-capture source ID/native HWND and owning process metadata, not a mutable title. `app_name` can resolve against the owner process (for example Spotify while its title is a song), and subsequent work should retain the exact source ID/HWND. `ui_get_app_state` returns the hierarchical UIA/MSAA tree plus compact `ui_blocks`: accessibility blocks use desktop coordinates and may advertise background-safe actions, while OCR blocks use screenshot coordinates and are visual evidence only. OCR text crosses the PowerShell boundary as base64 so recognized control characters cannot corrupt the JSON transport.
 
@@ -238,6 +239,8 @@ There is **no** third-party extension store, manifest extension runtime, or stor
 - Artifacts live on their chat session. External open is the only artifact IPC path.
 - Folder `memoryMode` can be default (global + folder) or folder-only.
 - Scheduled lookouts may fetch public http(s) and loopback only — not private LAN.
+- AI automations may use `schedule.kind: "agent"` so the running model chooses the next run (clamped 1m–7d) instead of a fixed interval preset; fixed intervals remain available when the user wants a hard cadence.
+- The Schedules sidebar (internal route/view id remains `reminders`) is the UI for reminders, lookouts, and AI automations: create/edit forms, delete confirmation, type-aware run history, and open-run-chat for automation sessions. Schedules only fire while the app is open.
 - Email notification prefs are non-secret; Brevo key stays in secure storage.
 - Analytics is opt-in and sanitized (`TELEMETRY.md`).
 - Discord RPC is best-effort; missing optional native deps must not crash the app.

@@ -258,6 +258,19 @@ function mapActionPoint(
   return mapScreenshotPointToDesktop({ x: args.x, y: args.y }, state.coordinateContext)
 }
 
+function keyboardTargetForAction(
+  args: { screenshot_id: string },
+  sessionKey: string
+): { hwnd: number } {
+  const state = requireScreenshotSession(sessionKey, args.screenshot_id)
+  if (!state.targetHwnd) {
+    throw new Error(
+      'Keyboard input requires a window-targeted screenshot so it cannot affect another app. Capture the app with computer_screenshot using window_id or app_name, then retry.'
+    )
+  }
+  return { hwnd: state.targetHwnd }
+}
+
 export async function executeClick(
   args: ClickArgs,
   autoApprove: boolean,
@@ -324,10 +337,19 @@ export async function executeType(
   autoApprove: boolean,
   sessionKey = 'unscoped'
 ): Promise<ToolResult> {
+  let target: { hwnd: number }
+  try {
+    target = keyboardTargetForAction(args, sessionKey)
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Invalid keyboard target.',
+    }
+  }
   return executeAction(
     'type',
     args,
-    () => performType(args),
+    () => performType(args, target),
     autoApprove,
     undefined,
     undefined,
@@ -340,10 +362,19 @@ export async function executeKey(
   autoApprove: boolean,
   sessionKey = 'unscoped'
 ): Promise<ToolResult> {
+  let target: { hwnd: number }
+  try {
+    target = keyboardTargetForAction(args, sessionKey)
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Invalid keyboard target.',
+    }
+  }
   return executeAction(
     'key',
     args,
-    () => performKeyPress(args),
+    () => performKeyPress(args, target),
     autoApprove,
     undefined,
     undefined,

@@ -250,6 +250,7 @@ export function getToolArgumentSummary(args?: Record<string, unknown>): string |
     'command',
     'prompt',
     'topic',
+    'title',
     'name',
   ]
 

@@ -17,7 +17,7 @@ vi.mock('./providerStreamClient', () => ({
   createProviderStreamClient: mocks.createProviderStreamClient,
 }))
 
-import { useProviderStreaming } from './useProviderStreaming'
+import { getVerificationRecoveryTools, useProviderStreaming } from './useProviderStreaming'
 import { DETERMINISTIC_SEARCH_SYNTHESIS_PREFIX } from './streamingUtils'
 import type { ToolCallingResponse } from '../../../../../tools/types'
 
@@ -42,6 +42,45 @@ function buildWebSearchToolResult(id: string, query: string) {
     },
   }
 }
+
+describe('verification recovery tool restriction', () => {
+  it('exposes only preferred read-only tools during a recovery round', () => {
+    const tools = ['computer_click', 'computer_type', 'computer_screenshot'].map((name) => ({
+      type: 'function' as const,
+      function: {
+        name,
+        description: name,
+        parameters: { type: 'object' as const, properties: {} },
+      },
+    }))
+
+    expect(
+      getVerificationRecoveryTools(
+        tools,
+        {
+          category: 'visual',
+          reason: 'Verify the final UI state.',
+          preferredTools: ['computer_screenshot'],
+          mutatingToolNames: ['computer_click'],
+        },
+        true
+      )?.map((tool) => tool.function.name)
+    ).toEqual(['computer_screenshot'])
+    expect(getVerificationRecoveryTools(tools, null, true)).toBeUndefined()
+    expect(
+      getVerificationRecoveryTools(
+        tools,
+        {
+          category: 'visual',
+          reason: 'Verify the final UI state.',
+          preferredTools: ['computer_screenshot'],
+          mutatingToolNames: ['computer_click'],
+        },
+        false
+      )
+    ).toBeUndefined()
+  })
+})
 
 function buildExecutionSummary(...queries: string[]) {
   return {
@@ -1675,7 +1714,7 @@ describe('useProviderStreaming', () => {
     })
 
     expect(streamCalls).toHaveLength(3)
-    expect(String(streamCalls[1]?.messages[0]?.content)).toContain('AGENT VERIFICATION REQUIRED')
+    expect(String(streamCalls[1]?.messages[0]?.content)).toContain('AGENT VERIFICATION CHECKPOINT')
     expect(String(streamCalls[1]?.messages[0]?.content)).toContain('file_search, file_read')
     expect(onVerificationStart).toHaveBeenCalledWith(expect.objectContaining({ category: 'file' }))
     expect(onVerificationComplete).toHaveBeenCalledWith(
@@ -1684,6 +1723,293 @@ describe('useProviderStreaming', () => {
     )
     expect(streamResult.content).toBe('Verified and done.')
     expect(streamResult.toolResults).toEqual([movedResult, verifiedResult])
+  })
+
+  it('continues after failed verification recovery until a later verification succeeds', async () => {
+    const streamCalls: Array<{ tools?: Array<{ function: { name: string } }> }> = []
+    let invocation = 0
+    mocks.createProviderStreamClient.mockReturnValue({
+      stream: async function* (request: { tools?: Array<{ function: { name: string } }> }) {
+        streamCalls.push(request)
+        invocation += 1
+        if (invocation === 1) {
+          yield {
+            type: 'tool-call-delta',
+            delta: [
+              {
+                index: 0,
+                id: 'move_1',
+                type: 'function',
+                function: {
+                  name: 'file_move',
+                  arguments: '{"source":"Desktop/a.png","destination":"Desktop/Images/a.png"}',
+                },
+              },
+            ],
+          }
+          yield { type: 'finish', finishReason: 'tool_calls' }
+          return
+        }
+
+        if (invocation === 4) {
+          yield {
+            type: 'tool-call-delta',
+            delta: [
+              {
+                index: 0,
+                id: 'verify_1',
+                type: 'function',
+                function: {
+                  name: 'file_search',
+                  arguments: '{"root":"Desktop/Images","query":"a.png"}',
+                },
+              },
+            ],
+          }
+          yield { type: 'finish', finishReason: 'tool_calls' }
+          return
+        }
+
+        if (invocation === 5) {
+          yield { type: 'text-delta', delta: 'Verified after retry.' }
+        }
+        yield { type: 'finish', finishReason: 'stop' }
+      },
+    })
+
+    const movedResult = {
+      toolCall: {
+        id: 'move_1',
+        name: 'file_move',
+        arguments: { source: 'Desktop/a.png', destination: 'Desktop/Images/a.png' },
+      },
+      result: { success: true },
+    }
+    const verifiedResult = {
+      toolCall: {
+        id: 'verify_1',
+        name: 'file_search',
+        arguments: { root: 'Desktop/Images', query: 'a.png' },
+      },
+      result: { success: true, data: { results: ['Desktop/Images/a.png'] } },
+    }
+    const handleToolCalls = vi
+      .fn()
+      .mockResolvedValueOnce({
+        hasTools: true,
+        toolResults: [movedResult],
+        formattedResults: [{ role: 'tool', tool_call_id: 'move_1', content: 'Moved file' }],
+        needsFollowUp: true,
+        shouldContinueResearch: true,
+        executionSummary: buildExecutionSummary(),
+      })
+      .mockResolvedValueOnce({
+        hasTools: true,
+        toolResults: [verifiedResult],
+        formattedResults: [{ role: 'tool', tool_call_id: 'verify_1', content: 'Found file' }],
+        needsFollowUp: true,
+        shouldContinueResearch: true,
+        executionSummary: buildExecutionSummary(),
+      })
+    const onVerificationComplete = vi.fn()
+
+    const { result } = renderHook(() =>
+      useProviderStreaming({
+        settings: {
+          aiModel: 'openai/gpt-4.1',
+          modelProvider: 'openrouter',
+          temperature: 0.4,
+          maxTokens: 1024,
+          streamResponses: true,
+          openRouterApiKey: 'or-key',
+        },
+        toolCalling: {
+          canUseTools: true,
+          getToolsForRequest: () =>
+            ['file_move', 'file_search'].map((name) => ({
+              type: 'function' as const,
+              function: {
+                name,
+                description: name,
+                parameters: { type: 'object' as const, properties: {} },
+              },
+            })),
+          handleToolCalls,
+          getResearchContext: () => '',
+        },
+        updateStreamingMessage: vi.fn(),
+        flushThrottledUpdates: vi.fn(),
+        throttledUpdateStreamingMessage: vi.fn(),
+      })
+    )
+
+    const streamResult = await result.current.runProviderStream({
+      provider: 'openrouter',
+      model: 'openai/gpt-4.1',
+      sessionId: 'failed-verification-session',
+      messageId: 'failed-verification-message',
+      messages: [{ role: 'user', content: 'move the file' }],
+      startTime: performance.now() - 25,
+      researchMaxRounds: 6,
+      syncToStreamingContext: false,
+      enableTools: true,
+      toolEventCallbacks: { onVerificationComplete },
+    })
+
+    expect(invocation).toBe(5)
+    expect(streamCalls[2]?.tools?.map((tool) => tool.function.name)).toEqual(['file_search'])
+    expect(streamCalls[3]?.tools?.map((tool) => tool.function.name)).toEqual([
+      'file_move',
+      'file_search',
+    ])
+    expect(onVerificationComplete).toHaveBeenCalledWith(
+      expect.objectContaining({ category: 'file' }),
+      true
+    )
+    expect(onVerificationComplete).not.toHaveBeenCalledWith(expect.anything(), false)
+    expect(streamResult.content).toBe('Verified after retry.')
+    expect(streamResult.content).not.toContain('I made a change')
+  })
+
+  it('allows an evidenced multi-step UI workflow before terminal read-only verification', async () => {
+    const streamCalls: Array<{ messages: Array<{ role: string; content?: unknown }> }> = []
+    const toolSequence = [
+      ['click-search', 'computer_click', '{"screenshot_id":"shot-1","x":592,"y":25}'],
+      ['type-query', 'computer_type', '{"screenshot_id":"shot-2","text":"punjabi"}'],
+      ['click-playlist', 'computer_click', '{"screenshot_id":"shot-3","x":600,"y":220}'],
+      ['verify-playlist', 'computer_screenshot', '{"window_id":"window:67908:0"}'],
+    ] as const
+    let invocation = 0
+
+    mocks.createProviderStreamClient.mockReturnValue({
+      stream: async function* (request: { messages: Array<{ role: string; content?: unknown }> }) {
+        streamCalls.push({ messages: request.messages })
+        const tool = toolSequence[invocation]
+        invocation += 1
+        if (tool) {
+          yield {
+            type: 'tool-call-delta',
+            delta: [
+              {
+                index: 0,
+                id: tool[0],
+                type: 'function',
+                function: { name: tool[1], arguments: tool[2] },
+              },
+            ],
+          }
+          yield { type: 'finish', finishReason: 'tool_calls' }
+          return
+        }
+        yield { type: 'text-delta', delta: 'Punjabi playlist opened and verified.' }
+        yield { type: 'finish', finishReason: 'stop' }
+      },
+    })
+
+    const freshMutationResult = (id: string, name: string, screenshotId: string) => ({
+      toolCall: { id, name, arguments: {} },
+      result: {
+        success: true,
+        data: {
+          visualChange: 'changed',
+          screenshotId,
+          ocr: { status: 'available', elements: [] },
+        },
+      },
+    })
+    const batches = [
+      freshMutationResult('click-search', 'computer_click', 'shot-2'),
+      freshMutationResult('type-query', 'computer_type', 'shot-3'),
+      freshMutationResult('click-playlist', 'computer_click', 'shot-4'),
+      {
+        toolCall: {
+          id: 'verify-playlist',
+          name: 'computer_screenshot',
+          arguments: { window_id: 'window:67908:0' },
+        },
+        result: {
+          success: true,
+          data: {
+            screenshotId: 'shot-5',
+            ocr: { status: 'available', elements: [{ text: 'Punjabi playlist' }] },
+          },
+        },
+      },
+    ]
+    const handleToolCalls = vi.fn()
+    for (const result of batches) {
+      handleToolCalls.mockResolvedValueOnce({
+        hasTools: true,
+        toolResults: [result],
+        formattedResults: [
+          { role: 'tool', tool_call_id: result.toolCall.id, content: 'Tool completed' },
+        ],
+        needsFollowUp: true,
+        shouldContinueResearch: true,
+        executionSummary: buildExecutionSummary(),
+      })
+    }
+    const onVerificationStart = vi.fn()
+    const onVerificationComplete = vi.fn()
+
+    const { result } = renderHook(() =>
+      useProviderStreaming({
+        settings: {
+          aiModel: 'openai/gpt-4.1',
+          modelProvider: 'openrouter',
+          temperature: 0.4,
+          maxTokens: 1024,
+          streamResponses: true,
+          openRouterApiKey: 'or-key',
+        },
+        toolCalling: {
+          canUseTools: true,
+          getToolsForRequest: () =>
+            ['computer_click', 'computer_type', 'computer_screenshot'].map((name) => ({
+              type: 'function' as const,
+              function: {
+                name,
+                description: name,
+                parameters: { type: 'object' as const, properties: {} },
+              },
+            })),
+          handleToolCalls,
+          getResearchContext: () => '',
+        },
+        updateStreamingMessage: vi.fn(),
+        flushThrottledUpdates: vi.fn(),
+        throttledUpdateStreamingMessage: vi.fn(),
+      })
+    )
+
+    const streamResult = await result.current.runProviderStream({
+      provider: 'openrouter',
+      model: 'openai/gpt-4.1',
+      sessionId: 'spotify-session',
+      messageId: 'spotify-message',
+      messages: [{ role: 'user', content: 'Open a Punjabi playlist in Spotify' }],
+      startTime: performance.now() - 25,
+      researchMaxRounds: 10,
+      syncToStreamingContext: false,
+      enableTools: true,
+      toolEventCallbacks: { onVerificationStart, onVerificationComplete },
+    })
+
+    expect(streamCalls).toHaveLength(5)
+    for (const call of streamCalls.slice(1, 4)) {
+      expect(String(call.messages[0]?.content)).toContain('AGENT VERIFICATION CHECKPOINT')
+    }
+    expect(
+      streamCalls.some((call) =>
+        String(call.messages[0]?.content).includes('AGENT VERIFICATION RECOVERY REQUIRED')
+      )
+    ).toBe(false)
+    expect(onVerificationStart).toHaveBeenCalledTimes(1)
+    expect(onVerificationComplete).toHaveBeenCalledWith(
+      expect.objectContaining({ category: 'visual' }),
+      true
+    )
+    expect(streamResult.content).toBe('Punjabi playlist opened and verified.')
   })
 
   it('preserves OpenRouter reasoning_details on tool-call follow-up messages', async () => {

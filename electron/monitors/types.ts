@@ -24,7 +24,8 @@ export type ScheduledAutomationOutputDestination =
 export type ScheduledAutomationNotifyPolicy = 'every_run' | 'meaningful_change' | 'error_only'
 
 export interface ScheduledAutomationSchedule {
-  kind: 'interval' | 'daily' | 'weekly' | 'once'
+  /** agent = the automation model chooses the next run after each completion */
+  kind: 'interval' | 'daily' | 'weekly' | 'once' | 'agent'
   intervalPreset?: MonitorIntervalPreset
   timeOfDay?: string
   weekdays?: number[]
@@ -182,6 +183,8 @@ export interface ScheduledAutomationRunRequest {
   prompt: string
   instructions: string
   automationMode: ScheduledAutomationMode
+  /** When agent, the model chooses the next run time after each completion. */
+  scheduleKind?: ScheduledAutomationSchedule['kind']
   contextSources: ScheduledAutomationContextSource[]
   allowedTools: string[]
   approvalMode: ScheduledAutomationApprovalMode
@@ -214,6 +217,12 @@ export interface ScheduledAutomationRunResponse {
   deliveryStatus?: Partial<
     Record<ScheduledAutomationOutputDestination, 'sent' | 'skipped' | 'error'>
   >
+  /** Absolute next run (ms epoch) when scheduleKind is agent. Clamped in main. */
+  nextRunAt?: number
+  /** Relative delay until next run (ms) when scheduleKind is agent. Clamped in main. */
+  nextRunInMs?: number
+  /** When true, disable further automatic runs (agent-owned cadence complete). */
+  complete?: boolean
   error?: string
 }
 

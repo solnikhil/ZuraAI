@@ -185,6 +185,7 @@ function buildAutomationRequest(
     prompt: task.prompt || task.instructions || task.title,
     instructions: task.instructions,
     automationMode: task.automationMode ?? 'prompt',
+    ...(task.schedule?.kind ? { scheduleKind: task.schedule.kind } : {}),
     contextSources: task.contextSources ?? [],
     allowedTools: task.allowedTools ?? [],
     approvalMode: task.approvalMode ?? 'read_only',
@@ -202,6 +203,8 @@ function sanitizeAutomationResponse(
   const toolCallSummaries = sanitizeToolCallSummaries(response.toolCallSummaries)
   const usage = sanitizeUsage(response.usage)
   const deliveryStatus = sanitizeDeliveryStatus(response.deliveryStatus)
+  const nextRunAt = Number(response.nextRunAt)
+  const nextRunInMs = Number(response.nextRunInMs)
   return {
     requestId: response.requestId,
     ...(compactAutomationText(response.outputText)
@@ -240,6 +243,11 @@ function sanitizeAutomationResponse(
         }
       : {}),
     ...(deliveryStatus ? { deliveryStatus } : {}),
+    ...(Number.isFinite(nextRunAt) && nextRunAt > 0 ? { nextRunAt: Math.round(nextRunAt) } : {}),
+    ...(Number.isFinite(nextRunInMs) && nextRunInMs >= 0
+      ? { nextRunInMs: Math.round(nextRunInMs) }
+      : {}),
+    ...(response.complete === true ? { complete: true } : {}),
     ...(compactAutomationText(response.error, 2000)
       ? { error: compactAutomationText(response.error, 2000) }
       : {}),
@@ -378,7 +386,18 @@ function createRuntime(deps: MonitorRuntimeDeps = {}): MonitorRuntime {
         }
         await delivery.appendEmailLog(task, run)
         delivery.showNotification(task, run)
-        await saveScheduledTaskRun(task, run, [])
+        await saveScheduledTaskRun(
+          task,
+          run,
+          [],
+          task.schedule?.kind === 'agent'
+            ? {
+                nextRunAt: automationResponse?.nextRunAt,
+                nextRunInMs: automationResponse?.nextRunInMs,
+                complete: automationResponse?.complete,
+              }
+            : undefined
+        )
         void scheduler.reschedule()
         broadcastChanged()
         return run

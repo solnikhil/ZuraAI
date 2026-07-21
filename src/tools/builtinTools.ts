@@ -303,7 +303,7 @@ Safety rules:
   },
   computer_type: {
     description:
-      'Type text at the current cursor position. Click the target input field first before typing.',
+      'Type text in the app captured by the required screenshot_id. The exact captured window is automatically focused and verified for delivery, then the user\'s prior app is restored when safe. Click the target input field first.',
     parameters: {
       type: 'object',
       description: 'Arguments for typing text.',
@@ -321,7 +321,7 @@ Safety rules:
   },
   computer_key: {
     description:
-      'Press a key or key combination. Use for keyboard shortcuts, Enter, Tab, Escape, arrow keys, etc. Format: "enter", "ctrl+c", "alt+tab", "shift+ctrl+s".',
+      'Press a key or key combination only in the app captured by the required screenshot_id. The exact captured window is automatically focused and verified for delivery, then the user\'s prior app is restored when safe. Format: "enter", "ctrl+c", "shift+ctrl+s".',
     parameters: {
       type: 'object',
       description: 'Arguments for pressing keys.',
@@ -843,7 +843,7 @@ Safety rules:
   },
   scheduled_task_create: {
     description:
-      'Create a local reminder, web lookout, or AI automation. Use this when the user asks to remind them, check something later, watch a page, monitor a URL, set up a recurring lookout, or create an AI automation. After creating, tell the user it is visible in the Reminders sidebar.',
+      'Create a local reminder, web lookout, or AI automation. Use this when the user asks to remind them, check something later, watch a page, monitor a URL, set up a recurring lookout, or create an AI automation. After creating, tell the user it is visible under Schedules in the sidebar.',
     parameters: {
       type: 'object',
       description: 'Arguments for creating a scheduled task.',
@@ -925,12 +925,12 @@ Safety rules:
         schedule: {
           type: 'object',
           description:
-            'Exact AI automation schedule. For daily/weekly schedules use timeOfDay as HH:mm local time; weekdays use 0 for Sunday.',
+            'AI automation schedule. Use kind "agent" so the automation chooses its own next run after each completion (preferred when the user does not want a fixed interval). For fixed repeats use kind "interval" with intervalPreset. For daily/weekly use timeOfDay as HH:mm local time; weekdays use 0 for Sunday. kind "once" is a single run.',
         },
         intervalPreset: {
           type: 'string',
           description:
-            'Repeat interval after the first run. Optional; defaults to 30m when omitted.',
+            'Fixed repeat interval after the first run. Only set this when the user wants a fixed cadence. For AI automations, omitting it defaults to agent-owned cadence. For reminders/lookouts, omitting defaults to 30m.',
           enum: ['1m', '30m', '1h', '6h', '12h', 'daily', 'weekly'],
         },
         dueAt: {
@@ -1015,11 +1015,13 @@ Safety rules:
         },
         schedule: {
           type: 'object',
-          description: 'Replacement exact schedule for an AI automation.',
+          description:
+            'Replacement schedule for an AI automation (kind: agent | interval | daily | weekly | once).',
         },
         intervalPreset: {
           type: 'string',
-          description: 'New interval.',
+          description:
+            'New fixed interval. Prefer schedule.kind "agent" when the user wants the automation to pick its own timing.',
           enum: ['1m', '30m', '1h', '6h', '12h', 'daily', 'weekly'],
         },
         dueAt: {

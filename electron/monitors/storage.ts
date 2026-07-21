@@ -4,6 +4,7 @@ import * as fs from 'fs/promises'
 import * as fsSync from 'fs'
 import * as path from 'path'
 import { writeFileAtomic } from '../utils/atomicFile'
+import { resolveAgentOwnedNextRunAt, stripAgentNextRunMarkers } from './agentNextRun'
 import { calculateNextRunAt, isMonitorIntervalPreset } from './schedule'
 import { validateMonitorUrl } from './content'
 import type {
@@ -261,12 +262,19 @@ function normalizeSchedule(
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return undefined
   const record = raw as Record<string, unknown>
   const kind = record.kind
-  if (kind !== 'interval' && kind !== 'daily' && kind !== 'weekly' && kind !== 'once')
+  if (
+    kind !== 'interval' &&
+    kind !== 'daily' &&
+    kind !== 'weekly' &&
+    kind !== 'once' &&
+    kind !== 'agent'
+  )
     return undefined
   const schedule: ScheduledAutomationSchedule = { kind }
   if (isMonitorIntervalPreset(record.intervalPreset)) {
     schedule.intervalPreset = record.intervalPreset
-  } else if (kind === 'interval') {
+  } else if (kind === 'interval' || kind === 'agent') {
+    // agent uses intervalPreset only as a fallback when the model omits a next-run marker
     schedule.intervalPreset = fallbackInterval
   }
   if (kind === 'daily' || kind === 'weekly') {
@@ -309,6 +317,8 @@ function calculateScheduledNextRunAt(
   dueAt?: number
 ): number {
   if (typeof dueAt === 'number') return dueAt
+  // Agent-owned cadence: first run is due immediately (or at dueAt); later runs come from the model.
+  if (schedule?.kind === 'agent') return fromMs
   if (!schedule || schedule.kind === 'interval') {
     return applyWorkHoursWindow(
       calculateNextRunAt(fromMs, schedule?.intervalPreset ?? intervalPreset),
@@ -717,9 +727,11 @@ export function sanitizeScheduledTaskInput(
   } else if (!partial) {
     input.instructions = ''
   }
+  let intervalExplicit = false
   if (record.intervalPreset !== undefined) {
     if (!isMonitorIntervalPreset(record.intervalPreset)) throw new Error('Invalid monitor interval')
     input.intervalPreset = record.intervalPreset
+    intervalExplicit = true
   } else if (!partial) {
     input.intervalPreset = DEFAULT_INTERVAL_PRESET
   }
@@ -729,7 +741,10 @@ export function sanitizeScheduledTaskInput(
     if (!schedule) throw new Error('Invalid automation schedule')
     input.schedule = schedule
   } else if (!partial && taskType === 'ai_automation') {
-    input.schedule = { kind: 'interval', intervalPreset: effectiveInterval }
+    // Prefer agent-owned cadence unless the user/tool explicitly picked a fixed interval.
+    input.schedule = intervalExplicit
+      ? { kind: 'interval', intervalPreset: effectiveInterval }
+      : { kind: 'agent', intervalPreset: effectiveInterval }
   }
   if (record.automationMode !== undefined) {
     if (!isAutomationMode(record.automationMode)) throw new Error('Invalid automation mode')
@@ -830,7 +845,9 @@ export async function createScheduledTask(
       (input.type === 'ai_automation'
         ? input.dueAt
           ? { kind: 'once' as const }
-          : { kind: 'interval' as const, intervalPreset }
+          : input.intervalPreset
+            ? { kind: 'interval' as const, intervalPreset }
+            : { kind: 'agent' as const, intervalPreset }
         : undefined)
     const task: ScheduledTaskDefinition = {
       id: randomUUID(),
@@ -879,9 +896,12 @@ export async function updateScheduledTask(
     const { dueAt, ...definitionPatch } = patch
     const intervalPreset = patch.intervalPreset ?? existing.intervalPreset
     const schedule =
-      patch.dueAt !== undefined && existing.type === 'ai_automation'
+      patch.schedule ??
+      (patch.dueAt !== undefined &&
+      existing.type === 'ai_automation' &&
+      existing.schedule?.kind !== 'agent'
         ? { kind: 'once' as const }
-        : (patch.schedule ?? existing.schedule)
+        : existing.schedule)
     const nextRunAt =
       dueAt ??
       (patch.intervalPreset || patch.schedule
@@ -924,7 +944,13 @@ export const deleteMonitor = deleteScheduledTask
 export async function saveScheduledTaskRun(
   task: ScheduledTaskDefinition,
   run: ScheduledTaskRun,
-  snapshots: ScheduledTaskSnapshot[]
+  snapshots: ScheduledTaskSnapshot[],
+  agentSchedule?: {
+    nextRunAt?: number
+    nextRunInMs?: number
+    complete?: boolean
+    cleanedOutputText?: string
+  }
 ): Promise<void> {
   await withWriteLock(async (index) => {
     const snapshotKeys = new Set(snapshots.map((snapshot) => `${snapshot.taskId}:${snapshot.url}`))
@@ -934,23 +960,53 @@ export async function saveScheduledTaskRun(
         (snapshot) => !snapshotKeys.has(`${snapshot.taskId}:${snapshot.url}`)
       ),
     ]
+    let runToStore = run
+    let taskPatch: Partial<ScheduledTaskDefinition> | null = null
+
+    if (task.schedule?.kind === 'once') {
+      taskPatch = {
+        enabled: false,
+        lastRunAt: run.finishedAt,
+        nextRunAt: calculateScheduledNextRunAt(run.finishedAt, task.intervalPreset, task.schedule),
+      }
+    } else if (task.schedule?.kind === 'agent') {
+      const decision = resolveAgentOwnedNextRunAt({
+        fromMs: run.finishedAt,
+        intervalPreset: task.intervalPreset,
+        nextRunAt: agentSchedule?.nextRunAt,
+        nextRunInMs: agentSchedule?.nextRunInMs,
+        complete: agentSchedule?.complete,
+        outputText: run.outputText,
+      })
+      const cleaned =
+        agentSchedule?.cleanedOutputText !== undefined
+          ? stripAgentNextRunMarkers(agentSchedule.cleanedOutputText)
+          : decision.cleanedOutputText
+      if (cleaned !== undefined && run.outputText) {
+        runToStore = {
+          ...run,
+          outputText: cleaned,
+          ...(run.aiSummary ? { aiSummary: cleaned.slice(0, 1000) } : {}),
+        }
+      }
+      taskPatch = {
+        enabled: decision.enabled ? task.enabled : false,
+        lastRunAt: run.finishedAt,
+        nextRunAt: decision.nextRunAt,
+      }
+    } else {
+      taskPatch = {
+        lastRunAt: run.finishedAt,
+        nextRunAt: calculateScheduledNextRunAt(run.finishedAt, task.intervalPreset, task.schedule),
+      }
+    }
+
     await persistIndex({
       tasks: index.tasks.map((item) =>
-        item.id === task.id
-          ? {
-              ...item,
-              enabled: item.schedule?.kind === 'once' ? false : item.enabled,
-              lastRunAt: run.finishedAt,
-              nextRunAt: calculateScheduledNextRunAt(
-                run.finishedAt,
-                item.intervalPreset,
-                item.schedule
-              ),
-            }
-          : item
+        item.id === task.id && taskPatch ? { ...item, ...taskPatch } : item
       ),
       snapshots: nextSnapshots,
-      runs: [run, ...index.runs],
+      runs: [runToStore, ...index.runs],
       version: INDEX_VERSION,
     })
   })

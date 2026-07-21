@@ -97,7 +97,25 @@ function virtualKeyForName(part: string): number | null {
   return null
 }
 
-async function pressVirtualKeys(keys: number[]): Promise<void> {
+export interface KeyboardTarget {
+  hwnd: number
+}
+
+export interface KeyboardDeliveryEvidence {
+  mode: 'foreground_targeted' | 'physical'
+  targeted: boolean
+  backgroundSafe: false
+  foregroundVerified: boolean
+  foregroundMaintained: boolean
+  targetHwnd?: number
+  previousForegroundHwnd?: number
+  restoredPreviousForeground: boolean
+}
+
+async function pressVirtualKeys(
+  keys: number[],
+  target?: KeyboardTarget
+): Promise<KeyboardDeliveryEvidence> {
   if (keys.length === 0) throw new Error('No valid keys parsed')
 
   const keyDown = keys
@@ -108,11 +126,100 @@ async function pressVirtualKeys(keys: number[]): Promise<void> {
     .map((vk) => `[ZuraUser32]::keybd_event([byte]${vk}, 0, 2, [UIntPtr]::Zero)`)
     .join('\n')
 
-  await runUser32Script(`${user32Prelude()}
+  if (!target) {
+    await runUser32Script(`${user32Prelude()}
 ${keyDown}
 Start-Sleep -Milliseconds ${ACTION_DELAY_MS}
 ${keyUp}
 `)
+    return {
+      mode: 'physical',
+      targeted: false,
+      backgroundSafe: false,
+      foregroundVerified: false,
+      foregroundMaintained: false,
+      restoredPreviousForeground: false,
+    }
+  }
+
+  const stdout = await runUser32Script(`
+Add-Type -TypeDefinition @"
+using System;
+using System.Runtime.InteropServices;
+public static class ZuraTargetedKeyboard {
+  [DllImport("user32.dll")] public static extern bool IsWindow(IntPtr hWnd);
+  [DllImport("user32.dll")] public static extern bool IsIconic(IntPtr hWnd);
+  [DllImport("user32.dll")] public static extern bool ShowWindowAsync(IntPtr hWnd, int command);
+  [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hWnd);
+  [DllImport("user32.dll")] public static extern bool BringWindowToTop(IntPtr hWnd);
+  [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+  [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
+  [DllImport("kernel32.dll")] public static extern uint GetCurrentThreadId();
+  [DllImport("user32.dll")] public static extern bool AttachThreadInput(uint source, uint target, bool attach);
+  [DllImport("user32.dll")] public static extern void keybd_event(byte vk, byte scan, uint flags, UIntPtr extraInfo);
+}
+"@
+function Set-ZuraForeground([IntPtr]$window) {
+  $currentForeground = [ZuraTargetedKeyboard]::GetForegroundWindow()
+  $ignoredPid = [uint32]0
+  $foregroundThread = [ZuraTargetedKeyboard]::GetWindowThreadProcessId($currentForeground, [ref]$ignoredPid)
+  $currentThread = [ZuraTargetedKeyboard]::GetCurrentThreadId()
+  $attached = $false
+  try {
+    if ($foregroundThread -ne 0 -and $foregroundThread -ne $currentThread) {
+      $attached = [ZuraTargetedKeyboard]::AttachThreadInput($currentThread, $foregroundThread, $true)
+    }
+    [ZuraTargetedKeyboard]::BringWindowToTop($window) | Out-Null
+    [ZuraTargetedKeyboard]::SetForegroundWindow($window) | Out-Null
+  } finally {
+    if ($attached) {
+      [ZuraTargetedKeyboard]::AttachThreadInput($currentThread, $foregroundThread, $false) | Out-Null
+    }
+  }
+}
+$target = [IntPtr]${Math.trunc(target.hwnd)}
+if (-not [ZuraTargetedKeyboard]::IsWindow($target)) {
+  throw 'The captured target window is no longer available. Capture a fresh window screenshot.'
+}
+$foregroundBefore = [ZuraTargetedKeyboard]::GetForegroundWindow()
+if ([ZuraTargetedKeyboard]::IsIconic($target)) {
+  [ZuraTargetedKeyboard]::ShowWindowAsync($target, 9) | Out-Null
+}
+Set-ZuraForeground $target
+$focused = $false
+for ($attempt = 0; $attempt -lt 20; $attempt++) {
+  if ([ZuraTargetedKeyboard]::GetForegroundWindow() -eq $target) { $focused = $true; break }
+  Start-Sleep -Milliseconds 25
+}
+if (-not $focused) {
+  throw 'Windows did not place the captured app in the foreground. No keyboard input was sent.'
+}
+if ([ZuraTargetedKeyboard]::GetForegroundWindow() -ne $target) {
+  throw 'The captured app lost focus before keyboard input. No keyboard input was sent.'
+}
+${keyDown.replaceAll('ZuraUser32', 'ZuraTargetedKeyboard')}
+Start-Sleep -Milliseconds 30
+${keyUp.replaceAll('ZuraUser32', 'ZuraTargetedKeyboard')}
+$foregroundAfterInput = [ZuraTargetedKeyboard]::GetForegroundWindow()
+$foregroundMaintained = $foregroundAfterInput -eq $target
+$restored = $false
+if ($foregroundMaintained -and $foregroundBefore -ne [IntPtr]::Zero -and
+    $foregroundBefore -ne $target -and [ZuraTargetedKeyboard]::IsWindow($foregroundBefore)) {
+  Set-ZuraForeground $foregroundBefore
+  $restored = [ZuraTargetedKeyboard]::GetForegroundWindow() -eq $foregroundBefore
+}
+@{
+  mode = 'foreground_targeted'
+  targeted = $true
+  backgroundSafe = $false
+  foregroundVerified = $true
+  foregroundMaintained = $foregroundMaintained
+  targetHwnd = ${Math.trunc(target.hwnd)}
+  previousForegroundHwnd = $foregroundBefore.ToInt64()
+  restoredPreviousForeground = $restored
+} | ConvertTo-Json -Compress
+`)
+  return JSON.parse(stdout.trim()) as KeyboardDeliveryEvidence
 }
 
 export interface ClickTarget {
@@ -240,13 +347,15 @@ export async function pasteTextViaClipboard(
     settleMs?: number
     alreadyOnClipboard?: boolean
     restoreClipboard?: string
+    target?: KeyboardTarget
   } = {}
-): Promise<void> {
+): Promise<KeyboardDeliveryEvidence> {
   if (!text) throw new Error('Text is required')
   const settleMs = options.settleMs ?? 50
 
   const previousClipboard =
     options.restoreClipboard !== undefined ? options.restoreClipboard : clipboard.readText()
+  let delivery: KeyboardDeliveryEvidence | undefined
   try {
     if (!options.alreadyOnClipboard) {
       clipboard.writeText(text)
@@ -256,8 +365,16 @@ export async function pasteTextViaClipboard(
         '-e',
         'tell application "System Events" to keystroke "v" using command down',
       ])
+      delivery = {
+        mode: 'physical',
+        targeted: false,
+        backgroundSafe: false,
+        foregroundVerified: false,
+        foregroundMaintained: false,
+        restoredPreviousForeground: false,
+      }
     } else {
-      await pressVirtualKeys([0x11, 0x56]) // Ctrl+V
+      delivery = await pressVirtualKeys([0x11, 0x56], options.target) // Ctrl+V
     }
     await delay(settleMs)
   } finally {
@@ -267,15 +384,23 @@ export async function pasteTextViaClipboard(
       // Best-effort restore; do not fail the paste if restore throws.
     }
   }
+  if (!delivery) throw new Error('Text delivery did not complete')
+  return delivery
 }
 
-export async function performType(args: TypeArgs): Promise<void> {
+export async function performType(
+  args: TypeArgs,
+  target?: KeyboardTarget
+): Promise<KeyboardDeliveryEvidence> {
   const { text } = args
   if (!text) throw new Error('Text is required')
-  await pasteTextViaClipboard(text)
+  return pasteTextViaClipboard(text, { target })
 }
 
-export async function performKeyPress(args: KeyArgs): Promise<void> {
+export async function performKeyPress(
+  args: KeyArgs,
+  target?: KeyboardTarget
+): Promise<KeyboardDeliveryEvidence> {
   const { key } = args
   if (!key) throw new Error('Key is required')
 
@@ -290,7 +415,7 @@ export async function performKeyPress(args: KeyArgs): Promise<void> {
     resolved.push(vk)
   }
 
-  await pressVirtualKeys(resolved)
+  return pressVirtualKeys(resolved, target)
 }
 
 export async function performScroll(args: ScrollArgs): Promise<void> {

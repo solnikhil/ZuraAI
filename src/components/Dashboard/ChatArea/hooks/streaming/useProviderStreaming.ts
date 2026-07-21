@@ -23,6 +23,7 @@ import {
 } from './streamingUtils'
 import {
   didVerificationSucceed,
+  hasFreshMutationEvidence,
   selectVerificationStrategy,
   type AgentVerificationStrategy,
 } from '../../../../../agent/reliability'
@@ -109,6 +110,15 @@ export interface ProviderStreamingRunOptions {
     image_size?: string
   }
   toolEventCallbacks?: HandleToolCallsOptions
+}
+
+export function getVerificationRecoveryTools(
+  tools: ReturnType<ToolCallingHook['getToolsForRequest']>,
+  strategy: AgentVerificationStrategy | null,
+  recoveryAttempt: boolean
+): ReturnType<ToolCallingHook['getToolsForRequest']> | undefined {
+  if (!strategy || !recoveryAttempt || !Array.isArray(tools)) return undefined
+  return tools.filter((tool) => strategy.preferredTools.includes(tool.function.name))
 }
 
 export interface UseProviderStreamingOptions {
@@ -1045,7 +1055,15 @@ export function useProviderStreaming({
             })
 
             const followUpRoundStart = accumulatedContent
-            const followUpRound = await runRound(followUpMessages, { round: researchRound })
+            const recoveryTools = getVerificationRecoveryTools(
+              tools,
+              activeVerificationStrategy,
+              verificationRecoveryUsed
+            )
+            const followUpRound = await runRound(followUpMessages, {
+              round: researchRound,
+              ...(recoveryTools ? { tools: recoveryTools } : {}),
+            })
             throwIfAborted()
             const hasValidToolCalls =
               followUpRound.roundToolCalls.length > 0 &&
@@ -1060,22 +1078,10 @@ export function useProviderStreaming({
               if (activeVerificationStrategy) {
                 accumulatedContent = followUpRoundStart
                 updateStreamingState({ content: accumulatedContent })
-
-                if (!verificationRecoveryUsed) {
-                  verificationRecoveryUsed = true
-                  continue
-                }
-
-                options.toolEventCallbacks?.onVerificationComplete?.(
-                  activeVerificationStrategy,
-                  false
-                )
-                accumulatedContent =
-                  followUpRoundStart +
-                  'I made a change, but I could not verify the outcome after one recovery attempt, so I stopped instead of continuing blind.'
-                updateStreamingState({ content: accumulatedContent })
-                publishStreamingProgress({ content: accumulatedContent })
-                break
+                researchRound += 1
+                verificationRecoveryUsed = !verificationRecoveryUsed
+                pendingVerificationStrategy = activeVerificationStrategy
+                continue
               }
               const followUpClassifiable = {
                 roundContent: followUpRound.roundContent,
@@ -1148,6 +1154,14 @@ export function useProviderStreaming({
               break
             }
             const wasVerificationRound = Boolean(activeVerificationStrategy)
+            const nextMutationStrategy = selectVerificationStrategy(nextToolResult.toolResults)
+            const continuedUiWorkflow =
+              wasVerificationRound &&
+              !verificationRecoveryUsed &&
+              nextMutationStrategy !== null &&
+              (nextMutationStrategy.category === 'visual' ||
+                nextMutationStrategy.category === 'app-window') &&
+              hasFreshMutationEvidence(nextToolResult.toolResults)
             const verificationSucceeded =
               wasVerificationRound &&
               activeVerificationStrategy !== null &&
@@ -1202,7 +1216,10 @@ export function useProviderStreaming({
 
             researchRound += 1
             if (activeVerificationStrategy) {
-              if (verificationSucceeded) {
+              if (continuedUiWorkflow) {
+                pendingVerificationStrategy = nextMutationStrategy
+                verificationRecoveryUsed = false
+              } else if (verificationSucceeded) {
                 options.toolEventCallbacks?.onVerificationComplete?.(
                   activeVerificationStrategy,
                   true
@@ -1214,20 +1231,11 @@ export function useProviderStreaming({
                 verificationRecoveryUsed = true
                 pendingVerificationStrategy = activeVerificationStrategy
               } else {
-                options.toolEventCallbacks?.onVerificationComplete?.(
-                  activeVerificationStrategy,
-                  false
-                )
-                accumulatedContent +=
-                  '\n\nI made a change, but verification did not succeed after one recovery attempt, so I stopped instead of continuing blind.'
-                updateStreamingState({ content: accumulatedContent })
-                publishStreamingProgress({ content: accumulatedContent })
-                break
+                verificationRecoveryUsed = false
+                pendingVerificationStrategy = activeVerificationStrategy
               }
             } else {
-              pendingVerificationStrategy = options.toolEventCallbacks
-                ? selectVerificationStrategy(nextToolResult.toolResults)
-                : null
+              pendingVerificationStrategy = options.toolEventCallbacks ? nextMutationStrategy : null
             }
             const continuationDecision = evaluateResearchContinuation({
               searchCount: totalSearchCount,

@@ -135,12 +135,12 @@ export const BUILT_IN_SKILLS: BuiltInSkill[] = [
     id: 'reminders',
     name: 'Reminders & Lookouts',
     description:
-      'Let the assistant create local reminders and scheduled web lookouts that appear in the Reminders sidebar.',
+      'Let the assistant create local reminders, lookouts, and AI automations that appear under Schedules in the sidebar.',
     note: 'Runs only while ZuraAI is open. Web lookouts support public pages and local loopback URLs; OS notifications fire for due reminders and changed lookouts.',
     usageGuidance: [
       'Use scheduled_task_create when the user asks to remind them, check something later, or watch a page for changes.',
       'Use reminder tasks for no-URL follow-ups and web_lookout tasks for public URLs or local loopback URLs.',
-      'After creating a task, tell the user it can be viewed in the Reminders sidebar.',
+      'After creating a task, tell the user it can be viewed under Schedules in the sidebar.',
     ],
   },
 ]
@@ -597,10 +597,13 @@ export function buildEnabledSkillsPrompt(
       '- Reminders & Lookouts (`reminders`): use `scheduled_task_*` tools to create, update, delete, list, and inspect local reminders and web lookouts for public or local loopback URLs.'
     )
     skillLines.push(
-      '- Use `reminder` tasks for recurring notes/checklists and `web_lookout` tasks for public or local loopback URL change monitoring. Confirm created tasks and mention the Reminders sidebar.'
+      '- Use `reminder` tasks for recurring notes/checklists and `web_lookout` tasks for public or local loopback URL change monitoring. Confirm created tasks and mention the Schedules sidebar.'
     )
     skillLines.push(
       '- For reminder requests like "in 1 minute" or "tomorrow at 9", set `dueAt` to the first run time; do not use `intervalPreset` as the first due time.'
+    )
+    skillLines.push(
+      '- For AI automations without a fixed cadence, use `schedule: { "kind": "agent" }` so the automation chooses when to run next. Only set `intervalPreset` when the user wants a fixed repeat interval.'
     )
   }
 

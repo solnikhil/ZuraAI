@@ -12,6 +12,24 @@ const mocks = vi.hoisted(() => ({
     hitTestVerified: Boolean(target),
     ...(target ? { targetHwnd: target.hwnd } : {}),
   })),
+  performType: vi.fn(async (_args, target) => ({
+    mode: 'foreground_targeted' as const,
+    targeted: Boolean(target),
+    backgroundSafe: false as const,
+    foregroundVerified: Boolean(target),
+    foregroundMaintained: Boolean(target),
+    targetHwnd: target?.hwnd,
+    restoredPreviousForeground: true,
+  })),
+  performKeyPress: vi.fn(async (_args, target) => ({
+    mode: 'foreground_targeted' as const,
+    targeted: Boolean(target),
+    backgroundSafe: false as const,
+    foregroundVerified: Boolean(target),
+    foregroundMaintained: Boolean(target),
+    targetHwnd: target?.hwnd,
+    restoredPreviousForeground: true,
+  })),
   extractOcrElements: vi.fn(async () => ({
     status: 'available' as const,
     elements: [
@@ -39,8 +57,8 @@ vi.mock('./screenshot', () => ({
 
 vi.mock('./actions', () => ({
   performClick: mocks.performClick,
-  performType: vi.fn(async () => undefined),
-  performKeyPress: vi.fn(async () => undefined),
+  performType: mocks.performType,
+  performKeyPress: mocks.performKeyPress,
   performScroll: vi.fn(async () => undefined),
   performCursorMove: vi.fn(async () => undefined),
 }))
@@ -186,5 +204,78 @@ describe('computer-use screenshot sessions', () => {
     })
     expect(prepareForeground).not.toHaveBeenCalled()
     expect(mocks.performClick).not.toHaveBeenCalled()
+  })
+
+  it('automatically locks shortcuts and text to the captured app HWND', async () => {
+    mocks.captureScreenshot.mockResolvedValue({
+      image: 'same-image',
+      width: 100,
+      height: 100,
+      coordinateContext,
+      target: { type: 'window', id: 'window:22:0', title: 'Target', hwnd: 22 },
+    })
+    const service = await import('./service')
+    const screenshot = await service.executeScreenshot(
+      { app_name: 'Discord' },
+      { sessionKey: 'sender:keyboard' }
+    )
+    const firstId = (screenshot.data as { screenshotId: string }).screenshotId
+
+    const keyResult = await service.executeKey(
+      { screenshot_id: firstId, key: 'ctrl+k' },
+      true,
+      'sender:keyboard'
+    )
+    const secondId = (keyResult.data as { screenshotId: string }).screenshotId
+    const typeResult = await service.executeType(
+      { screenshot_id: secondId, text: 'Hector' },
+      true,
+      'sender:keyboard'
+    )
+
+    expect(mocks.performKeyPress).toHaveBeenCalledWith(
+      { screenshot_id: firstId, key: 'ctrl+k' },
+      { hwnd: 22 }
+    )
+    expect(mocks.performType).toHaveBeenCalledWith(
+      { screenshot_id: secondId, text: 'Hector' },
+      { hwnd: 22 }
+    )
+    expect(typeResult).toMatchObject({
+      success: true,
+      data: {
+        delivery: {
+          mode: 'foreground_targeted',
+          targeted: true,
+          targetHwnd: 22,
+          restoredPreviousForeground: true,
+        },
+      },
+    })
+  })
+
+  it('rejects keyboard input from a whole-screen screenshot', async () => {
+    mocks.captureScreenshot.mockResolvedValue({
+      image: 'screen-image',
+      width: 100,
+      height: 100,
+      coordinateContext,
+      target: { type: 'screen', id: 'screen:0:0', title: 'Screen' },
+    })
+    const service = await import('./service')
+    const screenshot = await service.executeScreenshot({}, { sessionKey: 'sender:screen' })
+    const screenshotId = (screenshot.data as { screenshotId: string }).screenshotId
+
+    await expect(
+      service.executeKey(
+        { screenshot_id: screenshotId, key: 'ctrl+k' },
+        true,
+        'sender:screen'
+      )
+    ).resolves.toMatchObject({
+      success: false,
+      error: expect.stringContaining('window-targeted screenshot'),
+    })
+    expect(mocks.performKeyPress).not.toHaveBeenCalled()
   })
 })

@@ -171,6 +171,58 @@ describe('scheduled task storage', () => {
     expect(new Date(task.nextRunAt).toISOString()).toBe('2026-06-23T03:30:00.000Z')
   })
 
+  it('defaults AI automations without a fixed interval to agent-owned cadence', async () => {
+    const { createScheduledTask, sanitizeScheduledTaskInput, saveScheduledTaskRun, getScheduledTask } =
+      await import('./storage')
+
+    const task = await createScheduledTask(
+      sanitizeScheduledTaskInput({
+        type: 'ai_automation',
+        title: 'Free-running news',
+        prompt: 'Summarize AI news.',
+      })
+    )
+
+    expect(task.schedule).toEqual({ kind: 'agent', intervalPreset: '30m' })
+    expect(task.nextRunAt).toBe(Date.now())
+
+    await saveScheduledTaskRun(
+      task,
+      {
+        id: 'run-agent-1',
+        taskId: task.id,
+        startedAt: Date.now(),
+        finishedAt: Date.now() + 1000,
+        status: 'unchanged',
+        logs: [],
+        outputText: 'Latest AI news…\n\n[[next_run:+2h]]',
+      },
+      [],
+      { nextRunInMs: 2 * 60 * 60 * 1000 }
+    )
+
+    const saved = await getScheduledTask(task.id)
+    expect(saved?.enabled).toBe(true)
+    expect(saved?.nextRunAt).toBe(Date.now() + 1000 + 2 * 60 * 60 * 1000)
+    expect(saved?.lastRunAt).toBe(Date.now() + 1000)
+  })
+
+  it('uses a fixed interval schedule when intervalPreset is explicit', async () => {
+    const { createScheduledTask, sanitizeScheduledTaskInput } = await import('./storage')
+
+    const task = await createScheduledTask(
+      sanitizeScheduledTaskInput({
+        type: 'ai_automation',
+        title: 'Fixed cadence',
+        prompt: 'Ping every hour.',
+        intervalPreset: '1h',
+      })
+    )
+
+    expect(task.schedule).toEqual({ kind: 'interval', intervalPreset: '1h' })
+    expect(task.nextRunAt).toBe(Date.now() + 60 * 60 * 1000)
+  })
+
   it('treats AI automation dueAt as a one-off schedule and disables after running', async () => {
     const {
       createScheduledTask,

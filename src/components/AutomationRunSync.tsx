@@ -10,6 +10,11 @@ import type {
   ScheduledAutomationRunRequest,
   ScheduledAutomationRunResponse,
 } from '@/electron/types'
+import {
+  AGENT_OWNED_SCHEDULE_PROMPT,
+  parseAgentNextRunFromOutput,
+  stripAgentNextRunMarkers,
+} from '@/utils/agentAutomationNextRun'
 import { useProviderStreaming } from './Dashboard/ChatArea/hooks/streaming/useProviderStreaming'
 import type { StreamingResult, ToolCallingHook } from './Dashboard/ChatArea/hooks/streaming/types'
 
@@ -45,9 +50,12 @@ function buildPrompt(request: ScheduledAutomationRunRequest, contextText: string
         ? 'This is an agent automation. Use only the tools that are available and necessary for the requested outcome.'
         : 'This is a scheduled prompt automation. Produce the requested deliverable directly.'
 
+  const ownsCadence = request.scheduleKind === 'agent'
+
   return [
     'You are running a scheduled ZuraAI automation.',
     modeLine,
+    ownsCadence ? AGENT_OWNED_SCHEDULE_PROMPT : '',
     '',
     `Automation: ${request.taskTitle}`,
     request.instructions.trim() ? `Instructions: ${request.instructions.trim()}` : '',
@@ -60,7 +68,9 @@ function buildPrompt(request: ScheduledAutomationRunRequest, contextText: string
       ? `Previous output:\n${request.previousOutput.slice(0, 6000)}`
       : '',
     '',
-    'Return a concise, useful result. Do not mention internal scheduling mechanics unless relevant.',
+    ownsCadence
+      ? 'Return a concise, useful result, then the next_run marker on its own final line.'
+      : 'Return a concise, useful result. Do not mention internal scheduling mechanics unless relevant.',
   ]
     .filter(Boolean)
     .join('\n')
@@ -301,18 +311,29 @@ export function AutomationRunSync(): null {
                 toolResults: [],
               }
 
-          const outputText = result.content.trim()
+          const rawOutputText = result.content.trim()
+          const ownsCadence = request.scheduleKind === 'agent'
+          const nextRunDecision = ownsCadence
+            ? parseAgentNextRunFromOutput(rawOutputText)
+            : { kind: 'none' as const }
+          const outputText = ownsCadence
+            ? stripAgentNextRunMarkers(rawOutputText)
+            : rawOutputText
           chatHistory.updateStreamingMessage(
             automationChatSessionId,
             assistantMessageId,
-            buildAssistantFinalUpdates(result),
+            {
+              ...buildAssistantFinalUpdates(result),
+              content: outputText || result.content,
+            },
             { persist: true }
           )
           const delivery = deliverArtifacts(request, automationChatSessionId, outputText)
           const response: ScheduledAutomationRunResponse = {
             requestId: request.requestId,
             automationChatSessionId,
-            outputText,
+            // Keep the raw marker in outputText so main can re-parse as authority if needed.
+            outputText: ownsCadence ? rawOutputText : outputText,
             resolvedContextSummary: contextText,
             model: result.model,
             provider: settings.modelProvider,
@@ -321,6 +342,13 @@ export function AutomationRunSync(): null {
             usage: result.usage,
             ...(request.automationMode === 'watch'
               ? { changeVerdict: buildChangeVerdict(outputText, request.previousOutput) }
+              : {}),
+            ...(nextRunDecision.kind === 'done' ? { complete: true } : {}),
+            ...(nextRunDecision.kind === 'delay' && nextRunDecision.nextRunAt !== undefined
+              ? { nextRunAt: nextRunDecision.nextRunAt }
+              : {}),
+            ...(nextRunDecision.kind === 'delay' && nextRunDecision.nextRunInMs !== undefined
+              ? { nextRunInMs: nextRunDecision.nextRunInMs }
               : {}),
             deliveryStatus: {
               log: 'sent',

@@ -438,7 +438,8 @@ export type ScheduledAutomationOutputDestination =
 export type ScheduledAutomationNotifyPolicy = 'every_run' | 'meaningful_change' | 'error_only'
 
 export interface ScheduledAutomationSchedule {
-  kind: 'interval' | 'daily' | 'weekly' | 'once'
+  /** agent = the automation model chooses the next run after each completion */
+  kind: 'interval' | 'daily' | 'weekly' | 'once' | 'agent'
   intervalPreset?: ScheduledTaskIntervalPreset
   timeOfDay?: string
   weekdays?: number[]
@@ -578,6 +579,8 @@ export interface ScheduledAutomationRunRequest {
   prompt: string
   instructions: string
   automationMode: ScheduledAutomationMode
+  /** When agent, the model chooses the next run time after each completion. */
+  scheduleKind?: ScheduledAutomationSchedule['kind']
   contextSources: ScheduledAutomationContextSource[]
   allowedTools: string[]
   approvalMode: ScheduledAutomationApprovalMode
@@ -607,6 +610,9 @@ export interface ScheduledAutomationRunResponse {
     changed: boolean
     summary?: string
   }
+  nextRunAt?: number
+  nextRunInMs?: number
+  complete?: boolean
   deliveryStatus?: Partial<
     Record<ScheduledAutomationOutputDestination, 'sent' | 'skipped' | 'error'>
   >

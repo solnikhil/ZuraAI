@@ -1,6 +1,6 @@
 /**
  * Live post-message tool surfaces.
- * Only allowlisted tools render here (artifacts + MCP add review).
+ * Only allowlisted tools render here (artifacts, MCP add review, schedules).
  * Generic agent/OS/MCP cards are intentionally not rendered.
  */
 
@@ -11,6 +11,14 @@ import type { McpAgentAddApproveResult, McpAgentAddReview } from '../../mcp/addR
 import { shouldShowLiveToolResultCard } from './liveToolResultCards'
 
 import './ToolResultDisplay.css'
+
+const SCHEDULED_TASK_TOOLS = new Set([
+  'scheduled_task_create',
+  'scheduled_task_update',
+  'scheduled_task_delete',
+  'scheduled_task_list',
+  'scheduled_task_get_logs',
+])
 
 interface ToolResultDisplayProps {
   toolName: string
@@ -50,7 +58,129 @@ export default function ToolResultDisplay({
     return <McpRequestAddCard result={result} error={error} />
   }
 
+  if (SCHEDULED_TASK_TOOLS.has(toolName)) {
+    return (
+      <ScheduledTaskResultCard
+        toolName={toolName}
+        result={result}
+        error={error}
+        toolArguments={toolArguments}
+      />
+    )
+  }
+
   return null
+}
+
+function scheduledTaskTypeLabel(type: unknown): string {
+  if (type === 'web_lookout') return 'Lookout'
+  if (type === 'ai_automation') return 'Automation'
+  if (type === 'reminder') return 'Reminder'
+  return 'Schedule'
+}
+
+function ScheduledTaskResultCard({
+  toolName,
+  result,
+  error,
+  toolArguments,
+}: {
+  toolName: string
+  result: unknown
+  error?: string
+  toolArguments?: Record<string, unknown>
+}) {
+  const data = result as Record<string, unknown> | unknown[] | undefined
+  const titleFromArgs =
+    typeof toolArguments?.title === 'string' ? toolArguments.title.trim() : ''
+
+  let title = 'Schedule'
+  let subtitle = ''
+  let actionLabel = 'Schedule'
+  let statusLabel = error ? 'Failed' : 'Done'
+
+  if (toolName === 'scheduled_task_create') {
+    actionLabel = 'Schedule created'
+    statusLabel = error ? 'Failed' : 'Created'
+    const task = data && !Array.isArray(data) ? data : undefined
+    title =
+      (typeof task?.title === 'string' && task.title) ||
+      titleFromArgs ||
+      'New schedule'
+    const typeLabel = scheduledTaskTypeLabel(task?.type ?? toolArguments?.type)
+    const enabled =
+      typeof task?.enabled === 'boolean' ? (task.enabled ? 'Active' : 'Paused') : null
+    subtitle = [typeLabel, enabled].filter(Boolean).join(' · ')
+  } else if (toolName === 'scheduled_task_update') {
+    actionLabel = 'Schedule updated'
+    statusLabel = error ? 'Failed' : 'Updated'
+    const task = data && !Array.isArray(data) ? data : undefined
+    title =
+      (typeof task?.title === 'string' && task.title) ||
+      titleFromArgs ||
+      (typeof toolArguments?.id === 'string' ? toolArguments.id.slice(0, 8) : 'Schedule')
+    const typeLabel = scheduledTaskTypeLabel(task?.type)
+    const enabled =
+      typeof task?.enabled === 'boolean' ? (task.enabled ? 'Active' : 'Paused') : null
+    subtitle = [typeLabel, enabled].filter(Boolean).join(' · ')
+  } else if (toolName === 'scheduled_task_delete') {
+    actionLabel = 'Schedule deleted'
+    statusLabel = error ? 'Failed' : 'Deleted'
+    const payload = data && !Array.isArray(data) ? data : undefined
+    title =
+      titleFromArgs ||
+      (typeof payload?.id === 'string'
+        ? payload.id.slice(0, 8)
+        : typeof toolArguments?.id === 'string'
+          ? toolArguments.id.slice(0, 8)
+          : 'Schedule')
+    subtitle = 'Removed from Schedules'
+  } else if (toolName === 'scheduled_task_list') {
+    actionLabel = 'Schedules listed'
+    statusLabel = error ? 'Failed' : 'Listed'
+    const tasks = Array.isArray(data) ? data : []
+    title = `${tasks.length} schedule${tasks.length === 1 ? '' : 's'}`
+    const names = tasks
+      .map((task) =>
+        task && typeof task === 'object' && typeof (task as { title?: unknown }).title === 'string'
+          ? (task as { title: string }).title
+          : null
+      )
+      .filter((name): name is string => Boolean(name))
+      .slice(0, 3)
+    subtitle = names.length > 0 ? names.join(', ') + (tasks.length > 3 ? '…' : '') : 'From Schedules'
+  } else {
+    actionLabel = 'Schedule history'
+    statusLabel = error ? 'Failed' : 'Loaded'
+    const runs = Array.isArray(data) ? data : []
+    title = `${runs.length} run${runs.length === 1 ? '' : 's'}`
+    subtitle = 'Recent history'
+  }
+
+  return (
+    <div
+      className={`tool-result tool-result-product tool-result-status-${error ? 'error' : 'success'}`}
+    >
+      <div className="tool-result-header">
+        <div className="tool-result-heading">
+          <span className="tool-result-leading-icon">
+            {error ? <XCircle size={16} /> : <CheckCircle size={16} />}
+          </span>
+          <div className="tool-result-title-group">
+            <span className="tool-result-title">{actionLabel}</span>
+            <span className="tool-result-subtitle">
+              {title}
+              {subtitle ? ` · ${subtitle}` : ''}
+            </span>
+          </div>
+        </div>
+        <span className={`tool-result-status tool-result-status-${error ? 'error' : 'success'}`}>
+          {statusLabel}
+        </span>
+      </div>
+      {error && <div className="tool-result-error-message">{error}</div>}
+    </div>
+  )
 }
 
 function ArtifactResultCard({

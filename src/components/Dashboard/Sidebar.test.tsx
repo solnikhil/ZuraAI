@@ -156,18 +156,18 @@ describe('Sidebar', () => {
     expect(screen.getByTestId('mock-app-menu')).toBeInTheDocument()
   })
 
-  it('shows the Reminders entry only when the skill is enabled', () => {
+  it('shows the Schedules entry only when the skill is enabled', () => {
     const hidden = render(<Sidebar {...defaultProps} />)
-    expect(screen.queryByRole('button', { name: 'Reminders' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Schedules' })).not.toBeInTheDocument()
     hidden.unmount()
 
     mockSettings.settings.skills.reminders.enabled = true
     render(<Sidebar {...defaultProps} />)
 
-    const remindersButton = screen.getByRole('button', { name: 'Reminders' })
-    expect(remindersButton.closest('.sidebar-chatlist__scroller')).toBeInTheDocument()
+    const schedulesButton = screen.getByRole('button', { name: 'Schedules' })
+    expect(schedulesButton.closest('.sidebar-chatlist__scroller')).toBeInTheDocument()
 
-    remindersButton.click()
+    schedulesButton.click()
     expect(mockAppShell.setDashboardView).toHaveBeenCalledWith('reminders')
   })
 

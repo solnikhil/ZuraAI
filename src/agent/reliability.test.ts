@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   buildAgentVerificationPrompt,
   didVerificationSucceed,
+  hasFreshMutationEvidence,
   selectVerificationStrategy,
 } from './reliability'
 
@@ -86,6 +87,39 @@ describe('agent reliability helpers', () => {
     ).toBe(true)
   })
 
+  it('recognizes fresh post-action screenshots as intermediate UI evidence', () => {
+    expect(
+      hasFreshMutationEvidence([
+        {
+          toolCall: {
+            id: 'type-1',
+            name: 'computer_type',
+            arguments: { screenshot_id: 'before-1', text: 'punjabi' },
+          },
+          result: {
+            success: true,
+            data: {
+              visualChange: 'changed',
+              screenshotId: 'after-1',
+              ocr: { status: 'available', elements: [{ text: 'punjabi' }] },
+            },
+          },
+        },
+      ])
+    ).toBe(true)
+  })
+
+  it('does not treat unchanged or screenshot-free mutations as fresh evidence', () => {
+    expect(
+      hasFreshMutationEvidence([
+        {
+          toolCall: { id: 'click-1', name: 'computer_click', arguments: {} },
+          result: { success: true, data: { visualChange: 'unchanged' } },
+        },
+      ])
+    ).toBe(false)
+  })
+
   it('selects structured state verification for ui element actions', () => {
     const strategy = selectVerificationStrategy([
       {
@@ -167,8 +201,9 @@ describe('agent reliability helpers', () => {
     )
 
     expect(prompt).toContain('AGENT VERIFICATION RECOVERY REQUIRED')
-    expect(prompt).toContain('Make exactly one more verification attempt')
+    expect(prompt).toContain('Make exactly one more read-only verification attempt')
     expect(prompt).toContain('file_search, file_read')
+    expect(prompt).toContain('call only one of the preferred read-only tools')
     expect(prompt).toContain('continuing blind')
   })
 })
