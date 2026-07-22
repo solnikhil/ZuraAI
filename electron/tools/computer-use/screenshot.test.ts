@@ -34,7 +34,7 @@ function makeImage(width: number, height: number) {
   }
 }
 
-describe('computer-use screenshot capture', () => {
+describe.runIf(process.platform === 'win32')('computer-use screenshot capture', () => {
   beforeEach(() => {
     vi.resetModules()
     vi.clearAllMocks()

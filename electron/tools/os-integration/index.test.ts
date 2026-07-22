@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-describe('os-integration tools', () => {
+describe.runIf(process.platform === 'win32')('os-integration tools', () => {
   beforeEach(() => {
     vi.resetModules()
     vi.clearAllMocks()

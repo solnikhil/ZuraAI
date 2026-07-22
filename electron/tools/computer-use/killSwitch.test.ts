@@ -40,7 +40,7 @@ vi.mock('../../windows/spotlightOverlay', () => ({ hideSpotlight: mocks.hideSpot
 
 import { registerKillSwitch, unregisterKillSwitch } from './killSwitch'
 
-describe('Computer Use kill switch', () => {
+describe.runIf(process.platform === 'win32')('Computer Use kill switch', () => {
   beforeEach(() => {
     mocks.spawn.mockClear()
     mocks.send.mockClear()

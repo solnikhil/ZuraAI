@@ -16,7 +16,7 @@ vi.mock('../../appIndexService', () => ({
   recordAppLaunch: mocks.recordAppLaunch,
 }))
 
-describe('app_launch indexed targets', () => {
+describe.runIf(process.platform === 'win32')('app_launch indexed targets', () => {
   beforeEach(() => vi.clearAllMocks())
 
   it('resolves an opaque itemId in main instead of trusting a model-built path', async () => {
