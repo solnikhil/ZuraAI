@@ -139,7 +139,7 @@ jobs:
           test -e release/latest-mac.yml
           # at least one dmg + one zip with matching version must exist
           ls release/ZuraAI-${{ needs.validate.outputs.version }}*.dmg
-          ls release/ZuraAI-${{ needs.validate.outputs.version }}*-mac.zip
+          ls release/ZuraAI-${{ needs.validate.outputs.version }}-mac-*.zip
 
       - name: Upload macOS artifacts
         uses: actions/upload-artifact@v7
@@ -148,8 +148,8 @@ jobs:
           path: |
             release/*.dmg
             release/*.dmg.blockmap
-            release/*-mac.zip
-            release/*-mac.zip.blockmap
+            release/*-mac-*.zip
+            release/*-mac-*.zip.blockmap
             release/latest-mac.yml
           if-no-files-found: error
           retention-days: 7
@@ -244,7 +244,7 @@ jobs:
             release/latest.yml
             release/*.dmg
             release/*.dmg.blockmap
-            release/*-mac.zip
-            release/*-mac.zip.blockmap
+            release/*-mac-*.zip
+            release/*-mac-*.zip.blockmap
             release/latest-mac.yml
           fail_on_unmatched_files: true
