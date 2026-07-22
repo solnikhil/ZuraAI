@@ -1,7 +1,7 @@
 {
   "name": "zuraai",
-  "version": "0.0.7",
-  "description": "Command-line launcher for the ZuraAI desktop app.",
+  "version": "0.0.8",
+  "description": "Install and launch the ZuraAI desktop app from the command line.",
   "license": "MIT",
   "author": "Nikhil",
   "homepage": "https://zuraai.in",
@@ -15,6 +15,9 @@
   },
   "bin": {
     "zuraai": "bin/zuraai.cjs"
+  },
+  "engines": {
+    "node": ">=18"
   },
   "files": [
     "README.md",

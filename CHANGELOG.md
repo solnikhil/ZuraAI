@@ -2,6 +2,19 @@
 
 All notable changes to ZuraAI are documented here.
 
+## [0.0.8] - 2026-07-22
+
+### Added
+
+- `npx zuraai` now installs the matching desktop release from GitHub when ZuraAI is not already installed, then opens the app.
+- Added an explicit `zuraai install` command for reinstalling the matching desktop version.
+
+### Security and reliability
+
+- Installer downloads use fixed ZuraAI GitHub release assets and must match the SHA-256 checksum published with that release before execution or extraction.
+- Windows installation remains visible and user-controlled; macOS installs the verified universal app under the current user's `Applications` directory.
+- Marked the Electron workspace package as private so running `npm publish` from the repository root cannot accidentally target the unrelated `zura` registry package.
+
 ## [0.0.7] - 2026-07-22
 
 ### Highlights
@@ -26,4 +39,5 @@ All notable changes to ZuraAI are documented here.
 - The Perplexity provider and the legacy extension-store/Command Center implementation were removed as the capability model was simplified.
 - macOS packages remain unsigned and un-notarized; install them manually because in-app auto-update is not yet supported on macOS.
 
+[0.0.8]: https://github.com/solnikhil/ZuraAI/releases/tag/v0.0.8
 [0.0.7]: https://github.com/solnikhil/ZuraAI/releases/tag/v0.0.7

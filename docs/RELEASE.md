@@ -17,11 +17,11 @@ electron-builder resolves the Electron distribution for each target platform and
 
 Outputs land in `release/`:
 
-| File | What it is |
-| ---- | ---------- |
-| `ZuraAI-Setup-{version}.exe` | Windows installer (NSIS wizard) |
-| `ZuraAI-Portable-{version}-x64.exe` | Portable Windows binary |
-| `checksums.txt` | SHA-256 hashes of the release files |
+| File                                | What it is                          |
+| ----------------------------------- | ----------------------------------- |
+| `ZuraAI-Setup-{version}.exe`        | Windows installer (NSIS wizard)     |
+| `ZuraAI-Portable-{version}-x64.exe` | Portable Windows binary             |
+| `checksums.txt`                     | SHA-256 hashes of the release files |
 
 Checksums are written after the build by `scripts/generate-release-checksums.mjs`. If you add files later, run:
 
@@ -34,10 +34,12 @@ The macOS release is a universal DMG/ZIP that runs natively on both Intel and Ap
 
 ## npm package (`zuraai`)
 
-The package in `packages/zuraai` is a small launcher/helper, **not** the full Electron app.
+The package in `packages/zuraai` is a small bootstrap launcher, **not** the embedded Electron app.
 
 - Package name: `zuraai` (the name `zura` is already taken on npm)
 - Keep it tiny: launcher script + README/metadata only
+- A missing desktop app is downloaded from the matching `v{packageVersion}` GitHub release. The launcher accepts only the fixed platform asset name and verifies its SHA-256 against the checksum in the release body before starting the visible Windows installer or extracting the universal macOS app to `~/Applications`.
+- An existing packaged app is detected through its packaged protocol executable on Windows or its application bundle on macOS; development Electron protocol registrations do not count as an installation.
 
 Publish checklist (high level):
 
@@ -47,13 +49,7 @@ npm pack --dry-run --json
 npm publish --access public
 ```
 
-If you need a token for one command (PowerShell example):
-
-```powershell
-$env:NPM_TOKEN="paste_token_here"
-npm publish --access public --//registry.npmjs.org/:_authToken=$env:NPM_TOKEN
-Remove-Item Env:\NPM_TOKEN
-```
+Complete npm's interactive browser/passkey authentication when prompted during publish.
 
 Check what landed:
 
@@ -69,4 +65,4 @@ npm view zuraai name version homepage description bin --json
 4. Dry-run `npm pack` for the launcher package.
 5. Publish the npm package only after GitHub release assets are available.
 
-The launcher should open an installed desktop app through registered local protocols. It should not try to embed Electron binaries inside the npm package.
+The launcher opens an installed desktop app through registered local protocols. If it is missing, it bootstraps the matching verified GitHub release; it never embeds Electron binaries inside the npm package.

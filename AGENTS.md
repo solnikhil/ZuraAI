@@ -266,7 +266,7 @@ Details: `docs/RELEASE.md`.
 
 ### npm package
 
-`packages/zuraai` is a tiny launcher, not the Electron binary. Align versions with GitHub release tags when publishing.
+`packages/zuraai` is a tiny bootstrap launcher, not the Electron binary. Align versions with GitHub release tags when publishing. When the packaged app is absent, it resolves only the matching stable GitHub tag and fixed platform asset name, verifies the download against the SHA-256 published in that release body, then starts the visible Windows installer or extracts the universal macOS app to `~/Applications`. Packaged protocol targets count as installed; development Electron registrations do not.
 
 ---
 
@@ -307,7 +307,7 @@ Also run `bun run build` for packaging changes. Prefer focused tests for IPC, st
 ## Known gaps / watchpoints
 
 - User-configured global shortcut strings in settings are not fully wired to `globalShortcut.register(...)`.
-- The npm launcher opens an installed desktop app through protocols; it does not install Electron itself.
+- The npm launcher bootstraps a missing desktop app from the matching verified GitHub release; it does not embed Electron inside the npm package.
 - Folders / Projects UI may be temporarily gated in product code; do not delete the feature — follow the current flag if one exists.
 - ChatGPT Codex remains an unofficial subscription-path integration with limited capabilities in ZuraAI.
 - macOS signing/notarization may still be incomplete for seamless auto-update (see `docs/MAINTENANCE.md`).

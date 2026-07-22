@@ -88,22 +88,22 @@ Use `bun run build:dir` if you only need an unpacked app folder.
 
 ## Useful commands
 
-| Command | What it does |
-| ------- | ------------ |
-| `bun run dev` | Start development |
-| `bun run typecheck` | TypeScript checks |
-| `bun run test` | Unit tests |
-| `bun run test:watch` | Tests in watch mode |
-| `bun run build` | Production Electron package |
-| `bun run build:dir` | Unpacked directory build |
+| Command                     | What it does                        |
+| --------------------------- | ----------------------------------- |
+| `bun run dev`               | Start development                   |
+| `bun run typecheck`         | TypeScript checks                   |
+| `bun run test`              | Unit tests                          |
+| `bun run test:watch`        | Tests in watch mode                 |
+| `bun run build`             | Production Electron package         |
+| `bun run build:dir`         | Unpacked directory build            |
 | `bun run release:checksums` | SHA-256 checksums for release files |
-| `bun run preview` | Preview the renderer build |
+| `bun run preview`           | Preview the renderer build          |
 
 ## Releases
 
 Desktop builds are published on [GitHub Releases](https://github.com/solnikhil/ZuraAI/releases).
 
-There is also a small npm package (`zuraai`) that can open the installed desktop app through local protocols. Details live in [`docs/RELEASE.md`](docs/RELEASE.md).
+There is also a small npm package (`zuraai`) that installs the matching verified GitHub desktop release when needed, then opens the app through local protocols. Details live in [`docs/RELEASE.md`](docs/RELEASE.md).
 
 ## How security works
 
