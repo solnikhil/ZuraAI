@@ -121,7 +121,16 @@ jobs:
         # Disable signing; we have no Apple Developer ID secrets configured.
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
-        run: bun run build:mac
+        shell: bash
+        run: |
+          set -o pipefail
+          if ! bun run build:mac 2>&1 | tee macos-build.log; then
+            echo "::error::macOS packaging failed; the final log lines follow"
+            tail -n 40 macos-build.log | while IFS= read -r line; do
+              echo "::error::${line}"
+            done
+            exit 1
+          fi
 
       - name: Verify packaged release artifacts
         shell: bash
