@@ -11,7 +11,7 @@ bun run build
 ```
 
 Native modules are expected as prebuilt/installable packages. The build is set up so you do not need Visual Studio Build Tools just to rebuild optional native deps (`npmRebuild: false`).
-electron-builder resolves the Electron distribution for each target platform and architecture. Keep the global `electronDist` unset so macOS x64 and arm64 packages do not reuse the host architecture's unpacked Electron app.
+electron-builder resolves the Electron distribution for each target platform and architecture. Keep the global `electronDist` unset so the macOS universal package can combine the correct Intel and Apple Silicon Electron applications instead of reusing the host architecture's unpacked app.
 
 Outputs land in `release/`:
 
@@ -28,6 +28,7 @@ bun run release:checksums
 ```
 
 On a Mac host you can also build macOS packages with `bun run build:mac` (see `AGENTS.md` for signing/notarization notes).
+The macOS release is a universal DMG/ZIP that runs natively on both Intel and Apple Silicon.
 
 ## npm package (`zuraai`)
 

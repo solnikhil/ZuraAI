@@ -77,6 +77,7 @@ jobs:
           set -euo pipefail
           test -e "release/ZuraAI-Setup-${{ needs.validate.outputs.version }}.exe"
           test -e "release/ZuraAI-Setup-${{ needs.validate.outputs.version }}.exe.blockmap"
+          test -e "release/ZuraAI-Portable-${{ needs.validate.outputs.version }}-x64.exe"
           test -e release/latest.yml
 
       - name: Upload Windows artifacts
@@ -86,6 +87,7 @@ jobs:
           path: |
             release/ZuraAI-Setup-*.exe
             release/ZuraAI-Setup-*.exe.blockmap
+            release/ZuraAI-Portable-*.exe
             release/latest.yml
           if-no-files-found: error
           retention-days: 7
@@ -229,6 +231,7 @@ jobs:
           files: |
             release/ZuraAI-Setup-*.exe
             release/ZuraAI-Setup-*.exe.blockmap
+            release/ZuraAI-Portable-*.exe
             release/latest.yml
             release/*.dmg
             release/*.dmg.blockmap
