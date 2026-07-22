@@ -256,6 +256,7 @@ There is **no** third-party extension store, manifest extension runtime, or stor
 - electron-builder config lives in `package.json#build`
 - `npmRebuild` is false; prefer prebuilt natives
 - Electron distributions use electron-builder's platform/architecture-aware downloads; do not point global `electronDist` at the host installation when producing universal packages.
+- Package commands disable electron-builder's implicit publishing; the release workflow's publish job exclusively creates the GitHub release after both platform artifacts pass verification.
 - Windows: NSIS installer + portable; user-selected install directory is final
 - macOS: universal Intel/Apple Silicon DMG/zip; signing/notarization is a separate ops step (credentials in env only)
 - Auto-updater is production-only (`electron/updater.ts`)

@@ -10,6 +10,8 @@ Production packaging uses electron-builder:
 bun run build
 ```
 
+Build commands always pass `--publish never`. GitHub Actions uploads the verified platform artifacts and creates the release in its dedicated publish job, so tagged builds never attempt an implicit electron-builder upload.
+
 Native modules are expected as prebuilt/installable packages. The build is set up so you do not need Visual Studio Build Tools just to rebuild optional native deps (`npmRebuild: false`).
 electron-builder resolves the Electron distribution for each target platform and architecture. Keep the global `electronDist` unset so the macOS universal package can combine the correct Intel and Apple Silicon Electron applications instead of reusing the host architecture's unpacked app.
 
