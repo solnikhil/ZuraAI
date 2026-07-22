@@ -119,7 +119,7 @@ jobs:
         # Disable signing; we have no Apple Developer ID secrets configured.
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
-        run: bun run build
+        run: bun run build:mac
 
       - name: Verify packaged release artifacts
         shell: bash

@@ -38,15 +38,15 @@ const OUTPUT_ICNS = resolve(OUTPUT_DIR, 'icon.icns')
 const ICON_SIZES = [256, 128, 64, 48, 32, 24, 16]
 const MAC_ICONSET_SIZES = [
   { size: 16, name: 'icon_16x16.png' },
-  { size: 32, name: 'diana.k@example.org' },
+  { size: 32, name: 'icon_16x16@2x.png' },
   { size: 32, name: 'icon_32x32.png' },
-  { size: 64, name: 'ivan.p@example.net' },
+  { size: 64, name: 'icon_32x32@2x.png' },
   { size: 128, name: 'icon_128x128.png' },
-  { size: 256, name: 'wendy.h@example.net' },
+  { size: 256, name: 'icon_128x128@2x.png' },
   { size: 256, name: 'icon_256x256.png' },
-  { size: 512, name: 'wendy.h@example.net' },
+  { size: 512, name: 'icon_256x256@2x.png' },
   { size: 512, name: 'icon_512x512.png' },
-  { size: 1024, name: 'walt.e@example.net' },
+  { size: 1024, name: 'icon_512x512@2x.png' },
 ]
 
 // --- Dark theme palette (Catppuccin Mocha inspired) ---
