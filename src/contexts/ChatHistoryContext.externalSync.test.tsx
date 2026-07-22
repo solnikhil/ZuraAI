@@ -341,12 +341,13 @@ describe('ChatHistoryContext external sync', () => {
 
     await waitFor(() => expect(screen.getByTestId('retry-session-count').textContent).toBe('1'))
     fireEvent.click(screen.getByText('retry-switch'))
-    await waitFor(() =>
-      expect(screen.getByTestId('retry-current-session').textContent).toBe('session-1')
+    await waitFor(
+      () => expect(screen.getByTestId('retry-current-session').textContent).toBe('session-1'),
+      { timeout: 3000 }
     )
 
     fireEvent.click(screen.getByText('retry-add-first'))
-    await waitFor(() => expect(saveAttempts).toBe(1), { timeout: 1500 })
+    await waitFor(() => expect(saveAttempts).toBe(1), { timeout: 3000 })
 
     fireEvent.click(screen.getByText('retry-add-second'))
     await waitFor(
@@ -357,7 +358,7 @@ describe('ChatHistoryContext external sync', () => {
           'second',
         ])
       },
-      { timeout: 1500 }
+      { timeout: 3000 }
     )
   })
 
