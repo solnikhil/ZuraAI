@@ -1,6 +1,6 @@
-# ZuraAI v0.0.27
+# ZuraAI v0.0.7
 
-ZuraAI v0.0.27 is a major reliability and agent-capability release. It makes desktop automation safer and steadier, improves ChatGPT Codex reasoning and tool use, and expands schedules, MCP, memory, artifacts, and the chat experience.
+ZuraAI v0.0.7 is a major reliability and agent-capability release. It makes desktop automation safer and steadier, improves ChatGPT Codex reasoning and tool use, and expands schedules, MCP, memory, artifacts, and the chat experience.
 
 ## What’s new
 
@@ -23,4 +23,4 @@ macOS builds are currently unsigned and un-notarized. Install the downloaded DMG
 
 ## X post
 
-ZuraAI v0.0.27 is here 🚀 Safer Agent Mode, per-model ChatGPT Codex reasoning controls, reliable native tool calls, AI automations, stronger MCP workflows, folder memory, better artifacts, and smoother chat—plus a fix for repeated thinking-block spam.
+ZuraAI v0.0.7 is here 🚀 Safer Agent Mode, per-model ChatGPT Codex reasoning controls, reliable native tool calls, AI automations, stronger MCP workflows, folder memory, better artifacts, and smoother chat—plus a fix for repeated thinking-block spam.

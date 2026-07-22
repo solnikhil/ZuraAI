@@ -2,7 +2,7 @@
 
 All notable changes to ZuraAI are documented here.
 
-## [0.0.27] - 2026-07-21
+## [0.0.7] - 2026-07-22
 
 ### Highlights
 
@@ -26,4 +26,4 @@ All notable changes to ZuraAI are documented here.
 - The Perplexity provider and the legacy extension-store/Command Center implementation were removed as the capability model was simplified.
 - macOS packages remain unsigned and un-notarized; install them manually because in-app auto-update is not yet supported on macOS.
 
-[0.0.27]: https://github.com/solnikhil/ZuraAI/releases/tag/v0.0.27
+[0.0.7]: https://github.com/solnikhil/ZuraAI/releases/tag/v0.0.7
