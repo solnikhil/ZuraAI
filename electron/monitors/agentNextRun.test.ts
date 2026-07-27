@@ -21,9 +21,7 @@ describe('agentNextRun', () => {
       nextRunAt: fromMs + 2 * 60 * 60 * 1000,
     })
     expect(parseAgentNextRunDecision('[[next_run:done]]', fromMs)).toEqual({ kind: 'done' })
-    expect(
-      parseAgentNextRunDecision('[[next_run:2026-06-16T15:00:00.000Z]]', fromMs)
-    ).toEqual({
+    expect(parseAgentNextRunDecision('[[next_run:2026-06-16T15:00:00.000Z]]', fromMs)).toEqual({
       kind: 'delay',
       nextRunAt: Date.parse('2026-06-16T15:00:00.000Z'),
     })

@@ -4,14 +4,15 @@ How model providers plug into ZuraAI, and what “done” looks like when you ad
 
 ## Who owns what
 
-| Piece | Responsibility |
-| ----- | -------------- |
-| `src/providers/providerRegistry.ts` | Identity, capabilities, endpoints, settings fields, model-list wiring |
-| `src/providers/providerRuntime.ts` | Platform-neutral dispatch for generate/stream |
-| `src/services/<provider>.ts` | Request shaping and response parsing for that provider |
-| `electron/ipc/providerRuntimeHandlers.ts` | Privileged network boundary, credentials, request validation |
-| `packages/provider-core` | Shared errors, usage aggregation, tool validation, stream contracts |
-| `electron/providers/` | Main-only exceptions such as ChatGPT Codex OAuth |
+| Piece                                     | Responsibility                                                        |
+| ----------------------------------------- | --------------------------------------------------------------------- |
+| `src/providers/providerRegistry.ts`       | Identity, capabilities, endpoints, settings fields, model-list wiring |
+| `src/providers/providerRuntime.ts`        | Platform-neutral bridge selection, retries, and adapter dispatch      |
+| `src/providers/runtimeAdapters/`          | Per-provider request shaping and normalized stream events             |
+| `src/services/<provider>.ts`              | Request shaping and response parsing for that provider                |
+| `electron/ipc/providerRuntimeHandlers.ts` | Privileged network boundary, credentials, request validation          |
+| `packages/provider-core`                  | Shared errors, usage aggregation, tool validation, stream contracts   |
+| `electron/providers/`                     | Main-only exceptions such as ChatGPT Codex OAuth                      |
 
 Do not hardcode long undated lists of live model IDs in runtime dispatch. If a provider needs a small curated catalog, date it, cite the source, and define behavior for unknown models.
 

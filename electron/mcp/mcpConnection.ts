@@ -51,6 +51,8 @@ interface PendingRequest {
   resolve: (value: unknown) => void
   reject: (error: Error) => void
   timeoutId: ReturnType<typeof setTimeout>
+  signal?: AbortSignal
+  onAbort?: () => void
 }
 
 export class McpConnection {
@@ -269,7 +271,8 @@ export class McpConnection {
 
   async callTool(
     toolName: string,
-    args: Record<string, unknown>
+    args: Record<string, unknown>,
+    signal?: AbortSignal
   ): Promise<McpNormalizedToolCallResult> {
     return parseToolCallResult(
       await this.request(
@@ -278,7 +281,8 @@ export class McpConnection {
           name: toolName,
           arguments: args,
         },
-        this.requestTimeoutMs
+        this.requestTimeoutMs,
+        signal
       )
     )
   }
@@ -286,7 +290,8 @@ export class McpConnection {
   async request(
     method: string,
     params?: unknown,
-    timeoutMs = this.requestTimeoutMs
+    timeoutMs = this.requestTimeoutMs,
+    signal?: AbortSignal
   ): Promise<unknown> {
     if (!this.transport.isConnected()) {
       throw new Error(`MCP server "${this.server.name}" is not connected`)
@@ -295,12 +300,31 @@ export class McpConnection {
     const id = this.nextRequestId()
 
     return new Promise<unknown>((resolve, reject) => {
+      if (signal?.aborted) {
+        reject(new Error(`MCP request cancelled: ${method}`))
+        return
+      }
       const timeoutId = setTimeout(() => {
-        this.pendingRequests.delete(id)
+        this.clearPendingRequest(id)
         reject(new Error(`MCP request timed out: ${method}`))
       }, timeoutMs)
 
-      this.pendingRequests.set(id, { resolve, reject, timeoutId })
+      const onAbort = signal
+        ? () => {
+            void this.transport
+              .send({
+                jsonrpc: '2.0',
+                method: 'notifications/cancelled',
+                params: { requestId: id, reason: 'Agent run cancelled.' },
+              })
+              .catch(() => undefined)
+            this.clearPendingRequest(id)
+            reject(new Error(`MCP request cancelled: ${method}`))
+          }
+        : undefined
+
+      this.pendingRequests.set(id, { resolve, reject, timeoutId, signal, onAbort })
+      signal?.addEventListener('abort', onAbort!, { once: true })
 
       this.transport
         .send({
@@ -327,6 +351,9 @@ export class McpConnection {
     }
 
     clearTimeout(pendingRequest.timeoutId)
+    if (pendingRequest.signal && pendingRequest.onAbort) {
+      pendingRequest.signal.removeEventListener('abort', pendingRequest.onAbort)
+    }
     this.pendingRequests.delete(message.id)
 
     if ('error' in message) {
@@ -347,6 +374,9 @@ export class McpConnection {
   private rejectAllPendingRequests(error: Error): void {
     for (const [id, pendingRequest] of this.pendingRequests) {
       clearTimeout(pendingRequest.timeoutId)
+      if (pendingRequest.signal && pendingRequest.onAbort) {
+        pendingRequest.signal.removeEventListener('abort', pendingRequest.onAbort)
+      }
       pendingRequest.reject(error)
       this.pendingRequests.delete(id)
     }
@@ -359,6 +389,9 @@ export class McpConnection {
     }
 
     clearTimeout(pendingRequest.timeoutId)
+    if (pendingRequest.signal && pendingRequest.onAbort) {
+      pendingRequest.signal.removeEventListener('abort', pendingRequest.onAbort)
+    }
     this.pendingRequests.delete(id)
   }
 

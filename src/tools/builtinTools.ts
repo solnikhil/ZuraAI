@@ -1,6 +1,10 @@
 import { WINDOWS_SETTINGS_CATALOG } from './windowsSettings'
 import type { ToolDescriptor } from './types'
-import { BUILTIN_MAIN_TOOL_NAMES, type BuiltinMainToolName } from './builtinMainToolContract'
+import {
+  BUILTIN_MAIN_TOOL_NAMES,
+  BUILTIN_TOOL_SECURITY_PROFILES,
+  type BuiltinMainToolName,
+} from './builtinMainToolContract'
 
 export {
   BUILTIN_MAIN_TOOL_NAMES,
@@ -309,7 +313,7 @@ Safety rules:
   },
   computer_type: {
     description:
-      'Foreground-only fallback for text fields that do not expose UI Automation ValuePattern. It is rejected while a background window is reserved. Otherwise the app captured by screenshot_id is focused and verified briefly, then the user\'s prior app is restored when safe.',
+      "Foreground-only fallback for text fields that do not expose UI Automation ValuePattern. It is rejected while a background window is reserved. Otherwise the app captured by screenshot_id is focused and verified briefly, then the user's prior app is restored when safe.",
     parameters: {
       type: 'object',
       description: 'Arguments for typing text.',
@@ -327,7 +331,7 @@ Safety rules:
   },
   computer_key: {
     description:
-      'Foreground-only fallback for commands that expose no invokable accelerator/access-key control. It is rejected while a background window is reserved. Otherwise the app captured by screenshot_id is focused and verified briefly, then the user\'s prior app is restored when safe.',
+      "Foreground-only fallback for commands that expose no invokable accelerator/access-key control. It is rejected while a background window is reserved. Otherwise the app captured by screenshot_id is focused and verified briefly, then the user's prior app is restored when safe.",
     parameters: {
       type: 'object',
       description: 'Arguments for pressing keys.',
@@ -348,7 +352,7 @@ Safety rules:
   },
   computer_scroll: {
     description:
-      'Foreground-only physical scroll at coordinates from the latest computer_screenshot. It is rejected while an Agent Mode background window is reserved so the agent cannot move or scroll the user\'s shared desktop; use background-safe ui_* actions instead.',
+      "Foreground-only physical scroll at coordinates from the latest computer_screenshot. It is rejected while an Agent Mode background window is reserved so the agent cannot move or scroll the user's shared desktop; use background-safe ui_* actions instead.",
     parameters: {
       type: 'object',
       description: 'Arguments for scrolling.',
@@ -379,7 +383,7 @@ Safety rules:
   },
   computer_cursor_position: {
     description:
-      'Foreground-only cursor movement at coordinates from the latest computer_screenshot. It is rejected while an Agent Mode background window is reserved so the agent cannot disturb the user\'s shared pointer.',
+      "Foreground-only cursor movement at coordinates from the latest computer_screenshot. It is rejected while an Agent Mode background window is reserved so the agent cannot disturb the user's shared pointer.",
     parameters: {
       type: 'object',
       description: 'Arguments for moving the cursor.',
@@ -1240,4 +1244,7 @@ Safety rules:
 export const builtInMainToolDefinitions: ToolDescriptor[] = BUILTIN_MAIN_TOOL_NAMES.map((name) => ({
   name,
   ...builtInMainToolManifest[name],
+  ...(BUILTIN_TOOL_SECURITY_PROFILES[name].approval === 'always'
+    ? { requiresApproval: true }
+    : { requiresApproval: undefined }),
 }))

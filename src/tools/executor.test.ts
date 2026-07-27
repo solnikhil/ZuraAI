@@ -66,4 +66,25 @@ describe('executeTool web_search argument normalization', () => {
     })
     expect(args).not.toHaveProperty('runId')
   })
+
+  it('cancels the authoritative Agent run when renderer tool timeout wins', async () => {
+    vi.useFakeTimers()
+    const cancel = vi.fn(async () => true)
+    testWindow.agentRun = { cancel, getRuntime: vi.fn(async () => null) }
+    testWindow.ipcRenderer.invoke = vi.fn(() => new Promise(() => undefined))
+
+    try {
+      const execution = executeTool('file_read', { path: 'C:\\slow.txt' }, { runId: 'run-timeout' })
+      await vi.advanceTimersByTimeAsync(30_000)
+
+      await expect(execution).resolves.toMatchObject({
+        success: false,
+        error: 'Tool "file_read" took too long to execute. Please try again.',
+      })
+      expect(cancel).toHaveBeenCalledWith('run-timeout')
+    } finally {
+      vi.useRealTimers()
+      delete (testWindow as Partial<Window>).agentRun
+    }
+  })
 })

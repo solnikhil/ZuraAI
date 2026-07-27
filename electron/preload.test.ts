@@ -44,22 +44,41 @@ describe('preload MCP bridge', () => {
     await import('./preload')
   })
 
-  it('exposes main-owned Agent Mode autonomous policy controls', async () => {
+  it('exposes main-owned Agent Mode autonomous and trusted-action policy controls', async () => {
     const agentApproval = getExposedBridge<{
       getAutonomousMode: () => Promise<{ enabled: boolean }>
       setAutonomousMode: (enabled: boolean) => Promise<{ enabled: boolean }>
+      listTrustedActions: () => Promise<Array<{ id: string }>>
+      revokeTrustedAction: (id: string) => Promise<boolean>
+      revokeAllTrustedActions: () => Promise<number>
     }>('agentApproval')
     preloadMocks.invoke
       .mockResolvedValueOnce({ enabled: false })
       .mockResolvedValueOnce({ enabled: true })
+      .mockResolvedValueOnce([{ id: 'action-1' }])
+      .mockResolvedValueOnce(true)
+      .mockResolvedValueOnce(2)
 
     await expect(agentApproval.getAutonomousMode()).resolves.toEqual({ enabled: false })
     await expect(agentApproval.setAutonomousMode(true)).resolves.toEqual({ enabled: true })
+    await expect(agentApproval.listTrustedActions()).resolves.toEqual([{ id: 'action-1' }])
+    await expect(agentApproval.revokeTrustedAction('action-1')).resolves.toBe(true)
+    await expect(agentApproval.revokeAllTrustedActions()).resolves.toBe(2)
     expect(preloadMocks.invoke).toHaveBeenNthCalledWith(1, 'agent-approval:get-autonomous-mode')
     expect(preloadMocks.invoke).toHaveBeenNthCalledWith(
       2,
       'agent-approval:set-autonomous-mode',
       true
+    )
+    expect(preloadMocks.invoke).toHaveBeenNthCalledWith(3, 'agent-approval:list-trusted-actions')
+    expect(preloadMocks.invoke).toHaveBeenNthCalledWith(
+      4,
+      'agent-approval:revoke-trusted-action',
+      'action-1'
+    )
+    expect(preloadMocks.invoke).toHaveBeenNthCalledWith(
+      5,
+      'agent-approval:revoke-all-trusted-actions'
     )
   })
 
@@ -331,6 +350,20 @@ describe('preload MCP bridge', () => {
       'background-window:run-stopped',
       expect.any(Function)
     )
+  })
+
+  it('exposes a narrow sender-bound Agent run lifecycle bridge', async () => {
+    const bridge = getExposedBridge<{
+      cancel: (runId: string) => Promise<boolean>
+      getRuntime: (runId: string) => Promise<unknown>
+    }>('agentRun')
+    const snapshot = { runId: 'run-1', status: 'running', toolCalls: 2, mutations: 1 }
+    preloadMocks.invoke.mockResolvedValueOnce(true).mockResolvedValueOnce(snapshot)
+
+    await expect(bridge.cancel('run-1')).resolves.toBe(true)
+    expect(preloadMocks.invoke).toHaveBeenCalledWith('agent-run:cancel', 'run-1')
+    await expect(bridge.getRuntime('run-1')).resolves.toEqual(snapshot)
+    expect(preloadMocks.invoke).toHaveBeenCalledWith('agent-run:get-runtime', 'run-1')
   })
 
   it('exposes a dedicated analytics bridge and keeps it out of generic IPC', async () => {

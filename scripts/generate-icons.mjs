@@ -397,7 +397,12 @@ function createTrayTemplatePng(markPng, size = 44) {
       const index = (y * size + x) * 4
       const srcX = bounds.x + (x - destX) / scale
       const srcY = bounds.y + (y - destY) / scale
-      if (srcX < bounds.x || srcY < bounds.y || srcX >= bounds.x + bounds.width || srcY >= bounds.y + bounds.height) {
+      if (
+        srcX < bounds.x ||
+        srcY < bounds.y ||
+        srcX >= bounds.x + bounds.width ||
+        srcY >= bounds.y + bounds.height
+      ) {
         png.data[index] = 0
         png.data[index + 1] = 0
         png.data[index + 2] = 0
@@ -439,9 +444,7 @@ function tryGenerateIcns(markPng) {
     })
     console.log(`  icns  -> ${OUTPUT_ICNS}`)
   } catch (error) {
-    console.warn(
-      `  icns  -> skipped (${error instanceof Error ? error.message : String(error)})`
-    )
+    console.warn(`  icns  -> skipped (${error instanceof Error ? error.message : String(error)})`)
   } finally {
     try {
       rmSync(iconsetDir, { recursive: true, force: true })

@@ -68,9 +68,7 @@ export function emptyFormState(type: ScheduledTaskType = 'reminder'): ScheduleFo
 export function formStateFromTask(task: ScheduledTaskDefinition): ScheduleFormState {
   const schedule = task.schedule
   const dueLocal =
-    schedule?.kind === 'once' && task.nextRunAt
-      ? toDatetimeLocalValue(task.nextRunAt)
-      : ''
+    schedule?.kind === 'once' && task.nextRunAt ? toDatetimeLocalValue(task.nextRunAt) : ''
   return {
     type: task.type,
     title: task.title,
@@ -82,9 +80,7 @@ export function formStateFromTask(task: ScheduledTaskDefinition): ScheduleFormSt
     automationMode: task.automationMode ?? 'prompt',
     approvalMode: task.approvalMode ?? 'read_only',
     notifyPolicy: task.notifyPolicy ?? 'every_run',
-    outputDestinations: task.outputDestinations?.length
-      ? [...task.outputDestinations]
-      : ['log'],
+    outputDestinations: task.outputDestinations?.length ? [...task.outputDestinations] : ['log'],
     allowedToolsText: (task.allowedTools || []).join(', '),
     scheduleKind: schedule?.kind ?? (task.type === 'ai_automation' ? 'agent' : 'interval'),
     intervalPreset: schedule?.intervalPreset ?? task.intervalPreset,
@@ -228,10 +224,7 @@ export function formatRelativeNextRun(value?: number, now = Date.now()): string 
     : `${days} day${days === 1 ? '' : 's'} overdue`
 }
 
-export function runStatusLabel(
-  status: ScheduledTaskStatus,
-  taskType: ScheduledTaskType
-): string {
+export function runStatusLabel(status: ScheduledTaskStatus, taskType: ScheduledTaskType): string {
   if (status === 'error') return 'Failed'
   if (taskType === 'web_lookout') {
     if (status === 'changed') return 'Changed'

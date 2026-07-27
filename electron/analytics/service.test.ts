@@ -74,6 +74,40 @@ describe('analytics service', () => {
     expect(body.properties.filePath).toBeUndefined()
   })
 
+  it('enforces a categorical privacy schema for Agent diagnostics', async () => {
+    process.env.ZURA_POSTHOG_PROJECT_KEY = 'phc_test'
+    const { setAnalyticsEnabled, trackAnalyticsEvent } = await import('./service')
+
+    await setAnalyticsEnabled(true)
+    vi.mocked(fetch).mockClear()
+    await trackAnalyticsEvent('agent_run_finished', {
+      runOutcome: 'failed',
+      verificationOutcome: 'unverified',
+      durationMs: 42,
+      stopReason: 'budget_exhausted',
+      budgetReason: 'tool_calls',
+      runId: 'private-run-id',
+      prompt: 'private prompt',
+      path: 'C:\\Users\\Nikhil\\secret.txt',
+      title: 'private title',
+      toolName: 'not allowed on this event',
+    })
+
+    const body = JSON.parse(String(vi.mocked(fetch).mock.calls[0]?.[1]?.body))
+    expect(body.properties).toMatchObject({
+      runOutcome: 'failed',
+      verificationOutcome: 'unverified',
+      durationMs: 42,
+      stopReason: 'budget_exhausted',
+      budgetReason: 'tool_calls',
+    })
+    expect(body.properties).not.toHaveProperty('runId')
+    expect(body.properties).not.toHaveProperty('prompt')
+    expect(body.properties).not.toHaveProperty('path')
+    expect(body.properties).not.toHaveProperty('title')
+    expect(body.properties).not.toHaveProperty('toolName')
+  })
+
   it('sends first launch and app start when the user opts in', async () => {
     process.env.ZURA_POSTHOG_PROJECT_KEY = 'phc_test'
     const { setAnalyticsEnabled, getAnalyticsState } = await import('./service')

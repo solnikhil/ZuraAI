@@ -101,7 +101,12 @@ function getArtifactIcon(kind: ArtifactKind, size = 16): React.ReactElement {
 
 function artifactExcerpt(entry: ArtifactLibraryEntry): string {
   // Structured/markup kinds look noisy as raw source in the library list.
-  if (entry.kind === 'html' || entry.kind === 'svg' || entry.kind === 'json' || entry.kind === 'code') {
+  if (
+    entry.kind === 'html' ||
+    entry.kind === 'svg' ||
+    entry.kind === 'json' ||
+    entry.kind === 'code'
+  ) {
     return formatArtifactKind(entry.kind)
   }
 

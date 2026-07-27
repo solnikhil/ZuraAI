@@ -129,11 +129,7 @@ describe.runIf(process.platform === 'win32')('computer-use screenshot capture', 
       },
     ])
     mocks.execFile.mockImplementation((_file, _args, _options, callback) => {
-      callback(
-        null,
-        '[{"hwnd":67908,"processId":24336,"processName":"Spotify"}]',
-        ''
-      )
+      callback(null, '[{"hwnd":67908,"processId":24336,"processName":"Spotify"}]', '')
     })
 
     const { listWindows } = await import('./screenshot')

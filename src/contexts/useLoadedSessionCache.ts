@@ -1,10 +1,4 @@
-import {
-  useCallback,
-  useRef,
-  type Dispatch,
-  type MutableRefObject,
-  type SetStateAction,
-} from 'react'
+import { useCallback, useRef, type MutableRefObject } from 'react'
 import type { ArtifactDocument, ChatSession } from '../chat/types'
 import { normalizeArtifacts, summarizeArtifact } from '../artifacts/artifactStore'
 import {
@@ -47,11 +41,15 @@ export function mergeLoadedSessionWithLiveShell(
 
 interface Options {
   sessionsRef: MutableRefObject<ChatSession[]>
-  setSessions: Dispatch<SetStateAction<ChatSession[]>>
+  replaceSessions: (sessions: ChatSession[]) => void
   getCurrentSessionId: () => string | null
 }
 
-export function useLoadedSessionCache({ sessionsRef, setSessions, getCurrentSessionId }: Options) {
+export function useLoadedSessionCache({
+  sessionsRef,
+  replaceSessions,
+  getCurrentSessionId,
+}: Options) {
   const loadedSessionIdsRef = useRef(new Set<string>())
   const recentLoadedSessionIdsRef = useRef<string[]>([])
 
@@ -80,20 +78,21 @@ export function useLoadedSessionCache({ sessionsRef, setSessions, getCurrentSess
       if (!isElectronChatRepository()) return
       const keep = new Set(recentLoadedSessionIdsRef.current.slice(0, MAX_LOADED_SESSIONS))
       if (activeId) keep.add(activeId)
-      setSessions((prev) =>
-        prev.map((session) => {
-          if (keep.has(session.id) || !loadedSessionIdsRef.current.has(session.id)) return session
-          loadedSessionIdsRef.current.delete(session.id)
-          return {
-            ...session,
-            messages: [],
-            artifacts: [],
-            messageCount: session.messageCount ?? session.messages.length,
-          }
-        })
-      )
+      const evictedIds: string[] = []
+      const nextSessions = sessionsRef.current.map((session) => {
+        if (keep.has(session.id) || !loadedSessionIdsRef.current.has(session.id)) return session
+        evictedIds.push(session.id)
+        return {
+          ...session,
+          messages: [],
+          artifacts: [],
+          messageCount: session.messageCount ?? session.messages.length,
+        }
+      })
+      replaceSessions(nextSessions)
+      for (const id of evictedIds) loadedSessionIdsRef.current.delete(id)
     },
-    [setSessions]
+    [replaceSessions, sessionsRef]
   )
 
   const loadFullSession = useCallback(
@@ -133,7 +132,9 @@ export function useLoadedSessionCache({ sessionsRef, setSessions, getCurrentSess
           normalizedTotal === 0
         )
           markLoaded(id)
-        setSessions((prev) => prev.map((session) => (session.id === id ? normalized : session)))
+        replaceSessions(
+          sessionsRef.current.map((session) => (session.id === id ? normalized : session))
+        )
         pruneLoadedSessions(id)
         return normalized
       } catch (error) {
@@ -141,7 +142,7 @@ export function useLoadedSessionCache({ sessionsRef, setSessions, getCurrentSess
         return null
       }
     },
-    [getCurrentSessionId, markLoaded, pruneLoadedSessions, sessionsRef, setSessions]
+    [getCurrentSessionId, markLoaded, pruneLoadedSessions, replaceSessions, sessionsRef]
   )
 
   return {

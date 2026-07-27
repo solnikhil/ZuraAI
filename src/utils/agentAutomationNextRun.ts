@@ -46,7 +46,10 @@ function parseRelativeDelayMs(token: string): number | null {
 }
 
 export function stripAgentNextRunMarkers(text: string): string {
-  return text.replace(AGENT_NEXT_RUN_MARKER_RE, '').replace(/[ \t]+\n/g, '\n').trim()
+  return text
+    .replace(AGENT_NEXT_RUN_MARKER_RE, '')
+    .replace(/[ \t]+\n/g, '\n')
+    .trim()
 }
 
 export function parseAgentNextRunFromOutput(text: string): ParsedAgentNextRun {

@@ -12,7 +12,14 @@ const mockSettings = {
 
 let persistedSessions: ChatSession[] = []
 let persistedFolders: Folder[] = []
+let storeRevision = 0
 const ipcListeners = new Map<string, (event: unknown, ...args: unknown[]) => void>()
+
+function publishSelfStoreChange() {
+  storeRevision += 1
+  ipcListeners.get('chat-store:changed')?.({ revision: storeRevision, source: 'self' })
+  return { changed: true, revision: storeRevision }
+}
 
 function sessionMetadata(session: ChatSession) {
   const artifactSummaries = session.artifacts?.map((artifact) => ({
@@ -46,6 +53,7 @@ vi.mock('./SettingsContext', () => ({
 describe('ChatHistoryContext external sync', () => {
   beforeEach(() => {
     vi.resetModules()
+    localStorage.clear()
     persistedSessions = [
       {
         id: 'session-1',
@@ -56,10 +64,12 @@ describe('ChatHistoryContext external sync', () => {
       },
     ]
     persistedFolders = []
+    storeRevision = 0
     ipcListeners.clear()
     ;(window as typeof window & { ipcRenderer: IElectronAPI }).ipcRenderer = {
       invoke: vi.fn(async (channel: string, ...args: unknown[]) => {
         if (channel === 'chat-store:get-metadata') return persistedSessions.map(sessionMetadata)
+        if (channel === 'chat-store:get-revision') return storeRevision
         if (channel === 'chat-store:get-session') {
           return persistedSessions.find((session) => session.id === args[0]) ?? null
         }
@@ -69,13 +79,11 @@ describe('ChatHistoryContext external sync', () => {
             nextSession,
             ...persistedSessions.filter((session) => session.id !== nextSession.id),
           ]
-          ipcListeners.get('chat-store:changed')?.({})
-          return true
+          return publishSelfStoreChange()
         }
         if (channel === 'chat-store:delete-session') {
           persistedSessions = persistedSessions.filter((session) => session.id !== args[0])
-          ipcListeners.get('chat-store:changed')?.({})
-          return true
+          return publishSelfStoreChange()
         }
         if (channel === 'chat-store:save-index') {
           const index = args[0] as {
@@ -88,18 +96,16 @@ describe('ChatHistoryContext external sync', () => {
             messages:
               persistedSessions.find((session) => session.id === metadata.id)?.messages ?? [],
           }))
-          ipcListeners.get('chat-store:changed')?.({})
-          return true
+          return publishSelfStoreChange()
         }
         if (channel === 'chat-store:get-all') return persistedSessions
         if (channel === 'chat-store:get-all-folders') return persistedFolders
         if (channel === 'chat-store:save-all') {
           persistedSessions = args[0] as ChatSession[]
-          ipcListeners.get('chat-store:changed')?.({})
-          return true
+          return publishSelfStoreChange()
         }
-        if (channel === 'chat-store:save-folders') return true
-        if (channel === 'chat-store:migrate') return true
+        if (channel === 'chat-store:save-folders') return publishSelfStoreChange()
+        if (channel === 'chat-store:migrate') return publishSelfStoreChange()
         throw new Error(`Unexpected channel: ${channel}`)
       }),
       on: vi.fn((channel: string, listener: (event: unknown, ...args: unknown[]) => void) => {
@@ -195,6 +201,100 @@ describe('ChatHistoryContext external sync', () => {
         expect(screen.getByTestId('current-title').textContent).toBe('Updated from overlay')
       },
       { timeout: 1000 }
+    )
+  })
+
+  it('does not hydrate stale localStorage data after an Electron repository failure', async () => {
+    localStorage.setItem(
+      'zura-chat-history',
+      JSON.stringify([
+        {
+          id: 'stale-local',
+          title: 'Stale local fallback',
+          messages: [],
+          createdAt: 1,
+          updatedAt: 1,
+        },
+      ])
+    )
+    const originalInvoke = window.ipcRenderer.invoke.bind(window.ipcRenderer)
+    window.ipcRenderer.invoke = vi.fn(async (channel, ...args) => {
+      if (channel === 'chat-store:get-metadata') throw new Error('repository unavailable')
+      return originalInvoke(channel, ...args) as never
+    }) as IElectronAPI['invoke']
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    const { ChatHistoryProvider, useChatHistory } = await import('./ChatHistoryContext')
+
+    function Probe() {
+      const { sessions, isLoading } = useChatHistory()
+      return (
+        <div>
+          <div data-testid="failure-loading">{String(isLoading)}</div>
+          <div data-testid="failure-count">{sessions.length}</div>
+        </div>
+      )
+    }
+
+    render(
+      <ChatHistoryProvider>
+        <Probe />
+      </ChatHistoryProvider>
+    )
+
+    await waitFor(() => expect(screen.getByTestId('failure-loading')).toHaveTextContent('false'))
+    expect(screen.getByTestId('failure-count')).toHaveTextContent('0')
+    expect(localStorage.getItem('zura-chat-history')).toContain('stale-local')
+  })
+
+  it('persists one committed snapshot when React StrictMode replays renders', async () => {
+    const { ChatHistoryProvider, useChatHistory } = await import('./ChatHistoryContext')
+
+    function Probe() {
+      const { sessions, switchSession, updateSessionTitle } = useChatHistory()
+      return (
+        <div>
+          <div data-testid="strict-title">{sessions[0]?.title ?? 'none'}</div>
+          <button onClick={() => switchSession('session-1')}>strict-load</button>
+          <button onClick={() => updateSessionTitle('session-1', 'Strict update')}>
+            strict-update
+          </button>
+        </div>
+      )
+    }
+
+    render(
+      <React.StrictMode>
+        <ChatHistoryProvider>
+          <Probe />
+        </ChatHistoryProvider>
+      </React.StrictMode>
+    )
+
+    await waitFor(() =>
+      expect(screen.getByTestId('strict-title')).toHaveTextContent('Original chat')
+    )
+    fireEvent.click(screen.getByText('strict-load'))
+    await waitFor(() => {
+      expect(
+        (window.ipcRenderer.invoke as unknown as ReturnType<typeof vi.fn>).mock.calls.some(
+          ([channel]) => channel === 'chat-store:get-session'
+        )
+      ).toBe(true)
+    })
+    fireEvent.click(screen.getByText('strict-update'))
+    await waitFor(() =>
+      expect(screen.getByTestId('strict-title')).toHaveTextContent('Strict update')
+    )
+    await waitFor(
+      () => {
+        const saves = (
+          window.ipcRenderer.invoke as unknown as ReturnType<typeof vi.fn>
+        ).mock.calls.filter(([channel]) => channel === 'chat-store:save-session')
+        expect(saves).toHaveLength(1)
+        expect((saves[0][1] as ChatSession).title).toBe('Strict update')
+      },
+      { timeout: 3000 }
     )
   })
 
@@ -398,27 +498,29 @@ describe('ChatHistoryContext external sync', () => {
 
     await waitFor(
       () =>
-        expect(persistedSessions[0].messages.map((message) => message.content)).toEqual(['flush me']),
+        expect(persistedSessions[0].messages.map((message) => message.content)).toEqual([
+          'flush me',
+        ]),
       { timeout: 3000 }
     )
   })
 
   it('accounts for concurrent self-change events without hiding the next external change', async () => {
     const originalInvoke = window.ipcRenderer.invoke.bind(window.ipcRenderer)
-    let resolveSessionSave: ((value: boolean) => void) | undefined
-    let resolveIndexSave: ((value: boolean) => void) | undefined
+    let resolveSessionSave: ((value: { changed: true; revision: number }) => void) | undefined
+    let resolveIndexSave: ((value: { changed: true; revision: number }) => void) | undefined
     let sessionSaveStarted = false
     let indexSaveStarted = false
     window.ipcRenderer.invoke = vi.fn(async (channel, ...args) => {
       if (channel === 'chat-store:save-session') {
         sessionSaveStarted = true
-        return new Promise<boolean>((resolve) => {
+        return new Promise<{ changed: true; revision: number }>((resolve) => {
           resolveSessionSave = resolve
         })
       }
       if (channel === 'chat-store:save-index') {
         indexSaveStarted = true
-        return new Promise<boolean>((resolve) => {
+        return new Promise<{ changed: true; revision: number }>((resolve) => {
           resolveIndexSave = resolve
         })
       }
@@ -460,10 +562,11 @@ describe('ChatHistoryContext external sync', () => {
     )
 
     await act(async () => {
-      ipcListeners.get('chat-store:changed')?.({})
-      ipcListeners.get('chat-store:changed')?.({})
-      resolveSessionSave?.(true)
-      resolveIndexSave?.(true)
+      ipcListeners.get('chat-store:changed')?.({ revision: 2, source: 'self' })
+      ipcListeners.get('chat-store:changed')?.({ revision: 1, source: 'self' })
+      resolveSessionSave?.({ changed: true, revision: 1 })
+      resolveIndexSave?.({ changed: true, revision: 2 })
+      storeRevision = 2
       await Promise.resolve()
     })
 
@@ -482,11 +585,43 @@ describe('ChatHistoryContext external sync', () => {
     expect(screen.getByTestId('tracked-session-count').textContent).toBe('1')
 
     await act(async () => {
-      ipcListeners.get('chat-store:changed')?.({})
+      storeRevision = 3
+      ipcListeners.get('chat-store:changed')?.({ revision: 3, source: 'external' })
       await Promise.resolve()
     })
     fireEvent.focus(window)
     await waitFor(() => expect(screen.getByTestId('tracked-session-count').textContent).toBe('2'))
+  })
+
+  it('detects an external revision missed while the window was not observing events', async () => {
+    const { ChatHistoryProvider, useChatHistory } = await import('./ChatHistoryContext')
+
+    function Probe() {
+      const { sessions } = useChatHistory()
+      return <div data-testid="missed-session-count">{sessions.length}</div>
+    }
+
+    render(
+      <ChatHistoryProvider>
+        <Probe />
+      </ChatHistoryProvider>
+    )
+    await waitFor(() => expect(screen.getByTestId('missed-session-count').textContent).toBe('1'))
+
+    persistedSessions = [
+      ...persistedSessions,
+      {
+        id: 'missed-external-session',
+        title: 'Missed external session',
+        messages: [],
+        createdAt: 2,
+        updatedAt: 2,
+      },
+    ]
+    storeRevision += 1
+
+    fireEvent.focus(window)
+    await waitFor(() => expect(screen.getByTestId('missed-session-count').textContent).toBe('2'))
   })
 
   it('loads full-session artifacts without metadata shell artifacts replacing them', async () => {

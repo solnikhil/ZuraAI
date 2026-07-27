@@ -1,5 +1,5 @@
 import React from 'react'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import '@testing-library/jest-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -108,6 +108,7 @@ describe('InputArea skills menu', () => {
     mockSettings.settings.skills.web_research.enabled = true
     mockSettings.settings.skills.computer_use.enabled = false
     mockSettings.settings.assistantMode = 'chat'
+    window.agentApproval = undefined
   })
 
   it('shows Agent Mode as the current-desktop control in the composer plus menu', () => {
@@ -148,6 +149,40 @@ describe('InputArea skills menu', () => {
         assistantMode: 'agent',
         skills: expect.objectContaining({
           computer_use: expect.objectContaining({ enabled: true }),
+        }),
+      })
+    )
+  })
+
+  it('exits to Chat, disables Computer Use, and revokes autonomy together', async () => {
+    const setAutonomousMode = vi.fn(async () => ({ enabled: false }))
+    window.agentApproval = {
+      requestApproval: vi.fn(),
+      getAutonomousMode: vi.fn(async () => ({ enabled: true })),
+      setAutonomousMode,
+    }
+    mockSettings.settings.assistantMode = 'agent'
+    mockSettings.settings.skills.computer_use.enabled = true
+
+    render(
+      <InputArea
+        input=""
+        setInput={vi.fn()}
+        onSend={vi.fn()}
+        isLoading={false}
+        attachedFiles={[]}
+        onFilesChange={vi.fn()}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: /exit agent mode/i }))
+
+    await waitFor(() => expect(setAutonomousMode).toHaveBeenCalledWith(false))
+    expect(updateSettings).toHaveBeenCalledWith(
+      expect.objectContaining({
+        assistantMode: 'chat',
+        skills: expect.objectContaining({
+          computer_use: expect.objectContaining({ enabled: false }),
         }),
       })
     )

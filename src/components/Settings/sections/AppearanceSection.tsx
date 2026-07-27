@@ -16,7 +16,10 @@ import {
 } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import type { Settings } from '../../../contexts/SettingsContext'
-import type { AppChromeMaterial, ChatSelectedOverlayStyle } from '../../../contexts/SettingsUIContext'
+import type {
+  AppChromeMaterial,
+  ChatSelectedOverlayStyle,
+} from '../../../contexts/SettingsUIContext'
 import {
   ASSISTANT_PERSONALITIES,
   normalizeAssistantPersonalityId,

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { mkdtemp, rm } from 'fs/promises'
+import * as fs from 'fs/promises'
 import * as os from 'os'
 import * as path from 'path'
 
@@ -16,12 +16,92 @@ describe('scheduled task storage', () => {
     vi.resetModules()
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-06-16T12:00:00.000Z'))
-    electronMock.userDataPath = await mkdtemp(path.join(os.tmpdir(), 'zura-scheduled-tasks-'))
+    electronMock.userDataPath = await fs.mkdtemp(path.join(os.tmpdir(), 'zura-scheduled-tasks-'))
   })
 
   afterEach(async () => {
     vi.useRealTimers()
-    await rm(electronMock.userDataPath, { recursive: true, force: true })
+    vi.restoreAllMocks()
+    await fs.rm(electronMock.userDataPath, { recursive: true, force: true })
+  })
+
+  it('returns an empty index when scheduled task storage is missing', async () => {
+    const { listScheduledTasks } = await import('./storage')
+
+    await expect(listScheduledTasks()).resolves.toEqual([])
+    await expect(
+      fs.stat(path.join(electronMock.userDataPath, 'scheduled-tasks.json'))
+    ).rejects.toMatchObject({ code: 'ENOENT' })
+  })
+
+  it('quarantines malformed JSON before recovering with an empty index', async () => {
+    const indexPath = path.join(electronMock.userDataPath, 'scheduled-tasks.json')
+    await fs.writeFile(indexPath, '{ invalid json', 'utf-8')
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const { createScheduledTask, listScheduledTasks, sanitizeScheduledTaskInput } =
+      await import('./storage')
+
+    await expect(listScheduledTasks()).resolves.toEqual([])
+
+    const entries = await fs.readdir(electronMock.userDataPath)
+    const quarantineFile = entries.find((entry) =>
+      entry.startsWith('scheduled-tasks.json.corrupt-')
+    )
+    expect(quarantineFile).toBeDefined()
+    await expect(
+      fs.readFile(path.join(electronMock.userDataPath, quarantineFile!), 'utf-8')
+    ).resolves.toBe('{ invalid json')
+    await expect(fs.stat(indexPath)).rejects.toMatchObject({ code: 'ENOENT' })
+
+    await createScheduledTask(
+      sanitizeScheduledTaskInput({
+        type: 'reminder',
+        title: 'Recovered reminder',
+        reminderText: 'Storage is writable after quarantine.',
+      })
+    )
+    expect(JSON.parse(await fs.readFile(indexPath, 'utf-8')).tasks).toHaveLength(1)
+    expect(consoleError).toHaveBeenCalled()
+  })
+
+  it('propagates operational read errors without caching empty state', async () => {
+    const indexPath = path.join(electronMock.userDataPath, 'scheduled-tasks.json')
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    await fs.mkdir(indexPath)
+    const { listScheduledTasks } = await import('./storage')
+
+    await expect(listScheduledTasks()).rejects.toMatchObject({ code: expect.any(String) })
+
+    await fs.rm(indexPath, { recursive: true })
+    await fs.writeFile(
+      indexPath,
+      JSON.stringify({
+        version: 1,
+        tasks: [
+          {
+            id: 'persisted-task',
+            type: 'reminder',
+            title: 'Persisted reminder',
+            enabled: true,
+            urls: [],
+            reminderText: 'Do not overwrite me.',
+            instructions: '',
+            intervalPreset: '30m',
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+            nextRunAt: Date.now() + 30 * 60_000,
+          },
+        ],
+        snapshots: [],
+        runs: [],
+      }),
+      'utf-8'
+    )
+
+    await expect(listScheduledTasks()).resolves.toEqual([
+      expect.objectContaining({ id: 'persisted-task', title: 'Persisted reminder' }),
+    ])
+    expect(consoleError).toHaveBeenCalled()
   })
 
   it('defaults the repeat interval when a concrete dueAt is provided', async () => {

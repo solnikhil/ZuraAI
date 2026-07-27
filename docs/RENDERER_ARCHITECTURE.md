@@ -20,12 +20,13 @@ Electron main is the real chat database. The UI keeps a light index and loads a 
 
 Inside `ChatHistoryProvider`:
 
-| Helper | Job |
-| ------ | --- |
-| `chatHistoryDomain.ts` | Pure normalize / project / folder operations |
-| `chatHistoryRepository.ts` | IPC and local-storage adaptation |
+| Helper                         | Job                                                        |
+| ------------------------------ | ---------------------------------------------------------- |
+| `chatHistoryDomain.ts`         | Pure normalize / project / folder operations               |
+| `chatHistoryRepository.ts`     | IPC and local-storage adaptation                           |
+| `useTransactionalState.ts`     | Once-only transitions with a synchronous authoritative ref |
 | `useChatHistoryPersistence.ts` | Dirty flags, debounce, self-change accounting, final flush |
-| `useLoadedSessionCache.ts` | Windowed load, prune, artifact merge |
+| `useLoadedSessionCache.ts`     | Windowed load, prune, artifact merge                       |
 
 Tests should drive the real provider public API — not a copy of the transform logic.
 
@@ -36,6 +37,10 @@ Tests should drive the real provider public API — not a copy of the transform 
 3. Unmount attempts a best-effort flush.
 4. Each self-originated store mutation accounts for the matching `chat-store:changed` event so external reloads are not skipped.
 5. External reloads do not clobber unsaved local revisions.
+6. Session/folder reducers run once outside React updater callbacks; the authoritative ref advances
+   before React publishes the state and persistence is scheduled only from the committed result.
+7. Electron repository failures remain Electron failures. Local storage is used only by the
+   non-Electron adapter and one-time migration path, never as an operational fallback.
 
 Renderer teardown cannot await React cleanup. Durable shutdown guarantees belong in main.
 

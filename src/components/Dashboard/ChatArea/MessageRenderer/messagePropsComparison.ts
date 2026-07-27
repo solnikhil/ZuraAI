@@ -6,6 +6,7 @@
 
 import type { MessageRendererProps } from './types'
 import type { ThinkingBlock } from '@/chat/types'
+import { getAgentRunMemoKey } from '../agentRunMemo'
 
 function areOptionalRecordsEqual(
   a?: Record<string, unknown>,
@@ -83,6 +84,7 @@ export function areMessagePropsEqual(
   // Compare callback references (these should be stable via useCallback in parent)
   if (prevProps.onCopy !== nextProps.onCopy) return false
   if (prevProps.onRegenerate !== nextProps.onRegenerate) return false
+  if (prevProps.onStop !== nextProps.onStop) return false
 
   const prevMsg = prevProps.message
   const nextMsg = nextProps.message
@@ -93,6 +95,7 @@ export function areMessagePropsEqual(
   if (prevMsg.content !== nextMsg.content) return false
   if (prevMsg.timestamp !== nextMsg.timestamp) return false
   if (prevMsg.model !== nextMsg.model) return false
+  if (getAgentRunMemoKey(prevMsg.agentRun) !== getAgentRunMemoKey(nextMsg.agentRun)) return false
 
   // Compare thinking content (for extended thinking models)
   if (prevMsg.thinking !== nextMsg.thinking) return false

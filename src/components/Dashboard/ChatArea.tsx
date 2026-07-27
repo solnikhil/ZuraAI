@@ -87,6 +87,14 @@ export default function ChatArea() {
   const { isLoading, toolState, sendMessage, regenerateMessage, stopStreaming } = useStreamingChat({
     onRegenerateStart: () => {},
   })
+  const previousAssistantModeRef = useRef(settings.assistantMode)
+
+  useEffect(() => {
+    const exitedAgentMode =
+      previousAssistantModeRef.current === 'agent' && settings.assistantMode !== 'agent'
+    previousAssistantModeRef.current = settings.assistantMode
+    if (exitedAgentMode && isLoading) stopStreaming()
+  }, [isLoading, settings.assistantMode, stopStreaming])
   const displayedIsLoading = isLoading && displayedSessionIsCurrent
   const handledChatLinkKeysRef = useRef(new Set<string>())
   const hasOlderMessages =
@@ -389,6 +397,7 @@ export default function ChatArea() {
               message={msg}
               sessionId={displayedSessionId!}
               activeToolCalls={displayActiveToolCalls}
+              onStop={stopStreaming}
               onCopy={handleCopy}
               onRegenerate={(instruction) => {
                 if (displayedSessionIsCurrent) regenerateMessage(msg, instruction)
@@ -435,6 +444,7 @@ export default function ChatArea() {
       displayActiveToolCalls,
       handleCopy,
       regenerateMessage,
+      stopStreaming,
       visibleLiveToolResults,
     ]
   )

@@ -2,9 +2,7 @@ import type { ToolResult } from '../types'
 import type { ScreenshotArgs } from '../computerUse'
 import type { BackgroundWindowTarget } from './types'
 
-export function scopeScreenshotToBackgroundTarget(
-  target: BackgroundWindowTarget
-): ScreenshotArgs {
+export function scopeScreenshotToBackgroundTarget(target: BackgroundWindowTarget): ScreenshotArgs {
   return { window_id: `window:${target.hwnd}:0` }
 }
 
@@ -29,7 +27,7 @@ export function backgroundWindowPhysicalInputBlocked(
 ): ToolResult {
   const message =
     `${action} cannot release a reserved background window or emit shared physical input. ` +
-    'Resolve the intended outcome with the target-scoped accessibility tree and ui_click, ui_type_text, ui_set_value, ui_select, or ui_scroll. For a shortcut, search accelerator_key/access_key and invoke the matching element. If no semantic action exists, report foreground_required instead of focusing the app or moving the user\'s input devices.'
+    "Resolve the intended outcome with the target-scoped accessibility tree and ui_click, ui_type_text, ui_set_value, ui_select, or ui_scroll. For a shortcut, search accelerator_key/access_key and invoke the matching element. If no semantic action exists, report foreground_required instead of focusing the app or moving the user's input devices."
   return {
     success: false,
     error: message,

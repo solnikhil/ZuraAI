@@ -14,19 +14,19 @@ Third-party actions are pinned to full commit SHAs for supply-chain safety.
 
 ## Checks that run on pull requests
 
-| Check | Workflow file | Roughly when | Notes |
-| ----- | ------------- | ------------ | ----- |
-| **CI / test** | `ci.yml` | Every PR and push to main | Typecheck, unit tests, renderer build. Required. |
-| **Lint** | `lint.yml` | PRs that touch code (docs-only can skip) | Informational until lint debt is cleaned up |
-| **Knip** | `knip.yml` | Same path idea as lint | Unused deps/exports; informational for now |
-| **Validate PR Title** | `pr-title.yml` | Title changes | Must use Conventional Commits (`feat:`, `fix:`, …) |
-| **Dependency Review** | `dependency-review.yml` | Dependency files change | Blocks risky licenses/vulns when it runs |
-| **CI Cross-Platform** | `ci-cross-platform.yml` | Code/config paths change | Extra Mac/Windows/Linux coverage |
-| **Package Smoke** | `ci-package-smoke.yml` | Packaging-related paths | Unpacked electron-builder smoke builds |
-| **Pinned Actions** | `actions-pinned.yml` | Workflow files change | Enforces SHA-pinned third-party actions |
-| **CodeQL** | `codeql.yml` | PR, main, weekly | Static analysis |
-| **Secret Scan** | `secret-scan.yml` | PR, main, weekly | gitleaks |
-| **License Audit** | `license-audit.yml` | Dependency changes | Production license policy |
+| Check                 | Workflow file           | Roughly when                             | Notes                                              |
+| --------------------- | ----------------------- | ---------------------------------------- | -------------------------------------------------- |
+| **CI / test**         | `ci.yml`                | Every PR and push to main                | Typecheck, unit tests, renderer build. Required.   |
+| **Lint**              | `lint.yml`              | PRs that touch code (docs-only can skip) | Informational until lint debt is cleaned up        |
+| **Knip**              | `knip.yml`              | Same path idea as lint                   | Unused deps/exports; informational for now         |
+| **Validate PR Title** | `pr-title.yml`          | Title changes                            | Must use Conventional Commits (`feat:`, `fix:`, …) |
+| **Dependency Review** | `dependency-review.yml` | Dependency files change                  | Blocks risky licenses/vulns when it runs           |
+| **CI Cross-Platform** | `ci-cross-platform.yml` | Code/config paths change                 | Extra Mac/Windows/Linux coverage                   |
+| **Package Smoke**     | `ci-package-smoke.yml`  | Packaging-related paths                  | Unpacked electron-builder smoke builds             |
+| **Pinned Actions**    | `actions-pinned.yml`    | Workflow files change                    | Enforces SHA-pinned third-party actions            |
+| **CodeQL**            | `codeql.yml`            | PR, main, weekly                         | Static analysis                                    |
+| **Secret Scan**       | `secret-scan.yml`       | PR, main, weekly                         | gitleaks                                           |
+| **License Audit**     | `license-audit.yml`     | Dependency changes                       | Production license policy                          |
 
 Docs-only PRs usually skip the heavy matrix and package jobs.
 
@@ -38,11 +38,11 @@ Docs-only PRs usually skip the heavy matrix and package jobs.
 
 ## Automation bots
 
-| Workflow | What it does |
-| -------- | ------------ |
-| **Labeler** | Applies area labels from changed paths |
-| **Stale** | Nudges inactive issues/PRs, then closes after a grace period |
-| **Scorecard** | OpenSSF Scorecard results for the public badge |
+| Workflow      | What it does                                                 |
+| ------------- | ------------------------------------------------------------ |
+| **Labeler**   | Applies area labels from changed paths                       |
+| **Stale**     | Nudges inactive issues/PRs, then closes after a grace period |
+| **Scorecard** | OpenSSF Scorecard results for the public badge               |
 
 Dependabot is configured in `.github/dependabot.yml` (not a workflow). It opens weekly dependency PRs; we review them by hand.
 

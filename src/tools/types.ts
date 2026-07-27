@@ -90,6 +90,29 @@ export interface ToolCallResult {
   result: ToolResult
 }
 
+export type ToolApprovalOutcome =
+  | 'approved_once'
+  | 'approved_session'
+  | 'approved_policy'
+  | 'rejected'
+  | 'timed_out'
+  | 'unavailable'
+  | 'cancelled'
+  | 'error'
+
+export interface ToolApprovalDecision {
+  approved: boolean
+  outcome: ToolApprovalOutcome
+}
+
+/**
+ * Approval result returned only to the call site that requested it. The token is
+ * main-issued and must be forwarded by that exact call's execution closure.
+ */
+export interface ToolApprovalAuthorization extends ToolApprovalDecision {
+  approvalToken?: string
+}
+
 export interface ToolExecutionPolicy {
   /** Opaque ChatRunController identity propagated as trusted execution metadata. */
   runId?: string

@@ -8,9 +8,12 @@ vi.mock('../attachmentUtils', () => ({
 
 import {
   buildCommittedStreamingUpdates,
+  buildFailedStreamingUpdates,
   buildRegenerationResponseVersions,
   normalizeGeneratedSessionTitle,
+  resolveProviderRunOutcome,
 } from './useStreamingChat'
+import { createRegenerationTransaction } from './chatRunFinalization'
 
 describe('useStreamingChat final commit helpers', () => {
   it('prefers the final provider stream result over stale isolated streaming content', () => {
@@ -45,6 +48,7 @@ describe('useStreamingChat final commit helpers', () => {
       id: 'agent-run-1',
       mode: 'agent' as const,
       status: 'running' as const,
+      verification: 'not-required' as const,
       startedAt: 10,
       capabilities: {
         web: 'approval-required' as const,
@@ -86,6 +90,7 @@ describe('useStreamingChat final commit helpers', () => {
       id: 'agent-run-1',
       mode: 'agent' as const,
       status: 'running' as const,
+      verification: 'pending' as const,
       startedAt: 10,
       capabilities: {
         web: 'approval-required' as const,
@@ -117,6 +122,93 @@ describe('useStreamingChat final commit helpers', () => {
     expect(committed.agentRun?.status).toBe('cancelled')
     expect(committed.content).toBe('Partial\n\nTask stopped before completion.')
     expect(committed.content).not.toContain('ZURA_TOOL_FOLLOW_UP_SPLIT')
+  })
+
+  it('adds a truthful warning when a run completes without verification evidence', () => {
+    const run = {
+      id: 'run-unverified',
+      mode: 'agent' as const,
+      status: 'completed_unverified' as const,
+      verification: 'inconclusive' as const,
+      startedAt: 10,
+      completedAt: 20,
+      capabilities: {
+        web: 'approval-required' as const,
+        code: 'approval-required' as const,
+        mcp: 'approval-required' as const,
+        computer: 'approval-required' as const,
+      },
+      steps: [],
+    }
+
+    const updates = buildCommittedStreamingUpdates(
+      {
+        sessionId: 'session-1',
+        messageId: 'message-1',
+        content: 'The command was dispatched.',
+        isStreaming: true,
+      },
+      undefined,
+      run
+    )
+
+    expect(updates.content).toContain('The command was dispatched.')
+    expect(updates.content).toContain('I could not verify the requested outcome.')
+    expect(updates.agentRun).toBe(run)
+  })
+
+  it('maps a verification-failed agent run to a failed controller outcome', () => {
+    expect(
+      resolveProviderRunOutcome({
+        id: 'agent-run-failed',
+        mode: 'agent',
+        status: 'failed',
+        verification: 'inconclusive',
+        startedAt: 10,
+        completedAt: 20,
+        capabilities: {
+          web: 'approval-required',
+          code: 'approval-required',
+          mcp: 'approval-required',
+          computer: 'approval-required',
+        },
+        steps: [],
+      })
+    ).toBe('failed')
+  })
+
+  it('keeps the failed Agent ledger and tool trace while replacing speculative prose', () => {
+    const terminalRun = {
+      id: 'run-failed',
+      mode: 'agent' as const,
+      status: 'failed' as const,
+      verification: 'inconclusive' as const,
+      startedAt: 10,
+      completedAt: 20,
+      capabilities: {
+        web: 'approval-required' as const,
+        code: 'approval-required' as const,
+        mcp: 'approval-required' as const,
+        computer: 'approval-required' as const,
+      },
+      steps: [],
+    }
+    const updates = buildFailedStreamingUpdates(
+      {
+        sessionId: 'session-1',
+        messageId: 'message-1',
+        content: 'Speculative partial answer',
+        toolResults: [],
+        agentRun: { ...terminalRun, status: 'running' as const },
+        isStreaming: true,
+      },
+      'Provider failed safely.',
+      terminalRun
+    )
+
+    expect(updates.content).toBe('Provider failed safely.')
+    expect(updates.agentRun).toBe(terminalRun)
+    expect(updates.toolResults).toEqual([])
   })
 })
 
@@ -164,5 +256,66 @@ describe('useStreamingChat regeneration versions', () => {
     ])
     expect(versions).not.toBe(existingVersions)
     expect(existingVersions).toHaveLength(1)
+  })
+
+  it('leaves the original response untouched when regeneration is cancelled', () => {
+    const originalMessage = {
+      id: 'message-1',
+      role: 'assistant' as const,
+      content: 'Original response',
+      timestamp: 2,
+      model: 'openrouter/test-model',
+    }
+    const updateMessage = vi.fn()
+    const transaction = createRegenerationTransaction({
+      sessionId: 'session-1',
+      message: originalMessage,
+      model: 'openrouter/test-model',
+      responseVersions: buildRegenerationResponseVersions(originalMessage),
+      updateMessage,
+    })
+
+    expect(transaction.rollback()).toBe(true)
+    expect(transaction.rollback()).toBe(false)
+    expect(updateMessage).not.toHaveBeenCalled()
+    expect(originalMessage.content).toBe('Original response')
+  })
+
+  it('atomically commits regenerated content to the original response', () => {
+    const originalMessage = {
+      id: 'message-1',
+      role: 'assistant' as const,
+      content: 'Original response',
+      timestamp: 2,
+      model: 'openrouter/test-model',
+    }
+    const versions = buildRegenerationResponseVersions(originalMessage)
+    const updateMessage = vi.fn()
+    const transaction = createRegenerationTransaction({
+      sessionId: 'session-1',
+      message: originalMessage,
+      model: 'openrouter/next-model',
+      responseVersions: versions,
+      updateMessage,
+    })
+
+    expect(
+      transaction.commit({
+        content: 'Regenerated response',
+      })
+    ).toBe(true)
+    expect(transaction.rollback()).toBe(false)
+    expect(updateMessage).toHaveBeenCalledOnce()
+    expect(updateMessage).toHaveBeenCalledWith(
+      'session-1',
+      'message-1',
+      expect.objectContaining({
+        content: 'Regenerated response',
+        model: 'openrouter/next-model',
+        responseVersions: versions,
+        currentVersionIndex: versions.length,
+      }),
+      { persist: true }
+    )
   })
 })

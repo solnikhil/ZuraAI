@@ -80,6 +80,10 @@ describeWindows('tool routing through current-desktop Computer Use', () => {
       attach: ReturnType<typeof vi.fn>
       release: ReturnType<typeof vi.fn>
     }
+    agentRunHandlers: {
+      cancel: (event: { sender: { id: number } }, runId: unknown) => Promise<boolean>
+      getRuntime: (event: { sender: { id: number } }, runId: unknown) => unknown
+    }
   }> {
     let handler:
       | ((
@@ -89,10 +93,12 @@ describeWindows('tool routing through current-desktop Computer Use', () => {
           executionContext?: { approvalToken?: string; runId?: string }
         ) => Promise<unknown>)
       | null = null
+    const ipcHandlers = new Map<string, (...args: any[]) => any>()
 
     vi.doMock('../ipc/trustedIpc', () => ({
       trustedIpcMain: {
         handle: (channel: string, callback: typeof handler) => {
+          if (callback) ipcHandlers.set(channel, callback as (...args: any[]) => any)
           if (channel === 'execute-tool') handler = callback
         },
         removeHandler: vi.fn(),
@@ -106,6 +112,7 @@ describeWindows('tool routing through current-desktop Computer Use', () => {
       },
       ipcMain: {
         handle: vi.fn((channel: string, callback: typeof handler) => {
+          if (callback) ipcHandlers.set(channel, callback as (...args: any[]) => any)
           if (channel === 'execute-tool') {
             handler = callback
           }
@@ -231,8 +238,97 @@ describeWindows('tool routing through current-desktop Computer Use', () => {
       handler: handler as NonNullable<typeof handler>,
       handlers: { ...computerUse, ...nativeMocks, ...uiMocks },
       backgroundWindowCoordinator,
+      agentRunHandlers: {
+        cancel: ipcHandlers.get('agent-run:cancel') as (
+          event: { sender: { id: number } },
+          runId: unknown
+        ) => Promise<boolean>,
+        getRuntime: ipcHandlers.get('agent-run:get-runtime') as (
+          event: { sender: { id: number } },
+          runId: unknown
+        ) => unknown,
+      },
     }
   }
+
+  it('binds Agent runs to their sender at the execute-tool boundary', async () => {
+    const { handler, handlers, agentRunHandlers } = await loadToolHandler()
+    const context = { runId: 'owned-run' }
+
+    await expect(
+      handler({ sender: { id: 7 } }, 'file_read', { path: 'C:\\demo.txt' }, context)
+    ).resolves.toEqual(expect.objectContaining({ success: true }))
+    await expect(
+      handler({ sender: { id: 8 } }, 'file_read', { path: 'C:\\demo.txt' }, context)
+    ).resolves.toEqual({ success: false, error: 'Agent run is owned by another renderer.' })
+    expect(handlers.executeFileRead).toHaveBeenCalledTimes(1)
+    expect(() => agentRunHandlers.getRuntime({ sender: { id: 8 } }, 'owned-run')).toThrow(
+      'owned by another renderer'
+    )
+    await expect(agentRunHandlers.cancel({ sender: { id: 8 } }, 'owned-run')).rejects.toThrow(
+      'owned by another renderer'
+    )
+  })
+
+  it('keeps pre-tool cancellation authoritative at the execute-tool boundary', async () => {
+    const { handler, handlers, agentRunHandlers } = await loadToolHandler()
+
+    await expect(
+      agentRunHandlers.cancel({ sender: { id: 7 } }, 'cancel-before-dispatch')
+    ).resolves.toBe(true)
+    await expect(
+      handler(
+        { sender: { id: 7 } },
+        'file_read',
+        { path: 'C:\\demo.txt' },
+        { runId: 'cancel-before-dispatch' }
+      )
+    ).resolves.toEqual({
+      success: false,
+      error: 'Agent run stopped by its run cancellation.',
+    })
+    expect(handlers.executeFileRead).not.toHaveBeenCalled()
+  })
+
+  it('enforces the main-owned total tool budget before dispatch', async () => {
+    const { handler, handlers, agentRunHandlers } = await loadToolHandler()
+    const event = { sender: { id: 7 } }
+    const context = { runId: 'bounded-run' }
+
+    for (let index = 0; index < 120; index += 1) {
+      await expect(
+        handler(event, 'file_read', { path: `C:\\demo-${index}.txt` }, context)
+      ).resolves.toEqual(expect.objectContaining({ success: true }))
+    }
+    await expect(
+      handler(event, 'file_read', { path: 'C:\\over-budget.txt' }, context)
+    ).resolves.toEqual({
+      success: false,
+      error: 'Agent run stopped by its tool-call budget.',
+    })
+    expect(handlers.executeFileRead).toHaveBeenCalledTimes(120)
+    expect(agentRunHandlers.getRuntime(event, 'bounded-run')).toMatchObject({
+      status: 'cancelled',
+      stopReason: 'budget_exhausted',
+      budgetReason: 'tool_calls',
+      toolCalls: 120,
+    })
+  })
+
+  it('releases Agent accounting when a built-in handler fails', async () => {
+    const { handler, handlers, agentRunHandlers } = await loadToolHandler()
+    handlers.executeFileRead.mockRejectedValueOnce(new Error('read failed'))
+    const event = { sender: { id: 7 } }
+
+    await expect(
+      handler(event, 'file_read', { path: 'C:\\demo.txt' }, { runId: 'failed-built-in' })
+    ).resolves.toEqual({ success: false, error: 'read failed' })
+    expect(agentRunHandlers.getRuntime(event, 'failed-built-in')).toMatchObject({
+      activeToolCalls: 0,
+      status: 'running',
+      toolCalls: 1,
+    })
+  })
 
   it('routes computer_screenshot directly to the current-desktop handler', async () => {
     const { handler, handlers } = await loadToolHandler()

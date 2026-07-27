@@ -4,6 +4,7 @@ import { useEffect } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { StreamingProvider, useStreamingActions } from '../../../contexts/StreamingContext'
 import StreamingMessage from './StreamingMessage'
+import type { AgentRun } from '../../../chat/types'
 
 vi.mock('../../../contexts/SettingsContext', () => ({
   useSettings: () => ({
@@ -268,5 +269,77 @@ describe('StreamingMessage streaming layout replay', () => {
       const sequence = getTimelineSequence(screen.getByTestId('tool-phase-root'))
       expect(sequence).toEqual(['thinking-block', 'markdown'])
     })
+  })
+
+  it('refreshes the visible run ledger when its step state changes', () => {
+    const runningRun: AgentRun = {
+      id: 'agent-run-memo',
+      mode: 'agent',
+      status: 'running',
+      verification: 'pending',
+      startedAt: 1,
+      capabilities: {
+        web: 'approval-required',
+        code: 'approval-required',
+        mcp: 'approval-required',
+        computer: 'approval-required',
+      },
+      steps: [
+        {
+          id: 'step-memo',
+          kind: 'verify',
+          status: 'running',
+          title: 'Verify changes',
+          summary: 'Checking the result',
+        },
+      ],
+    }
+    const baseMessage = {
+      id: 'message-agent-memo',
+      role: 'assistant' as const,
+      content: 'Final answer',
+      timestamp: 1,
+      agentRun: runningRun,
+    }
+
+    const { rerender } = render(
+      <StreamingProvider>
+        <StreamingMessage message={baseMessage} sessionId="session-agent-memo" />
+      </StreamingProvider>
+    )
+
+    expect(screen.getByText('Running')).toBeInTheDocument()
+    const timeline = screen.getByRole('region', { name: 'Agent run timeline' })
+    const markdown = screen.getByTestId('markdown')
+    expect(
+      timeline.compareDocumentPosition(markdown) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
+
+    rerender(
+      <StreamingProvider>
+        <StreamingMessage
+          message={{
+            ...baseMessage,
+            agentRun: {
+              ...runningRun,
+              status: 'completed',
+              verification: 'verified',
+              completedAt: 10,
+              steps: [
+                {
+                  ...runningRun.steps[0],
+                  status: 'completed',
+                  completedAt: 10,
+                },
+              ],
+            },
+          }}
+          sessionId="session-agent-memo"
+        />
+      </StreamingProvider>
+    )
+
+    expect(screen.getByText('Verified')).toBeInTheDocument()
+    expect(screen.queryByText('Running')).not.toBeInTheDocument()
   })
 })

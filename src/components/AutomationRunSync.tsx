@@ -288,7 +288,11 @@ export function AutomationRunSync(): null {
                   requestToolApproval:
                     request.approvalMode === 'read_only'
                       ? async () => false
-                      : approval.requestApproval,
+                      : (toolCall) =>
+                          approval.requestApprovalDecision(toolCall, {
+                            runId: request.requestId,
+                            taskTitle: request.taskTitle,
+                          }),
                 },
               })
             : {
@@ -316,9 +320,7 @@ export function AutomationRunSync(): null {
           const nextRunDecision = ownsCadence
             ? parseAgentNextRunFromOutput(rawOutputText)
             : { kind: 'none' as const }
-          const outputText = ownsCadence
-            ? stripAgentNextRunMarkers(rawOutputText)
-            : rawOutputText
+          const outputText = ownsCadence ? stripAgentNextRunMarkers(rawOutputText) : rawOutputText
           chatHistory.updateStreamingMessage(
             automationChatSessionId,
             assistantMessageId,
@@ -394,7 +396,7 @@ export function AutomationRunSync(): null {
       })()
     })
   }, [
-    approval.requestApproval,
+    approval.requestApprovalDecision,
     chatHistory,
     createBackgroundAutomationChat,
     deliverArtifacts,

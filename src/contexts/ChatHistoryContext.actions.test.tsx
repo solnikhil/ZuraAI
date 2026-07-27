@@ -19,6 +19,14 @@ function Probe() {
       <button onClick={() => history.createSession('Original chat', null, 'session-1')}>
         create
       </button>
+      <button
+        onClick={() => {
+          const id = history.createSession('Immediate chat', null, 'immediate-session')
+          history.updateSessionTitle(id, 'Updated immediately')
+        }}
+      >
+        create-and-update
+      </button>
       <button onClick={() => history.pinSession('session-1')}>pin</button>
       <button onClick={() => history.unpinSession('session-1')}>unpin</button>
       <button onClick={() => history.addTag('session-1', 'work')}>add tag</button>
@@ -119,5 +127,21 @@ describe('ChatHistoryProvider actions', () => {
     expect(copy.messages[0].content).toBe(original.messages[0].content)
     expect(copy.messages[0].id).not.toBe(original.messages[0].id)
     expect(copy.pinned).toBe(false)
+  })
+
+  it('makes a committed session authoritative to the next synchronous action', async () => {
+    render(
+      <ChatHistoryProvider>
+        <Probe />
+      </ChatHistoryProvider>
+    )
+    await waitFor(() => expect(screen.getByTestId('loading')).toHaveTextContent('false'))
+
+    fireEvent.click(screen.getByText('create-and-update'))
+
+    await waitFor(() => {
+      expect(readSessions()).toHaveLength(1)
+      expect(readSessions()[0].title).toBe('Updated immediately')
+    })
   })
 })

@@ -69,7 +69,8 @@ export interface McpManagedConnection {
   getPrompt(name: string, args: Record<string, unknown>): Promise<McpPromptResult>
   callTool(
     toolName: string,
-    args: Record<string, unknown>
+    args: Record<string, unknown>,
+    signal?: AbortSignal
   ): Promise<{ content: unknown[]; structuredContent?: unknown; isError: boolean }>
 }
 
@@ -461,7 +462,8 @@ export class McpManager {
 
   async executeTool(
     namespacedToolName: string,
-    args: Record<string, unknown>
+    args: Record<string, unknown>,
+    signal?: AbortSignal
   ): Promise<{
     server: McpServerConfig
     tool: McpNamespacedTool
@@ -472,7 +474,7 @@ export class McpManager {
     return {
       server: executable.server,
       tool: executable.tool,
-      result: await executable.connection.callTool(executable.tool.toolName, args),
+      result: await executable.connection.callTool(executable.tool.toolName, args, signal),
     }
   }
 

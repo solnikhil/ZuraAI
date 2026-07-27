@@ -34,6 +34,61 @@ export function buildChatRunResultUpdates(result: StreamingResult): Partial<Mess
   }
 }
 
+export interface RegenerationTransaction {
+  commit: (result: StreamingResult) => boolean
+  rollback: () => boolean
+}
+
+/**
+ * Keeps the existing assistant response authoritative until regeneration succeeds.
+ * Cancellation and failure only settle the transaction; no compensating history
+ * write is needed because the original message was never removed.
+ */
+export function createRegenerationTransaction({
+  sessionId,
+  message,
+  model,
+  responseVersions,
+  updateMessage,
+}: {
+  sessionId: string
+  message: Message
+  model: string
+  responseVersions: NonNullable<Message['responseVersions']>
+  updateMessage: (
+    sessionId: string,
+    messageId: string,
+    updates: Partial<Message>,
+    options: { persist: true }
+  ) => void
+}): RegenerationTransaction {
+  let settled = false
+
+  return {
+    commit(result) {
+      if (settled) return false
+      settled = true
+      updateMessage(
+        sessionId,
+        message.id,
+        {
+          ...buildChatRunResultUpdates(result),
+          model: result.model ?? model,
+          responseVersions,
+          currentVersionIndex: responseVersions.length,
+        },
+        { persist: true }
+      )
+      return true
+    },
+    rollback() {
+      if (settled) return false
+      settled = true
+      return true
+    },
+  }
+}
+
 export function mergeStreamingFinalState(
   finalState: StreamingMessageState,
   result: StreamingResult

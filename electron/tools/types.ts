@@ -10,6 +10,8 @@ export interface ToolHandlerContext {
   senderWebContentsId: number
   /** Opaque chat-run identity supplied outside model-visible tool arguments. */
   runId?: string
+  /** Main-owned cancellation signal for this run. Handlers should stop promptly when supported. */
+  signal?: AbortSignal
   sendToRenderer?: (
     channel: 'background-window:run-stopped',
     payload: {

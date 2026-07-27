@@ -50,6 +50,10 @@ export interface ApprovalDecision {
 
 export interface AgentApprovalOverlayRequest {
   id: string
+  /** Opaque main-scoped Agent run identity; never included in model-visible arguments. */
+  runId?: string
+  /** Sanitized user-facing task context for the native approval overlay. */
+  taskTitle?: string
   title: string
   summary: string
   toolName: string
@@ -59,12 +63,34 @@ export interface AgentApprovalOverlayRequest {
   toolArguments: Record<string, unknown>
 }
 
+export type AgentApprovalOverlayOutcome =
+  | 'approved_once'
+  | 'approved_session'
+  | 'approved_policy'
+  | 'rejected'
+  | 'timed_out'
+  | 'unavailable'
+  | 'cancelled'
+  | 'error'
+
 export interface AgentApprovalOverlayDecision {
   approved: boolean
+  outcome: AgentApprovalOverlayOutcome
   trusted?: boolean
   autonomous?: boolean
   /** Main-owned, one-use authorization bound to the sender, tool, and exact arguments. */
   approvalToken?: string
+}
+
+export type AgentTrustedActionRiskClass = 'standard' | 'elevated' | 'high' | 'unknown'
+
+/** Sanitized metadata only. Exact signatures and arguments never leave main. */
+export interface AgentTrustedActionMetadata {
+  id: string
+  toolName: string
+  riskClass: AgentTrustedActionRiskClass
+  createdAt: number
+  lastUsedAt: number
 }
 
 export interface BuiltinToolExecutionContext {
@@ -364,6 +390,10 @@ export type AnalyticsEventName =
   | 'tool_used'
   | 'web_search_used'
   | 'mcp_server_connected'
+  | 'agent_run_started'
+  | 'agent_run_finished'
+  | 'agent_approval_resolved'
+  | 'agent_verification_resolved'
   | 'app_error'
   | 'app_crash'
 
@@ -638,8 +668,19 @@ export type IpcSendChannel = never
 
 export type IpcSendArgsMap = Record<never, never>
 
+export interface ChatStoreMutationResult {
+  changed: boolean
+  revision: number
+}
+
+export interface ChatStoreChangedEvent {
+  revision: number
+  source: 'self' | 'external'
+}
+
 export type IpcInvokeChannel =
   | 'chat-store:get-metadata'
+  | 'chat-store:get-revision'
   | 'chat-store:get-session'
   | 'chat-store:save-session'
   | 'chat-store:delete-session'
@@ -676,6 +717,7 @@ export type IpcInvokeChannel =
 
 export interface IpcInvokeArgsMap {
   'chat-store:get-metadata': []
+  'chat-store:get-revision': []
   'chat-store:get-session': [sessionId: string, options?: { limit?: number }]
   'chat-store:save-session': [session: ChatSession]
   'chat-store:delete-session': [sessionId: string]
@@ -717,16 +759,17 @@ export interface IpcInvokeArgsMap {
 
 export interface IpcInvokeReturnMap {
   'chat-store:get-metadata': ChatSessionMetadata[]
+  'chat-store:get-revision': number
   'chat-store:get-session': ChatSession | null
-  'chat-store:save-session': boolean
-  'chat-store:delete-session': boolean
-  'chat-store:save-index': boolean
+  'chat-store:save-session': ChatStoreMutationResult
+  'chat-store:delete-session': ChatStoreMutationResult
+  'chat-store:save-index': ChatStoreMutationResult
   'chat-store:get-all': ChatSession[]
   'chat-store:get-usage-sessions': ChatSession[]
-  'chat-store:save-all': boolean
-  'chat-store:migrate': boolean
+  'chat-store:save-all': ChatStoreMutationResult
+  'chat-store:migrate': ChatStoreMutationResult
   'chat-store:get-all-folders': Folder[]
-  'chat-store:save-folders': boolean
+  'chat-store:save-folders': ChatStoreMutationResult
   'tool-media:load': string | null
   'chat-diagnostics:append-event': boolean
   'chat-diagnostics:get-debug-reference': string | null
@@ -780,7 +823,7 @@ export interface IpcOnArgsMap {
   'update-download-progress': [progress: UpdaterDownloadProgress]
   'app:new-chat': []
   'settings:navigate': [section: string]
-  'chat-store:changed': []
+  'chat-store:changed': [event: ChatStoreChangedEvent]
   'context-menu:action': [action: NativeContextMenuAction]
   'chat-diagnostics:event': [event: ChatDiagnosticEvent]
   'chat-links:message': [request: ExternalChatMessageRequest]
@@ -899,10 +942,41 @@ export interface BackgroundWindowAPI {
   onRunStopped: (callback: (event: BackgroundWindowRunStoppedEvent) => void) => () => void
 }
 
+export interface AgentRunRuntimeSnapshot {
+  runId: string
+  status: 'running' | 'completed' | 'cancelled' | 'failed'
+  startedAt: number
+  finishedAt?: number
+  stopReason?:
+    | 'completed'
+    | 'cancelled'
+    | 'failed'
+    | 'budget_exhausted'
+    | 'renderer_destroyed'
+    | 'shutdown'
+  budgetReason?: 'tool_calls' | 'mutations' | 'elapsed_time'
+  toolCalls: number
+  mutations: number
+  activeToolCalls: number
+  limits: {
+    maxToolCalls: number
+    maxMutations: number
+    maxDurationMs: number
+  }
+}
+
+export interface AgentRunAPI {
+  cancel: (runId: string) => Promise<boolean>
+  getRuntime: (runId: string) => Promise<AgentRunRuntimeSnapshot | null>
+}
+
 export interface AgentApprovalAPI {
   requestApproval: (request: AgentApprovalOverlayRequest) => Promise<AgentApprovalOverlayDecision>
   getAutonomousMode: () => Promise<{ enabled: boolean }>
   setAutonomousMode: (enabled: boolean) => Promise<{ enabled: boolean }>
+  listTrustedActions: () => Promise<AgentTrustedActionMetadata[]>
+  revokeTrustedAction: (id: string) => Promise<boolean>
+  revokeAllTrustedActions: () => Promise<number>
 }
 
 export interface EmailNotificationsAPI {
@@ -931,7 +1005,7 @@ export interface McpAPI {
   executeTool: (
     namespacedToolName: string,
     args: Record<string, unknown>,
-    executionContext?: { approvalToken: string }
+    executionContext?: { approvalToken?: string; runId?: string }
   ) => Promise<McpToolExecutionResult>
   resolveApproval: (requestId: string, approved: boolean) => Promise<McpApprovalDecision>
   startOAuth: (serverId: string) => Promise<{ ok: boolean; status: McpAuthStatus; error?: string }>

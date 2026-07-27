@@ -22,11 +22,13 @@ import {
   type DeltaToolCall,
 } from './streamingUtils'
 import {
-  didVerificationSucceed,
+  assessVerificationEvidence,
   hasFreshMutationEvidence,
   selectVerificationStrategy,
+  type AgentVerificationOutcome,
   type AgentVerificationStrategy,
 } from '../../../../../agent/reliability'
+import { trackAgentVerificationResolved } from '../../../../../agent/agentAnalytics'
 import { createProviderStreamClient } from './providerStreamClient'
 import { resolveStreamPhase as resolveStreamPhaseForContent } from './streamingContentPlacement'
 import {
@@ -79,6 +81,11 @@ import {
   mergeGeneratedFiles,
   shouldSkipStrayReasoningDelta,
 } from './providerEventAccumulator'
+import {
+  createAgentToolLoopState,
+  transitionAgentToolLoop,
+  type AgentToolLoopEffect,
+} from './agentToolLoop'
 
 export interface ProviderStreamingRunOptions {
   runId?: string
@@ -228,8 +235,8 @@ export function useProviderStreaming({
           })
           options.toolEventCallbacks?.onToolApprovalStart?.(toolCall)
         },
-        onToolApprovalResolved: (toolCall, approved) => {
-          options.toolEventCallbacks?.onToolApprovalResolved?.(toolCall, approved)
+        onToolApprovalResolved: (toolCall, decision) => {
+          options.toolEventCallbacks?.onToolApprovalResolved?.(toolCall, decision)
         },
         onToolStart: (toolCall) => {
           logDiagnostic({
@@ -273,6 +280,24 @@ export function useProviderStreaming({
       let activeThinkingStartTime: number | null = null
       let citations: string[] = []
       let preserveToolSplitMarkers = false
+      let terminalVerificationOutcome: AgentVerificationOutcome | undefined
+      let verificationStartedAt: number | null = null
+      let verificationRecoveryUsed = false
+
+      const completeVerification = (
+        strategy: AgentVerificationStrategy,
+        outcome: AgentVerificationOutcome
+      ) => {
+        terminalVerificationOutcome = outcome
+        trackAgentVerificationResolved({
+          outcome,
+          recoveryUsed: verificationRecoveryUsed,
+          durationMs: Math.max(0, Date.now() - (verificationStartedAt ?? Date.now())),
+        })
+        verificationStartedAt = null
+        verificationRecoveryUsed = false
+        options.toolEventCallbacks?.onVerificationComplete?.(strategy, outcome)
+      }
 
       const throwIfAborted = () => {
         if (options.signal?.aborted) {
@@ -953,18 +978,35 @@ export function useProviderStreaming({
           publishStreamingProgress(searchProgress)
         }
 
-        if (toolResult.needsFollowUp && toolResult.formattedResults.length > 0) {
+        const initialVerificationStrategy = options.toolEventCallbacks
+          ? selectVerificationStrategy(toolResult.toolResults)
+          : null
+        if (
+          (toolResult.needsFollowUp || initialVerificationStrategy) &&
+          toolResult.formattedResults.length > 0
+        ) {
+          if (initialVerificationStrategy && !toolResult.needsFollowUp) {
+            toolResult = { ...toolResult, needsFollowUp: true }
+          }
           preserveToolSplitMarkers = true
-          let totalSearchCount = toolResult.executionSummary.executedWebSearchCount || 0
-          const searchQueryHistory = [...initialExecutedSearchQueries]
           let lastAssistantMessage = reconstructedMessage
-          let researchRound = 1
-          let pendingVerificationStrategy: AgentVerificationStrategy | null =
-            options.toolEventCallbacks ? selectVerificationStrategy(toolResult.toolResults) : null
-          let verificationStepStarted = false
-          let verificationRecoveryUsed = false
+          let toolLoopState = createAgentToolLoopState({
+            totalSearchCount: toolResult.executionSummary.executedWebSearchCount || 0,
+            initialSearchQueries: initialExecutedSearchQueries,
+            initialVerificationStrategy,
+          })
+          const applyToolLoopEffects = (effects: AgentToolLoopEffect[]) => {
+            for (const effect of effects) {
+              if (effect.type === 'verification-started') {
+                verificationStartedAt = Date.now()
+                options.toolEventCallbacks?.onVerificationStart?.(effect.strategy)
+              } else {
+                completeVerification(effect.strategy, effect.outcome)
+              }
+            }
+          }
           const initialLoopDecision = evaluateResearchContinuation({
-            searchCount: totalSearchCount,
+            searchCount: toolLoopState.totalSearchCount,
             maxRounds: options.researchMaxRounds,
             priorQueries: [],
             nextQueries: initialAttemptedSearchQueries,
@@ -975,9 +1017,9 @@ export function useProviderStreaming({
           logResearchLoop('loop-start', {
             provider,
             model,
-            totalSearchCount,
-            researchRound,
-            initialQueries: searchQueryHistory,
+            totalSearchCount: toolLoopState.totalSearchCount,
+            researchRound: toolLoopState.researchRound,
+            initialQueries: toolLoopState.searchQueryHistory,
             initialDecision: initialLoopDecision.reason || 'continue',
           })
 
@@ -992,8 +1034,8 @@ export function useProviderStreaming({
           if (shouldStopAfterInitialBatch && toolResult.needsFollowUp) {
             logResearchLoop('tool-loop-stopped', {
               reason: initialLoopDecision.reason || 'tool-result-complete',
-              totalSearchCount,
-              researchRound,
+              totalSearchCount: toolLoopState.totalSearchCount,
+              researchRound: toolLoopState.researchRound,
             })
             // Run a no-tools synthesis pass with bounded retries. Without
             // this the orchestrator would exit straight to `finish` with
@@ -1001,8 +1043,8 @@ export function useProviderStreaming({
             // retry pipeline handles blank, leaked-markup, and ungrounded
             // outputs and falls back to deterministic evidence when possible.
             await runFinalSynthesis(
-              researchRound,
-              totalSearchCount,
+              toolLoopState.researchRound,
+              toolLoopState.totalSearchCount,
               lastAssistantMessage,
               toolResult.formattedResults
             )
@@ -1012,7 +1054,10 @@ export function useProviderStreaming({
             }
           }
 
-          while (toolResult.needsFollowUp && researchRound < SAFETY_CAP) {
+          while (toolResult.needsFollowUp && toolLoopState.researchRound < SAFETY_CAP) {
+            const researchRound = toolLoopState.researchRound
+            const totalSearchCount = toolLoopState.totalSearchCount
+            const searchQueryHistory = toolLoopState.searchQueryHistory
             logResearchLoop('follow-up-round-start', {
               researchRound,
               totalSearchCount,
@@ -1020,10 +1065,17 @@ export function useProviderStreaming({
             })
 
             throwIfAborted()
-            const activeVerificationStrategy = pendingVerificationStrategy
-            if (activeVerificationStrategy && !verificationStepStarted) {
-              verificationStepStarted = true
-              options.toolEventCallbacks?.onVerificationStart?.(activeVerificationStrategy)
+            const startedTransition = transitionAgentToolLoop(toolLoopState, {
+              type: 'follow-up-round-started',
+            })
+            toolLoopState = startedTransition.state
+            applyToolLoopEffects(startedTransition.effects)
+            const activeVerificationStrategy = toolLoopState.pendingVerificationStrategy
+            if (
+              activeVerificationStrategy &&
+              toolLoopState.verificationCheckpoint.phase === 'recovery'
+            ) {
+              verificationRecoveryUsed = true
             }
             const researchContextMsg = toolCalling.getResearchContext(
               totalSearchCount,
@@ -1038,7 +1090,9 @@ export function useProviderStreaming({
                   requestMessages,
                   lastAssistantMessage,
                   toolResult.formattedResults,
-                  { recoveryAttempt: verificationRecoveryUsed }
+                  {
+                    recoveryAttempt: toolLoopState.verificationCheckpoint.phase === 'recovery',
+                  }
                 )
               : buildFollowUpMessages(
                   researchContextMsg,
@@ -1059,7 +1113,7 @@ export function useProviderStreaming({
             const recoveryTools = getVerificationRecoveryTools(
               tools,
               activeVerificationStrategy,
-              verificationRecoveryUsed
+              toolLoopState.verificationCheckpoint.phase === 'recovery'
             )
             const followUpRound = await runRound(followUpMessages, {
               round: researchRound,
@@ -1087,16 +1141,15 @@ export function useProviderStreaming({
                 }
                 updateStreamingState(rollback)
                 publishStreamingProgress(rollback)
-                researchRound += 1
-                if (!verificationRecoveryUsed) {
-                  verificationRecoveryUsed = true
-                  pendingVerificationStrategy = activeVerificationStrategy
+                const noToolTransition = transitionAgentToolLoop(toolLoopState, {
+                  type: 'follow-up-ended-without-tool-call',
+                })
+                toolLoopState = noToolTransition.state
+                applyToolLoopEffects(noToolTransition.effects)
+                if (toolLoopState.status === 'verification-recovery') {
                   continue
                 }
-                options.toolEventCallbacks?.onVerificationComplete?.(
-                  activeVerificationStrategy,
-                  false
-                )
+                finishReason = 'verification_failed'
                 break
               }
               const followUpClassifiable = {
@@ -1173,27 +1226,27 @@ export function useProviderStreaming({
             const nextMutationStrategy = selectVerificationStrategy(nextToolResult.toolResults)
             const continuedUiWorkflow =
               wasVerificationRound &&
-              !verificationRecoveryUsed &&
+              toolLoopState.verificationCheckpoint.phase === 'initial' &&
               nextMutationStrategy !== null &&
               (nextMutationStrategy.category === 'visual' ||
                 nextMutationStrategy.category === 'app-window') &&
               hasFreshMutationEvidence(nextToolResult.toolResults)
-            const verificationSucceeded =
+            const verificationOutcome =
               wasVerificationRound &&
               activeVerificationStrategy !== null &&
-              didVerificationSucceed(activeVerificationStrategy, nextToolResult.toolResults)
+              assessVerificationEvidence(activeVerificationStrategy, nextToolResult.toolResults)
 
             const attemptedSearchQueries = extractWebSearchQueries(nextToolResult.toolResults)
             const hasNonWebTools = hasNonWebToolResults(nextToolResult.toolResults)
             const executedSearchQueries =
               nextToolResult.executionSummary.executedWebSearchQueries || []
             const newWebSearches = nextToolResult.executionSummary.executedWebSearchCount || 0
-            totalSearchCount += newWebSearches
+            const nextTotalSearchCount = totalSearchCount + newWebSearches
 
             logResearchLoop('follow-up-tool-result', {
               researchRound,
               newWebSearches,
-              totalSearchCount,
+              totalSearchCount: nextTotalSearchCount,
               nextQueries: attemptedSearchQueries,
               needsFollowUp: nextToolResult.needsFollowUp,
             })
@@ -1230,38 +1283,29 @@ export function useProviderStreaming({
               ),
             })
 
-            researchRound += 1
-            if (activeVerificationStrategy) {
-              if (continuedUiWorkflow) {
-                pendingVerificationStrategy = nextMutationStrategy
-                verificationRecoveryUsed = false
-              } else if (verificationSucceeded) {
-                options.toolEventCallbacks?.onVerificationComplete?.(
-                  activeVerificationStrategy,
-                  true
-                )
-                pendingVerificationStrategy = null
-                verificationStepStarted = false
-                verificationRecoveryUsed = false
-              } else if (!verificationRecoveryUsed) {
-                verificationRecoveryUsed = true
-                pendingVerificationStrategy = activeVerificationStrategy
-              } else {
-                verificationRecoveryUsed = false
-                pendingVerificationStrategy = activeVerificationStrategy
-              }
-            } else {
-              pendingVerificationStrategy = options.toolEventCallbacks ? nextMutationStrategy : null
+            const toolResultsTransition = transitionAgentToolLoop(toolLoopState, {
+              type: 'follow-up-tool-results-received',
+              executedWebSearchCount: newWebSearches,
+              executedWebSearchQueries: executedSearchQueries,
+              nextMutationStrategy,
+              continuedUiWorkflow,
+              verificationOutcome,
+              verificationEnabled: Boolean(options.toolEventCallbacks),
+            })
+            toolLoopState = toolResultsTransition.state
+            applyToolLoopEffects(toolResultsTransition.effects)
+            if (toolLoopState.status === 'verification-failed') {
+              finishReason = 'verification_failed'
+              break
             }
             const continuationDecision = evaluateResearchContinuation({
-              searchCount: totalSearchCount,
+              searchCount: toolLoopState.totalSearchCount,
               maxRounds: options.researchMaxRounds,
               priorQueries: searchQueryHistory,
               nextQueries: attemptedSearchQueries,
               safetyCap: SAFETY_CAP,
               practicalCap: MAX_RESEARCH_ROUNDS,
             })
-            searchQueryHistory.push(...executedSearchQueries)
 
             const shouldStopAfterFollowUpBatch =
               !hasNonWebTools &&
@@ -1271,21 +1315,33 @@ export function useProviderStreaming({
             if (shouldStopAfterFollowUpBatch && nextToolResult.needsFollowUp) {
               logResearchLoop('tool-loop-stopped', {
                 reason: continuationDecision.reason || 'tool-result-complete',
-                totalSearchCount,
-                researchRound,
+                totalSearchCount: toolLoopState.totalSearchCount,
+                researchRound: toolLoopState.researchRound,
               })
               // Same gap as the post-initial-batch path: run a bounded
               // synthesis pass before breaking so the user gets an answer.
               await runFinalSynthesis(
-                researchRound,
-                totalSearchCount,
+                toolLoopState.researchRound,
+                toolLoopState.totalSearchCount,
                 lastAssistantMessage,
                 nextToolResult.formattedResults
               )
               break
             }
 
-            toolResult = nextToolResult
+            toolResult = toolLoopState.pendingVerificationStrategy
+              ? { ...nextToolResult, needsFollowUp: true }
+              : nextToolResult
+          }
+
+          if (toolLoopState.pendingVerificationStrategy) {
+            completeVerification(
+              toolLoopState.pendingVerificationStrategy,
+              toolLoopState.verificationCheckpoint.outcome === 'contradicted'
+                ? 'contradicted'
+                : 'inconclusive'
+            )
+            if (finishReason !== 'tool_error') finishReason = 'verification_failed'
           }
         }
       }
@@ -1315,7 +1371,12 @@ export function useProviderStreaming({
         usage: finalized.updates.usage,
       })
 
-      return finalized.result
+      return {
+        ...finalized.result,
+        ...(terminalVerificationOutcome
+          ? { verificationOutcome: terminalVerificationOutcome }
+          : {}),
+      }
     },
     [
       settings,

@@ -1,4 +1,5 @@
 import type { ChatIndexData, ChatSession, ChatSessionMetadata, Folder } from '../chat/types'
+import type { ChatStoreMutationResult } from '../electron/types'
 import { metadataToSession, normalizeSession } from './chatHistoryDomain'
 
 const LOCAL_CHAT_HISTORY_KEY = 'zura-chat-history'
@@ -8,19 +9,23 @@ export const isElectronChatRepository = () =>
   typeof window !== 'undefined' && Boolean(window.ipcRenderer)
 
 export const chatHistoryRepository = {
+  getRevision: () => window.ipcRenderer.invoke('chat-store:get-revision') as Promise<number>,
   getMetadata: () =>
     window.ipcRenderer.invoke('chat-store:get-metadata') as Promise<ChatSessionMetadata[]>,
   getFolders: () => window.ipcRenderer.invoke('chat-store:get-all-folders') as Promise<Folder[]>,
   getSession: (id: string, options?: { limit?: number }) =>
     window.ipcRenderer.invoke('chat-store:get-session', id, options) as Promise<ChatSession | null>,
   saveSession: (session: ChatSession) =>
-    window.ipcRenderer.invoke('chat-store:save-session', session) as Promise<boolean>,
+    window.ipcRenderer.invoke(
+      'chat-store:save-session',
+      session
+    ) as Promise<ChatStoreMutationResult>,
   deleteSession: (id: string) =>
-    window.ipcRenderer.invoke('chat-store:delete-session', id) as Promise<boolean>,
+    window.ipcRenderer.invoke('chat-store:delete-session', id) as Promise<ChatStoreMutationResult>,
   saveIndex: (index: ChatIndexData) =>
-    window.ipcRenderer.invoke('chat-store:save-index', index) as Promise<boolean>,
+    window.ipcRenderer.invoke('chat-store:save-index', index) as Promise<ChatStoreMutationResult>,
   migrate: (sessions: ChatSession[]) =>
-    window.ipcRenderer.invoke('chat-store:migrate', sessions) as Promise<boolean>,
+    window.ipcRenderer.invoke('chat-store:migrate', sessions) as Promise<ChatStoreMutationResult>,
 }
 
 export function readLocalChatIndex(): { sessions: ChatSession[]; folders: Folder[] } {

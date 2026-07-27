@@ -39,12 +39,18 @@ const ipcMainMocks = vi.hoisted(() => {
 
 const browserWindowMocks = vi.hoisted(() => {
   const send = vi.fn()
+  const externalSend = vi.fn()
   return {
     send,
+    externalSend,
     getAllWindows: vi.fn(() => [
       {
         isDestroyed: () => false,
-        webContents: { send },
+        webContents: { id: 1, send },
+      },
+      {
+        isDestroyed: () => false,
+        webContents: { id: 2, send: externalSend },
       },
       {
         isDestroyed: () => true,
@@ -109,6 +115,7 @@ describe('registerChatStoreHandlers', () => {
     ipcMainMocks.removeHandler.mockClear()
     browserWindowMocks.getAllWindows.mockClear()
     browserWindowMocks.send.mockClear()
+    browserWindowMocks.externalSend.mockClear()
     chatStoreMocks.getSessionMetadataAsync.mockReset()
     chatStoreMocks.getSessionAsync.mockReset()
     chatStoreMocks.saveSessionAsync.mockReset()
@@ -132,11 +139,57 @@ describe('registerChatStoreHandlers', () => {
     const handler = ipcMainMocks.handlers.get('chat-store:save-all')
     expect(handler).toBeTypeOf('function')
 
-    await handler?.({}, [session])
+    const result = await handler?.({ sender: { id: 1 } }, [session])
 
     expect(chatStoreMocks.saveAllSessionsAsync).toHaveBeenCalledWith([session])
     expect(browserWindowMocks.getAllWindows).toHaveBeenCalledTimes(1)
-    expect(browserWindowMocks.send).toHaveBeenCalledWith('chat-store:changed')
+    expect(result).toEqual({ changed: true, revision: 1 })
+    expect(browserWindowMocks.send).toHaveBeenCalledWith('chat-store:changed', {
+      revision: 1,
+      source: 'self',
+    })
+    expect(browserWindowMocks.externalSend).toHaveBeenCalledWith('chat-store:changed', {
+      revision: 1,
+      source: 'external',
+    })
+  })
+
+  it('does not acknowledge renderer migration when durable persistence fails', async () => {
+    chatStoreMocks.migrateFromLocalStorage.mockRejectedValue(new Error('disk unavailable'))
+    const { registerChatStoreHandlers } = await import('./chatStoreHandlers')
+    registerChatStoreHandlers()
+
+    const handler = ipcMainMocks.handlers.get('chat-store:migrate')
+    expect(handler).toBeTypeOf('function')
+
+    await expect(handler?.({ sender: { id: 1 } }, [session])).rejects.toThrow('disk unavailable')
+    expect(chatStoreMocks.migrateFromLocalStorage).toHaveBeenCalledWith([session])
+    expect(browserWindowMocks.send).not.toHaveBeenCalled()
+
+    const revisionHandler = ipcMainMocks.handlers.get('chat-store:get-revision')
+    await expect(revisionHandler?.({})).resolves.toBe(0)
+  })
+
+  it('assigns consecutive revisions to batched durable writes', async () => {
+    const { registerChatStoreHandlers } = await import('./chatStoreHandlers')
+    registerChatStoreHandlers()
+
+    const saveSession = ipcMainMocks.handlers.get('chat-store:save-session')
+    const saveIndex = ipcMainMocks.handlers.get('chat-store:save-index')
+    const index = { sessions: [], folders: [], version: 4 }
+
+    await expect(saveSession?.({ sender: { id: 1 } }, session)).resolves.toEqual({
+      changed: true,
+      revision: 1,
+    })
+    await expect(saveIndex?.({ sender: { id: 1 } }, index)).resolves.toEqual({
+      changed: true,
+      revision: 2,
+    })
+    expect(browserWindowMocks.externalSend).toHaveBeenLastCalledWith('chat-store:changed', {
+      revision: 2,
+      source: 'external',
+    })
   })
 
   it('broadcasts chat-store:changed after saving folders', async () => {
@@ -146,10 +199,13 @@ describe('registerChatStoreHandlers', () => {
     const handler = ipcMainMocks.handlers.get('chat-store:save-folders')
     expect(handler).toBeTypeOf('function')
 
-    await handler?.({}, [folder])
+    await handler?.({ sender: { id: 1 } }, [folder])
 
     expect(chatStoreMocks.saveFoldersAsync).toHaveBeenCalledWith([folder])
-    expect(browserWindowMocks.send).toHaveBeenCalledWith('chat-store:changed')
+    expect(browserWindowMocks.send).toHaveBeenCalledWith('chat-store:changed', {
+      revision: 1,
+      source: 'self',
+    })
   })
 
   it('deletes linked memory data when deleting a chat session', async () => {
@@ -163,13 +219,16 @@ describe('registerChatStoreHandlers', () => {
     const handler = ipcMainMocks.handlers.get('chat-store:delete-session')
     expect(handler).toBeTypeOf('function')
 
-    const result = await handler?.({}, 'session-1')
+    const result = await handler?.({ sender: { id: 1 } }, 'session-1')
 
-    expect(result).toBe(true)
+    expect(result).toEqual({ changed: true, revision: 1 })
     expect(chatStoreMocks.deleteSessionAsync).toHaveBeenCalledWith('session-1')
     expect(memoryStoreMocks.deleteMemoriesForSessionAsync).toHaveBeenCalledWith('session-1')
     expect(summaryStoreMocks.deleteSummaryAsync).toHaveBeenCalledWith('session-1')
-    expect(browserWindowMocks.send).toHaveBeenCalledWith('chat-store:changed')
+    expect(browserWindowMocks.send).toHaveBeenCalledWith('chat-store:changed', {
+      revision: 1,
+      source: 'self',
+    })
     expect(browserWindowMocks.send).toHaveBeenCalledWith('memory-store:changed')
   })
 
@@ -180,9 +239,9 @@ describe('registerChatStoreHandlers', () => {
     registerChatStoreHandlers()
 
     const handler = ipcMainMocks.handlers.get('chat-store:delete-session')
-    const result = await handler?.({}, 'missing-session')
+    const result = await handler?.({ sender: { id: 1 } }, 'missing-session')
 
-    expect(result).toBe(false)
+    expect(result).toEqual({ changed: false, revision: 0 })
     expect(memoryStoreMocks.deleteMemoriesForSessionAsync).not.toHaveBeenCalled()
     expect(summaryStoreMocks.deleteSummaryAsync).not.toHaveBeenCalled()
     expect(browserWindowMocks.send).not.toHaveBeenCalled()
@@ -197,9 +256,12 @@ describe('registerChatStoreHandlers', () => {
     registerChatStoreHandlers()
 
     const handler = ipcMainMocks.handlers.get('chat-store:delete-session')
-    await handler?.({}, 'session-2')
+    await handler?.({ sender: { id: 1 } }, 'session-2')
 
-    expect(browserWindowMocks.send).toHaveBeenCalledWith('chat-store:changed')
+    expect(browserWindowMocks.send).toHaveBeenCalledWith('chat-store:changed', {
+      revision: 1,
+      source: 'self',
+    })
     expect(browserWindowMocks.send).not.toHaveBeenCalledWith('memory-store:changed')
   })
 

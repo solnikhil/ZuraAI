@@ -4,6 +4,7 @@
 
 import { useState, useCallback, useRef, useMemo, useEffect } from 'react'
 import { useChatHistory, type Message } from '../../../../contexts/ChatHistoryContext'
+import type { AgentStep } from '../../../../chat/types'
 import {
   useStreamingActions,
   type StreamingMessageState,
@@ -22,6 +23,13 @@ import {
   upsertAgentVerificationStep,
 } from '../../../../agent/agentRun'
 import { useAgentToolApproval } from '../../../../agent/AgentToolApprovalContext'
+import type { ToolApprovalDecision } from '../../../../tools/types'
+import {
+  startAgentRunTelemetry,
+  type AgentRunStopReason,
+  type AgentRunTelemetrySession,
+  type AgentVerificationTelemetryOutcome,
+} from '../../../../agent/agentAnalytics'
 import { generateChatTitle } from '../../../../services/titleGenerator'
 import { runMemoryExtraction, type ExtractionMessage } from '../../../../services/memoryExtraction'
 import { buildOptimizedContextWithTrace } from '../../../../utils/tokenUtils'
@@ -57,7 +65,7 @@ import { buildStreamingSettings } from './streaming/chatRunConfig'
 import { ChatRunController, isChatRunAbort } from './chatRunController'
 import { buildChatRunRequest } from './chatRunRequest'
 import {
-  buildChatRunResultUpdates,
+  createRegenerationTransaction,
   finalizeChatRun,
   mergeStreamingFinalState,
 } from './chatRunFinalization'
@@ -117,6 +125,10 @@ export function buildCommittedStreamingUpdates(
   if (streamResult) {
     const updates = mergeStreamingFinalState(finalState, streamResult)
     if (terminalAgentRun) updates.agentRun = terminalAgentRun
+    if (terminalAgentRun?.status === 'completed_unverified') {
+      const existing = typeof updates.content === 'string' ? updates.content.trimEnd() : ''
+      updates.content = `${existing}${existing ? '\n\n' : ''}The action finished, but I could not verify the requested outcome.`
+    }
     return updates
   }
   const hasField = <K extends keyof StreamingMessageState>(key: K) =>
@@ -126,7 +138,9 @@ export function buildCommittedStreamingUpdates(
   const content =
     terminalAgentRun?.status === 'cancelled'
       ? `${cleanContent}${cleanContent ? '\n\n' : ''}Task stopped before completion.`
-      : cleanContent
+      : terminalAgentRun?.status === 'completed_unverified'
+        ? `${cleanContent}${cleanContent ? '\n\n' : ''}The action finished, but I could not verify the requested outcome.`
+        : cleanContent
   const updates: Partial<Message> = { content }
 
   if (hasField('thinking')) updates.thinking = finalState.thinking
@@ -146,11 +160,57 @@ export function buildCommittedStreamingUpdates(
   return updates
 }
 
+export function buildFailedStreamingUpdates(
+  finalState: StreamingMessageState,
+  errorMessage: string,
+  terminalAgentRun?: Message['agentRun']
+): Partial<Message> {
+  return {
+    ...buildCommittedStreamingUpdates(finalState, undefined, terminalAgentRun),
+    // Do not preserve speculative partial prose as the answer after a provider failure. Tool,
+    // thinking, and Agent ledger fields remain available as the diagnostic trace.
+    content: errorMessage,
+    ...(terminalAgentRun ? { agentRun: terminalAgentRun } : {}),
+  }
+}
+
 export function normalizeGeneratedSessionTitle(
   generatedTitle: string | null | undefined
 ): string | null {
   const normalizedTitle = generatedTitle?.trim() || ''
   return normalizedTitle || null
+}
+
+export function resolveProviderRunOutcome(
+  terminalAgentRun: Message['agentRun']
+): 'completed' | 'failed' {
+  return terminalAgentRun?.status === 'failed' ? 'failed' : 'completed'
+}
+
+function toTelemetryVerification(
+  verification: NonNullable<Message['agentRun']>['verification']
+): AgentVerificationTelemetryOutcome {
+  if (verification === 'not-required') return 'not_required'
+  if (verification === 'pending') return 'unverified'
+  return verification
+}
+
+function toAgentApprovalState(
+  decision: ToolApprovalDecision
+): NonNullable<AgentStep['approvalState']> {
+  if (decision.approved) return 'approved'
+  switch (decision.outcome) {
+    case 'timed_out':
+      return 'timed_out'
+    case 'cancelled':
+      return 'cancelled'
+    case 'unavailable':
+      return 'unavailable'
+    case 'error':
+      return 'error'
+    default:
+      return 'rejected'
+  }
 }
 
 function hasImageAttachments(files?: AttachedFile[]) {
@@ -192,6 +252,10 @@ function buildMemoryExtractionMessages(
 export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStreamingChatReturn {
   const [isLoading, setIsLoading] = useState(false)
   const activeRunRef = useRef<ChatRunController | null>(null)
+  const activeTransactionRef = useRef<{
+    run: ChatRunController
+    rollback: () => boolean
+  } | null>(null)
 
   // Throttle partial updates so long responses do not repaint the message list on every token.
   const throttlerRef = useRef<StreamingThrottler | null>(null)
@@ -207,7 +271,6 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
     updateStreamingMessage,
     createSession,
     updateSessionTitle,
-    deleteMessageFromSession,
   } = useChatHistory()
 
   // Keep in-flight content in the isolated streaming store until the response finishes.
@@ -222,11 +285,15 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
 
   // Track current streaming message for isolated updates
   const streamingMessageRef = useRef<{ sessionId: string; messageId: string } | null>(null)
+  const agentTelemetryRef = useRef<{
+    controllerRunId: string
+    session: AgentRunTelemetrySession
+  } | null>(null)
   const titleRevealIntervalRef = useRef<Map<string, number>>(new Map())
 
   const { settings, updateSettings } = useSettings()
   const { showToast } = useToast()
-  const { requestApproval } = useAgentToolApproval()
+  const { requestApprovalDecision } = useAgentToolApproval()
   const activeAgentRunRef = useRef<Message['agentRun'] | undefined>(undefined)
 
   const publishAgentRun = useCallback(
@@ -397,6 +464,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
       if (outcome && window.backgroundWindow?.releaseRun) {
         void window.backgroundWindow.releaseRun(run.id, outcome).catch(() => undefined)
       }
+      if (activeTransactionRef.current?.run === run) activeTransactionRef.current = null
       if (activeRunRef.current === run) activeRunRef.current = null
       setIsLoading(false)
       clearToolState()
@@ -405,17 +473,55 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
     [clearToolState, options]
   )
 
+  const finishAgentTelemetry = useCallback(
+    (terminalRun: Message['agentRun'], fallbackStopReason: AgentRunStopReason) => {
+      const telemetry = agentTelemetryRef.current
+      if (!telemetry || !terminalRun) return
+      agentTelemetryRef.current = null
+
+      void (async () => {
+        const runtime = await window.agentRun
+          ?.getRuntime(telemetry.controllerRunId)
+          .catch(() => null)
+        const budgetExhausted = runtime?.stopReason === 'budget_exhausted'
+        const stopReason =
+          fallbackStopReason === 'user_stop'
+            ? 'user_stop'
+            : (runtime?.stopReason ?? fallbackStopReason)
+        telemetry.session.finish({
+          outcome: budgetExhausted
+            ? 'failed'
+            : terminalRun.status === 'cancelled'
+              ? 'cancelled'
+              : terminalRun.status === 'failed'
+                ? 'failed'
+                : 'completed',
+          verificationOutcome: toTelemetryVerification(terminalRun.verification),
+          stopReason,
+          ...(runtime?.budgetReason ? { budgetReason: runtime.budgetReason } : {}),
+          finishedAt: terminalRun.completedAt,
+        })
+      })()
+    },
+    []
+  )
+
   const stopStreaming = useCallback(() => {
     const run = activeRunRef.current
     if (!run) return
+    void window.agentRun?.cancel(run.id).catch(() => undefined)
 
     finalizeChatRun(
       run,
       'cancelled',
       () => {
+        if (activeTransactionRef.current?.run === run) {
+          activeTransactionRef.current.rollback()
+        }
         flushThrottledUpdates()
         if (streamingMessageRef.current) {
           const terminalAgentRun = finishAgentRun(activeAgentRunRef.current, 'cancelled')
+          finishAgentTelemetry(terminalAgentRun, 'user_stop')
           if (terminalAgentRun) {
             publishAgentRun(
               streamingMessageRef.current.sessionId,
@@ -445,6 +551,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
     buildFinalStreamingUpdates,
     publishAgentRun,
     finishRunUi,
+    finishAgentTelemetry,
   ])
 
   useEffect(() => {
@@ -585,8 +692,15 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
         })
 
         const initialAgentRun = isAgentWorkspaceMode(settings.assistantMode)
-          ? createAgentRun(settings.assistantMode, content)
+          ? createAgentRun(settings.assistantMode, content, run.id)
           : undefined
+        agentTelemetryRef.current = initialAgentRun
+          ? {
+              controllerRunId: run.id,
+              session: startAgentRunTelemetry(initialAgentRun.startedAt),
+            }
+          : null
+        activeAgentRunRef.current = initialAgentRun
 
         const streamingMessageId = addMessageToSession(targetSessionId!, {
           role: 'assistant',
@@ -619,7 +733,8 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
             syncToStreamingContext: true,
             toolEventCallbacks: activeAgentRunRef.current
               ? {
-                  requestToolApproval: requestApproval,
+                  requestToolApproval: (toolCall) =>
+                    requestApprovalDecision(toolCall, { runId: run.id, taskTitle: content }),
                   onToolApprovalStart: (toolCall) => {
                     if (!run.isFinalized && run.phase === 'streaming')
                       run.transition('awaiting_tool')
@@ -634,18 +749,23 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
                       })
                     )
                   },
-                  onToolApprovalResolved: (toolCall, approved) => {
-                    if (!run.isFinalized && run.phase === 'awaiting_tool' && !approved) {
+                  onToolApprovalResolved: (toolCall, decision) => {
+                    if (!run.isFinalized && run.phase === 'awaiting_tool' && !decision.approved) {
                       run.transition('streaming')
                     }
                     if (!activeAgentRunRef.current) return
+                    const approvalState = toAgentApprovalState(decision)
                     publishAgentRun(
                       targetSessionId!,
                       streamingMessageId,
                       upsertAgentToolStep(activeAgentRunRef.current, toolCall, {
-                        status: approved ? 'pending' : 'rejected',
-                        approvalState: approved ? 'approved' : 'rejected',
-                        completedAt: approved ? undefined : Date.now(),
+                        status: decision.approved
+                          ? 'pending'
+                          : decision.outcome === 'rejected'
+                            ? 'rejected'
+                            : 'failed',
+                        approvalState,
+                        completedAt: decision.approved ? undefined : Date.now(),
                       })
                     )
                   },
@@ -686,14 +806,15 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
                       })
                     )
                   },
-                  onVerificationComplete: (strategy, verified) => {
+                  onVerificationComplete: (strategy, outcome) => {
                     if (!activeAgentRunRef.current) return
                     const now = Date.now()
                     publishAgentRun(
                       targetSessionId!,
                       streamingMessageId,
                       upsertAgentVerificationStep(activeAgentRunRef.current, strategy, {
-                        status: verified ? 'completed' : 'failed',
+                        status: outcome === 'verified' ? 'completed' : 'failed',
+                        verificationOutcome: outcome,
                         completedAt: now,
                         durationMs: Math.max(
                           0,
@@ -712,11 +833,21 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
 
         // Commit streaming content to the session
         let assistantTextForMemory = ''
+        if (activeAgentRunRef.current && streamResult.verificationOutcome) {
+          activeAgentRunRef.current = {
+            ...activeAgentRunRef.current,
+            verification: streamResult.verificationOutcome,
+          }
+        }
+        const terminalAgentRun = finishAgentRun(activeAgentRunRef.current, 'completed')
+        finishAgentTelemetry(
+          terminalAgentRun,
+          terminalAgentRun?.status === 'failed' ? 'verification_failed' : 'completed'
+        )
         finalizeChatRun(
           run,
-          'completed',
+          resolveProviderRunOutcome(terminalAgentRun),
           () => {
-            const terminalAgentRun = finishAgentRun(activeAgentRunRef.current, 'completed')
             if (streamingMessageRef.current && terminalAgentRun) {
               publishAgentRun(
                 streamingMessageRef.current.sessionId,
@@ -800,21 +931,27 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
         trackRendererError('provider', formattedError.tone)
         const errorMsg = formattedError.message
         showToast(errorMsg, formattedError.tone)
+        const terminalAgentRun = finishAgentRun(activeAgentRunRef.current, 'failed')
+        finishAgentTelemetry(terminalAgentRun, 'failed')
 
         finalizeChatRun(
           run,
           'failed',
           () => {
             if (streamingMessageRef.current) {
+              const { sessionId, messageId } = streamingMessageRef.current
+              const finalState = completeStreaming()
               activeAgentRunRef.current = undefined
-              deleteMessageFromSession(
-                streamingMessageRef.current.sessionId,
-                streamingMessageRef.current.messageId
+              updateStreamingMessage(
+                sessionId,
+                messageId,
+                buildFailedStreamingUpdates(finalState, errorMsg, terminalAgentRun),
+                { persist: true }
               )
-              cancelStreaming()
               streamingMessageRef.current = null
+            } else {
+              addMessageToSession(targetSessionId!, { role: 'assistant', content: errorMsg })
             }
-            addMessageToSession(targetSessionId!, { role: 'assistant', content: errorMsg })
           },
           () => finishRunUi(run)
         )
@@ -832,7 +969,6 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
       addMessageToSession,
       updateStreamingMessage,
       applyGeneratedSessionTitle,
-      deleteMessageFromSession,
       clearToolState,
       startResearchMode,
       getResearchContext,
@@ -845,8 +981,9 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
       runProviderStream,
       buildFinalStreamingUpdates,
       publishAgentRun,
-      requestApproval,
+      requestApprovalDecision,
       finishRunUi,
+      finishAgentTelemetry,
     ]
   )
 
@@ -883,6 +1020,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
       activeRunRef.current = run
       clearToolState()
       setIsLoading(true)
+      let regenerationTransaction: ReturnType<typeof createRegenerationTransaction> | undefined
 
       try {
         const session = sessions.find((s) => s.id === currentSessionId)
@@ -953,6 +1091,19 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
           return
         }
 
+        regenerationTransaction = createRegenerationTransaction({
+          sessionId: currentSessionId,
+          message,
+          model: `${effectiveSettings.modelProvider}/${effectiveSettings.aiModel}`,
+          responseVersions: versions,
+          updateMessage: updateStreamingMessage,
+        })
+        activeTransactionRef.current = {
+          run,
+          rollback: regenerationTransaction.rollback,
+        }
+        options.onRegenerateStart?.()
+
         const memoryScope = getSessionMemoryScope(sessions, currentSessionId, folders)
         const systemPrompt = getEffectiveSystemPrompt(
           effectiveSettings,
@@ -961,6 +1112,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
           }),
           await loadRecentActivityBlock(effectiveSettings)
         )
+        if (run.signal.aborted) return
         let userContent = userMessage.content
 
         if (instruction === 'concise') {
@@ -970,17 +1122,6 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
         } else if (instruction && instruction.trim()) {
           userContent += `\n\n[Regenerate Instruction]: ${instruction}`
         }
-
-        deleteMessageFromSession(currentSessionId, message.id)
-        options.onRegenerateStart?.()
-
-        const streamingMessageId = addMessageToSession(currentSessionId, {
-          role: 'assistant',
-          content: '',
-          model: `${effectiveSettings.modelProvider}/${effectiveSettings.aiModel}`,
-          responseVersions: versions,
-          currentVersionIndex: versions.length,
-        })
 
         const outboundUserMessage = {
           role: 'user' as const,
@@ -1006,7 +1147,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
               run,
               settings: effectiveSettings,
               sessionId: currentSessionId,
-              messageId: streamingMessageId,
+              messageId: message.id,
               messages: apiMessages,
               contextTrace: optimizedContext.trace,
               providerStartTime: performance.now(),
@@ -1022,12 +1163,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
             run,
             'completed',
             () => {
-              updateStreamingMessage(
-                currentSessionId,
-                streamingMessageId,
-                buildChatRunResultUpdates(regenerationResult),
-                { persist: true }
-              )
+              regenerationTransaction?.commit(regenerationResult)
             },
             () => finishRunUi(run)
           )
@@ -1047,15 +1183,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
             run,
             'failed',
             () => {
-              deleteMessageFromSession(currentSessionId, streamingMessageId)
-              addMessageToSession(currentSessionId, {
-                role: 'assistant',
-                content: message.content,
-                model: message.model,
-                thinking: message.thinking,
-                responseVersions: message.responseVersions,
-                currentVersionIndex: message.currentVersionIndex,
-              })
+              regenerationTransaction?.rollback()
             },
             () => finishRunUi(run)
           )
@@ -1072,7 +1200,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
         finalizeChatRun(
           run,
           'failed',
-          () => undefined,
+          () => regenerationTransaction?.rollback(),
           () => finishRunUi(run)
         )
       }
@@ -1082,9 +1210,7 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
       isLoading,
       sessions,
       settings,
-      addMessageToSession,
       updateStreamingMessage,
-      deleteMessageFromSession,
       clearToolState,
       showToast,
       options,

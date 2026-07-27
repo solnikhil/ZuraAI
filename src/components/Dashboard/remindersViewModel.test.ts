@@ -52,9 +52,7 @@ describe('remindersViewModel', () => {
       logs: [],
       outputText: 'Hello world from automation',
     }
-    expect(summarizeLastRun(run, 'ai_automation')).toBe(
-      'Last: Done — Hello world from automation'
-    )
+    expect(summarizeLastRun(run, 'ai_automation')).toBe('Last: Done — Hello world from automation')
   })
 
   it('validates and builds create payloads', () => {

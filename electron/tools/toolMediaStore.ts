@@ -48,7 +48,8 @@ function decodeBase64Payload(value: string): Buffer | null {
     const buffer = Buffer.from(raw, 'base64')
     if (buffer.length < 32) return null
     // PNG or JPEG magic
-    const isPng = buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4e && buffer[3] === 0x47
+    const isPng =
+      buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4e && buffer[3] === 0x47
     const isJpeg = buffer[0] === 0xff && buffer[1] === 0xd8
     if (!isPng && !isJpeg) return null
     return buffer

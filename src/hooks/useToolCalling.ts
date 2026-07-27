@@ -14,6 +14,8 @@ import { ToolCall } from '../tools/executor'
 import {
   isSkippedBuiltinToolResult,
   type ToolCallingResponse,
+  type ToolApprovalDecision,
+  type ToolApprovalAuthorization,
   type ToolExecutionPolicy,
   type ToolExecutionSummary,
 } from '../tools/types'
@@ -373,8 +375,8 @@ export function useToolCalling() {
     executionPolicy?: ToolExecutionPolicy,
     approvalCallbacks?: {
       onToolApprovalStart?: (toolCall: ToolCall) => void
-      onToolApprovalResolved?: (toolCall: ToolCall, approved: boolean) => void
-      requestToolApproval?: (toolCall: ToolCall) => Promise<boolean>
+      onToolApprovalResolved?: (toolCall: ToolCall, decision: ToolApprovalDecision) => void
+      requestToolApproval?: (toolCall: ToolCall) => Promise<ToolApprovalAuthorization | boolean>
     }
   ): Promise<{
     hasTools: boolean

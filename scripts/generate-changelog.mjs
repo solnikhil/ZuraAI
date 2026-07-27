@@ -48,8 +48,8 @@ function readCuratedRelease(version) {
   const section = changelog.match(
     new RegExp(
       `^## \\[${escapedVersion}\\](?:\\s+-[^\\n]*)?\\r?\\n([\\s\\S]*?)(?=^## \\[|^\\[[^\\]]+\\]:|(?![\\s\\S]))`,
-      'm',
-    ),
+      'm'
+    )
   )
 
   return section?.[1]?.trim() || ''

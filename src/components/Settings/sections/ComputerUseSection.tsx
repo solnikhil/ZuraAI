@@ -3,12 +3,17 @@ import React from 'react'
 import { Card } from '@/components/ui/card'
 import { Switch } from '@/components/ui/switch'
 
-import { isSkillEnabled, withComputerUseEnabled, type SkillsSettings } from '@/skills'
+import { isSkillEnabled, type SkillsSettings } from '@/skills'
 import { Monitor } from '../../icons'
+import type { Settings } from '@/contexts/SettingsContext'
+import { buildAgentModeSettingsUpdate, prepareAgentModeExit } from '@/agent/agentModeTransition'
 
 export interface ComputerUseSectionProps {
   skills: SkillsSettings
-  onChange: (changes: { skills?: SkillsSettings }) => void
+  onChange: (changes: {
+    skills?: SkillsSettings
+    assistantMode?: Settings['assistantMode']
+  }) => void
 }
 
 export function ComputerUseSection({
@@ -17,10 +22,15 @@ export function ComputerUseSection({
 }: ComputerUseSectionProps): React.ReactElement {
   const thisDesktopEnabled = isSkillEnabled(skills, 'computer_use')
 
-  const handleThisDesktopChange = (enabled: boolean) => {
-    onChange({
-      skills: withComputerUseEnabled(skills, enabled),
-    })
+  const handleThisDesktopChange = async (enabled: boolean) => {
+    if (!enabled) {
+      try {
+        await prepareAgentModeExit()
+      } catch {
+        return
+      }
+    }
+    onChange(buildAgentModeSettingsUpdate(skills, enabled))
   }
 
   return (
@@ -57,7 +67,7 @@ export function ComputerUseSection({
               <Switch
                 className="provider-hub-toggle"
                 checked={thisDesktopEnabled}
-                onCheckedChange={handleThisDesktopChange}
+                onCheckedChange={(enabled) => void handleThisDesktopChange(enabled)}
                 aria-label="Enable Agent Mode"
               />
             }

@@ -198,7 +198,7 @@ export async function trackAnalyticsEvent(
     return false
   }
 
-  return sendToPostHog(eventName, sanitizeAnalyticsProperties(properties))
+  return sendToPostHog(eventName, sanitizeAnalyticsProperties(properties, eventName))
 }
 
 async function trackFirstLaunchAndStartIfNeeded(): Promise<void> {

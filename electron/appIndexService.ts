@@ -5,8 +5,21 @@ import fs from 'fs/promises'
 import os from 'os'
 import path from 'path'
 
-import { scoreAppSearch } from '../src/tools/search'
-import { writeFileAtomic } from './utils/atomicFile'
+import { AppIconLifecycle } from './app-index/iconLifecycle'
+import { mergeByKey } from './app-index/merger'
+import { createPlatformDiscovery } from './app-index/platformDiscovery'
+import { rankApps } from './app-index/ranking'
+import { AppIndexRefreshCoordinator } from './app-index/refreshCoordinator'
+import { AppIndexRepository } from './app-index/repository'
+import type {
+  AppIndexDiagnostics,
+  AppIndexEntry,
+  AppIndexSource,
+  AppLaunchStrategy,
+  RankedAppIndexEntry,
+  RawAppMatch,
+  UserAssistUsage,
+} from './app-index/types'
 import {
   isWindows,
   MAX_APP_INDEX_OUTPUT_LENGTH,
@@ -37,42 +50,13 @@ type ShortcutScanBudget = {
   stoppedReason?: 'entry-limit' | 'timeout'
 }
 
-export type AppIndexSource = 'windows-search' | 'start-menu' | 'desktop' | 'macos-applications'
-export type AppLaunchStrategy = 'appUserModelId' | 'shortcutPath'
-
-export interface AppIndexEntry {
-  id: string
-  name: string
-  normalizedName: string
-  aliases: string[]
-  source: AppIndexSource
-  appUserModelId?: string
-  shortcutPath?: string
-  targetPath?: string
-  iconPath?: string
-  args?: string
-  workingDirectory?: string
-  launchStrategy: AppLaunchStrategy
-  iconKey?: string
-  lastSeenAt: number
-  launchCount?: number
-  lastLaunchedAt?: number
-  usageCount?: number
-  lastUsedAt?: number
-}
-
-export interface AppIndexDiagnostics {
-  ok: boolean
-  stale: boolean
-  error?: string
-  sourceCounts: Record<string, number>
-  lastRefreshAt?: number
-  refreshDurationMs?: number
-}
-
-export interface RankedAppIndexEntry extends AppIndexEntry {
-  rank: number
-}
+export type {
+  AppIndexDiagnostics,
+  AppIndexEntry,
+  AppIndexSource,
+  AppLaunchStrategy,
+  RankedAppIndexEntry,
+} from './app-index/types'
 
 interface AppIndexSnapshot {
   version: number
@@ -86,23 +70,6 @@ interface NativeStartApp {
   appUserModelId?: string
 }
 
-interface RawAppMatch {
-  name: string
-  source: AppIndexSource
-  path?: string
-  targetPath?: string
-  iconPath?: string
-  args?: string
-  workingDirectory?: string
-  appUserModelId?: string
-}
-
-interface UserAssistUsage {
-  name: string
-  lastUsedAt?: number
-  usageCount?: number
-}
-
 let memoryApps: AppIndexEntry[] = []
 let diagnostics: AppIndexDiagnostics = {
   ok: true,
@@ -112,29 +79,12 @@ let diagnostics: AppIndexDiagnostics = {
 let loadedSnapshot = false
 let refreshRequest: Promise<AppIndexDiagnostics> | null = null
 /** Bound icon data-URL cache — each large (48px) base64 icon is multi-KB. */
-const MAX_ICON_CACHE_ENTRIES = 128
 /** Successful icons only. Failed keys live in `failedIconKeys` so they do not
  *  thrash the LRU or force the overlay into endless refresh loops. */
-const iconCache = new Map<string, string>()
-const failedIconKeys = new Set<string>()
-const iconRequests = new Map<string, Promise<string | undefined>>()
-const iconQueue: Array<() => void> = []
-let activeIconJobs = 0
-let iconCacheGeneration = 0
 let watchersStarted = false
 let refreshTimer: ReturnType<typeof setTimeout> | undefined
 const shortcutWatchers = new Set<FSWatcher>()
-
-function setIconCacheEntry(iconKey: string, iconDataUrl: string): void {
-  // Refresh insertion order for LRU behavior (Map preserves order).
-  iconCache.delete(iconKey)
-  iconCache.set(iconKey, iconDataUrl)
-  while (iconCache.size > MAX_ICON_CACHE_ENTRIES) {
-    const oldestKey = iconCache.keys().next().value
-    if (typeof oldestKey !== 'string') break
-    iconCache.delete(oldestKey)
-  }
-}
+const refreshCoordinator = new AppIndexRefreshCoordinator()
 
 function indexPath(): string {
   return path.join(app.getPath('userData'), SNAPSHOT_FILE)
@@ -328,13 +278,8 @@ function entryIdFor(
 }
 
 function dedupeAppEntries(apps: AppIndexEntry[]): AppIndexEntry[] {
-  const byKey = new Map<string, AppIndexEntry>()
-  for (const app of apps) {
-    const key = appDedupeKey(app)
-    byKey.set(key, mergeAppEntries(byKey.get(key), app))
-  }
   const byName = new Map<string, AppIndexEntry>()
-  for (const app of byKey.values()) {
+  for (const app of mergeByKey(apps, appDedupeKey, mergeAppEntries)) {
     const key = compact(app.name)
     if (!key) continue
     const current = byName.get(key)
@@ -545,15 +490,14 @@ function sanitizeSnapshot(value: unknown): AppIndexSnapshot | null {
   }
 }
 
+const snapshotRepository = new AppIndexRepository(indexPath, MAX_SNAPSHOT_BYTES, sanitizeSnapshot)
+
 async function loadSnapshot(): Promise<void> {
   if (loadedSnapshot) return
   loadedSnapshot = true
   try {
-    const snapshotStat = await fs.stat(indexPath())
-    if (snapshotStat.size > MAX_SNAPSHOT_BYTES) throw new Error('App index snapshot is too large.')
-    const raw = await fs.readFile(indexPath(), 'utf-8')
-    const snapshot = sanitizeSnapshot(JSON.parse(raw))
-    if (!snapshot) throw new Error('App index snapshot is invalid.')
+    const snapshot = await snapshotRepository.load()
+    if (!snapshot) throw new Error('App index snapshot is unavailable.')
     memoryApps = dedupeAppEntries(snapshot.apps)
     diagnostics = {
       ok: true,
@@ -578,7 +522,7 @@ async function saveSnapshot(apps: AppIndexEntry[], updatedAt: number): Promise<v
     apps,
     sourceCounts: sourceCounts(apps),
   }
-  await writeFileAtomic(indexPath(), JSON.stringify(snapshot, null, 2))
+  await snapshotRepository.save(snapshot)
 }
 
 function readShortcutDetails(shortcutPath: string): Electron.ShortcutDetails | null {
@@ -1013,10 +957,24 @@ function applyAppxLogos(apps: AppIndexEntry[], logos: Map<string, string>): AppI
   })
 }
 
+function platformDiscovery() {
+  if (!isWindows() && process.platform === 'darwin') {
+    return createPlatformDiscovery('macos', {
+      native: collectMacApplications,
+      shortcuts: collectMacApplications,
+    })
+  }
+  return createPlatformDiscovery('windows', {
+    native: queryNativeStartApps,
+    shortcuts: collectShortcutApps,
+    usage: queryUserAssistUsage,
+  })
+}
+
 async function bootstrapAppsFromShortcuts(): Promise<boolean> {
-  const shortcutApps = await (
-    !isWindows() && process.platform === 'darwin' ? collectMacApplications() : collectShortcutApps()
-  ).catch(() => [] as RawAppMatch[])
+  const shortcutApps = await platformDiscovery()
+    .discoverShortcuts()
+    .catch(() => [] as RawAppMatch[])
   if (shortcutApps.length === 0) return false
   memoryApps = mergeApps([], shortcutApps, memoryApps)
   diagnostics = {
@@ -1044,6 +1002,7 @@ async function ensureAppsAvailable(): Promise<void> {
 }
 
 export async function refreshAppIndex(): Promise<AppIndexDiagnostics> {
+  if (refreshCoordinator.isDisposed()) return diagnostics
   if (!isWindows() && process.platform !== 'darwin') {
     diagnostics = {
       ok: false,
@@ -1055,14 +1014,17 @@ export async function refreshAppIndex(): Promise<AppIndexDiagnostics> {
   }
   await loadSnapshot()
   if (refreshRequest) return refreshRequest
+  const generation = refreshCoordinator.capture()
   refreshRequest = (async () => {
     const startedAt = Date.now()
     const errors: string[] = []
+    const discovery = platformDiscovery()
     if (!isWindows() && process.platform === 'darwin') {
-      const freshApps = await collectMacApplications().catch((error) => {
+      const freshApps = await discovery.discoverNative().catch((error) => {
         errors.push(`applications: ${error instanceof Error ? error.message : 'failed'}`)
         return [] as RawAppMatch[]
       })
+      if (!refreshCoordinator.isCurrent(generation)) return diagnostics
       const updatedAt = Date.now()
       memoryApps = mergeApps(freshApps, [], memoryApps)
       await saveSnapshot(memoryApps, updatedAt).catch((error) => {
@@ -1081,18 +1043,19 @@ export async function refreshAppIndex(): Promise<AppIndexDiagnostics> {
     let nativeFailed = false
     let shortcutsFailed = false
     const [freshNativeApps, freshShortcutApps, userAssistUsage] = await Promise.all([
-      queryNativeStartApps().catch((error) => {
+      discovery.discoverNative().catch((error) => {
         nativeFailed = true
         errors.push(`windows-search: ${error instanceof Error ? error.message : 'failed'}`)
         return [] as RawAppMatch[]
       }),
-      collectShortcutApps().catch((error) => {
+      discovery.discoverShortcuts().catch((error) => {
         shortcutsFailed = true
         errors.push(`shortcuts: ${error instanceof Error ? error.message : 'failed'}`)
         return [] as RawAppMatch[]
       }),
-      queryUserAssistUsage().catch(() => [] as UserAssistUsage[]),
+      discovery.discoverUsage().catch(() => [] as UserAssistUsage[]),
     ])
+    if (!refreshCoordinator.isCurrent(generation)) return diagnostics
     const nativeApps = nativeFailed
       ? memoryApps.filter((entry) => entry.source === 'windows-search').map(appEntryAsRaw)
       : freshNativeApps
@@ -1108,6 +1071,7 @@ export async function refreshAppIndex(): Promise<AppIndexDiagnostics> {
     const appxLogos = await queryAppxLogos(uwpFamilyNamesFor(rankedApps)).catch(
       () => new Map<string, string>()
     )
+    if (!refreshCoordinator.isCurrent(generation)) return diagnostics
     const dedupedApps = applyAppxLogos(rankedApps, appxLogos)
     if (dedupedApps.length > 0 || memoryApps.length === 0) {
       memoryApps = dedupedApps
@@ -1133,20 +1097,24 @@ export async function refreshAppIndex(): Promise<AppIndexDiagnostics> {
 }
 
 export function warmAppIndex(): void {
-  if (!isWindows() && process.platform !== 'darwin') return
+  if (refreshCoordinator.isDisposed() || (!isWindows() && process.platform !== 'darwin')) return
+  const generation = refreshCoordinator.capture()
   void (async () => {
     await loadSnapshot()
+    if (!refreshCoordinator.isCurrent(generation)) return
     if (memoryApps.length === 0) {
       await bootstrapAppsFromShortcuts().catch(() => undefined)
     }
     if (diagnostics.stale || memoryApps.length === 0) {
       void refreshAppIndex()
     }
+    if (!refreshCoordinator.isCurrent(generation)) return
     startShortcutWatchers()
   })()
 }
 
 function debounceRefresh(): void {
+  if (refreshCoordinator.isDisposed()) return
   if (refreshTimer) clearTimeout(refreshTimer)
   refreshTimer = setTimeout(() => {
     void refreshAppIndex()
@@ -1154,7 +1122,12 @@ function debounceRefresh(): void {
 }
 
 function startShortcutWatchers(): void {
-  if (watchersStarted || (!isWindows() && process.platform !== 'darwin')) return
+  if (
+    refreshCoordinator.isDisposed() ||
+    watchersStarted ||
+    (!isWindows() && process.platform !== 'darwin')
+  )
+    return
   watchersStarted = true
   const roots =
     !isWindows() && process.platform === 'darwin'
@@ -1174,42 +1147,11 @@ function startShortcutWatchers(): void {
   }
 }
 
-function scoreApp(appEntry: AppIndexEntry, query: string): number {
-  const normalizedQuery = normalizeName(query)
-  const recentAt = Math.max(appEntry.lastLaunchedAt ?? 0, appEntry.lastUsedAt ?? 0)
-  const ageHours = recentAt > 0 ? (Date.now() - recentAt) / 3_600_000 : Number.POSITIVE_INFINITY
-  // Recency is a secondary nudge — one recent open must not bury a frequently opened app.
-  const recencyScore =
-    recentAt <= 0
-      ? 0
-      : ageHours <= 1
-        ? 450
-        : ageHours <= 24
-          ? 320
-          : ageHours <= 24 * 7
-            ? 200
-            : ageHours <= 24 * 30
-              ? 100
-              : 40
-  // Frequency is primary for agent app discovery: local launches first, UserAssist second.
-  const frequencyScore =
-    Math.min((appEntry.launchCount ?? 0) * 80, 1200) + Math.min((appEntry.usageCount ?? 0) * 2, 400)
-  if (!normalizedQuery) return frequencyScore + recencyScore
-  let score = scoreAppSearch(appEntry.name, appEntry.aliases, normalizedQuery)
-  if (score === 0) return 0
-  // Cap usage additives so typed relevance still wins over habitual opens.
-  score += Math.min(recencyScore / 20, 40)
-  score += Math.min(frequencyScore / 20, 40)
-  return score
-}
-
 export async function listApps(
   limit = 300
 ): Promise<{ apps: RankedAppIndexEntry[]; diagnostics: AppIndexDiagnostics; count: number }> {
   await ensureAppsAvailable()
-  const ranked = memoryApps
-    .map((entry) => ({ ...entry, rank: scoreApp(entry, '') }))
-    .sort((a, b) => b.rank - a.rank || a.name.localeCompare(b.name))
+  const ranked = rankApps(memoryApps, '', limit)
   return { apps: ranked.slice(0, limit), diagnostics, count: memoryApps.length }
 }
 
@@ -1221,12 +1163,7 @@ export async function findApps(
   const trimmedQuery = query.trim()
   if (!trimmedQuery) return { matches: [], diagnostics }
 
-  const rankMatches = () =>
-    memoryApps
-      .map((entry) => ({ ...entry, rank: scoreApp(entry, trimmedQuery) }))
-      .filter((entry) => entry.rank > 0)
-      .sort((a, b) => b.rank - a.rank || a.name.localeCompare(b.name))
-      .slice(0, limit)
+  const rankMatches = () => rankApps(memoryApps, trimmedQuery, limit)
 
   let matches = rankMatches()
   if (isWindows() && matches.length === 0) {
@@ -1287,26 +1224,6 @@ export async function recordAppLaunch(itemId: string): Promise<void> {
   await saveSnapshot(memoryApps, diagnostics.lastRefreshAt ?? Date.now()).catch(() => undefined)
 }
 
-function runIconJob<T>(job: () => Promise<T>): Promise<T> {
-  return new Promise((resolve, reject) => {
-    const start = () => {
-      activeIconJobs += 1
-      job()
-        .then(resolve, reject)
-        .finally(() => {
-          activeIconJobs -= 1
-          const next = iconQueue.shift()
-          if (next) next()
-        })
-    }
-    if (activeIconJobs < ICON_CONCURRENCY) {
-      start()
-    } else {
-      iconQueue.push(start)
-    }
-  })
-}
-
 async function getImageFileDataUrl(candidatePath: string): Promise<string | undefined> {
   const ext = path.extname(candidatePath).toLowerCase()
   const mime =
@@ -1343,60 +1260,29 @@ async function loadIcon(iconKey: string): Promise<string | undefined> {
   return undefined
 }
 
+const iconLifecycle = new AppIconLifecycle(ICON_CONCURRENCY, loadIcon)
+
 /** Read a cached icon without starting extraction or touching the LRU. */
 export function peekCachedAppIcon(iconKey: string | undefined): string | undefined {
-  if (!iconKey) return undefined
-  return iconCache.get(iconKey)
+  return iconLifecycle.peek(iconKey)
 }
 
 /** True while an icon extraction job is queued or in flight for this key. */
 export function isAppIconPending(iconKey: string | undefined): boolean {
-  if (!iconKey) return false
-  return iconRequests.has(iconKey)
+  return iconLifecycle.isPending(iconKey)
 }
 
 export function getCachedAppIcon(iconKey: string | undefined): string | undefined {
-  if (!iconKey) return undefined
-  if (iconCache.has(iconKey)) {
-    // Touch for LRU: re-insert at end
-    const cached = iconCache.get(iconKey)
-    if (cached) setIconCacheEntry(iconKey, cached)
-    return cached
-  }
-  if (failedIconKeys.has(iconKey)) return undefined
-  if (!iconRequests.has(iconKey)) {
-    const generation = iconCacheGeneration
-    const request = runIconJob(() => loadIcon(iconKey))
-      .then((iconDataUrl) => {
-        if (generation !== iconCacheGeneration) return undefined
-        if (iconDataUrl) {
-          failedIconKeys.delete(iconKey)
-          setIconCacheEntry(iconKey, iconDataUrl)
-        } else {
-          failedIconKeys.add(iconKey)
-        }
-        return iconDataUrl
-      })
-      .catch(() => {
-        failedIconKeys.add(iconKey)
-        return undefined
-      })
-      .finally(() => {
-        iconRequests.delete(iconKey)
-      })
-    iconRequests.set(iconKey, request)
-  }
-  return undefined
+  return iconLifecycle.request(iconKey)
 }
 
 /** Drop in-memory app icon data-URLs (keeps the app index snapshot itself). */
 export function clearAppIconCache(): void {
-  iconCacheGeneration += 1
-  iconCache.clear()
-  failedIconKeys.clear()
+  iconLifecycle.clear()
 }
 
 export function disposeAppIndexRuntime(): void {
+  refreshCoordinator.dispose()
   if (refreshTimer) {
     clearTimeout(refreshTimer)
     refreshTimer = undefined
@@ -1404,11 +1290,13 @@ export function disposeAppIndexRuntime(): void {
   for (const watcher of shortcutWatchers) watcher.close()
   shortcutWatchers.clear()
   watchersStarted = false
-  clearAppIconCache()
+  iconLifecycle.dispose()
 }
 
 export function __resetAppIndexForTests(): void {
   disposeAppIndexRuntime()
+  refreshCoordinator.reset()
+  iconLifecycle.reset()
   memoryApps = []
   diagnostics = { ok: true, stale: true, sourceCounts: {} }
   loadedSnapshot = false

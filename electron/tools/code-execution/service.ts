@@ -1,4 +1,4 @@
-import type { ToolResult } from '../types'
+import type { ToolHandlerContext, ToolResult } from '../types'
 import type { CodeExecutionArgs, OnlineCompilerResponse } from './types'
 import type { CodeExecutionApprovalManager } from './approvalManager'
 import { getSecureValueAsync } from '../../secureStorage'
@@ -20,8 +20,17 @@ function truncate(value: string, max: number): string {
   return value.length > max ? value.slice(0, max) + '\n...[truncated]' : value
 }
 
-export async function executeCode(args: CodeExecutionArgs): Promise<ToolResult> {
+export async function executeCode(
+  args: CodeExecutionArgs,
+  context?: ToolHandlerContext
+): Promise<ToolResult> {
   const { code, language } = args
+  const cancelledResult = (): ToolResult => ({
+    success: false,
+    error: 'Code execution cancelled with the Agent run.',
+  })
+
+  if (context?.signal?.aborted) return cancelledResult()
 
   if (!code || typeof code !== 'string' || !code.trim()) {
     return { success: false, error: 'Code is required and cannot be empty.' }
@@ -43,6 +52,7 @@ export async function executeCode(args: CodeExecutionArgs): Promise<ToolResult> 
   }
 
   const apiKey = await getSecureValueAsync('onlineCompilerApiKey')
+  if (context?.signal?.aborted) return cancelledResult()
   if (!apiKey) {
     return {
       success: false,
@@ -61,6 +71,7 @@ export async function executeCode(args: CodeExecutionArgs): Promise<ToolResult> 
           : 'Code execution was rejected by the user.'
       return { success: false, error: reason }
     }
+    if (context?.signal?.aborted) return cancelledResult()
   }
 
   const body = {
@@ -71,6 +82,9 @@ export async function executeCode(args: CodeExecutionArgs): Promise<ToolResult> 
 
   const controller = new AbortController()
   const timeoutId = setTimeout(() => controller.abort(), ONLINE_COMPILER_FETCH_TIMEOUT_MS)
+  const cancelForRun = () => controller.abort()
+  if (context?.signal?.aborted) cancelForRun()
+  else context?.signal?.addEventListener('abort', cancelForRun, { once: true })
 
   try {
     const response = await fetch(ONLINE_COMPILER_API_URL, {
@@ -124,7 +138,8 @@ export async function executeCode(args: CodeExecutionArgs): Promise<ToolResult> 
       },
     }
   } catch (error: unknown) {
-    if (error instanceof Error && error.name === 'AbortError') {
+    if (context?.signal?.aborted) return cancelledResult()
+    if (controller.signal.aborted || (error instanceof Error && error.name === 'AbortError')) {
       return {
         success: false,
         error: 'Code execution request timed out. The OnlineCompiler API did not respond in time.',
@@ -136,5 +151,6 @@ export async function executeCode(args: CodeExecutionArgs): Promise<ToolResult> 
     }
   } finally {
     clearTimeout(timeoutId)
+    context?.signal?.removeEventListener('abort', cancelForRun)
   }
 }

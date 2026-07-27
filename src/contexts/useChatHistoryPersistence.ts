@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, type MutableRefObject } from 'react'
 import type { ChatIndexData, ChatSession, Folder } from '../chat/types'
+import type { ChatStoreChangedEvent, ChatStoreMutationResult } from '../electron/types'
 import { normalizeSession, sessionToMetadata } from './chatHistoryDomain'
 import {
   chatHistoryRepository,
@@ -22,7 +23,8 @@ export function useChatHistoryPersistence({ isInitialized, sessionsRef, foldersR
   const pendingSessionSavesRef = useRef(new Map<string, ChatSession>())
   const localSessionRevisionRef = useRef(0)
   const savedSessionRevisionRef = useRef(0)
-  const pendingSelfStoreChangesRef = useRef(0)
+  const reconciledStoreRevisionRef = useRef(0)
+  const ownStoreRevisionsRef = useRef(new Set<number>())
   const sessionSavesInFlightRef = useRef(new Set<string>())
   const flushSessionSaveRef = useRef<(sessionId: string) => Promise<void>>(async () => {})
   const flushIndexSaveRef = useRef<() => Promise<void>>(async () => {})
@@ -38,17 +40,44 @@ export function useChatHistoryPersistence({ isInitialized, sessionsRef, foldersR
     savedSessionRevisionRef.current = localSessionRevisionRef.current
   }, [])
 
-  const trackSelfStoreMutation = useCallback(async <T>(mutation: () => Promise<T>): Promise<T> => {
-    pendingSelfStoreChangesRef.current += 1
-    try {
+  const trackSelfStoreMutation = useCallback(
+    async (mutation: () => Promise<ChatStoreMutationResult>): Promise<ChatStoreMutationResult> => {
       const result = await mutation()
-      if (result === false)
-        pendingSelfStoreChangesRef.current = Math.max(0, pendingSelfStoreChangesRef.current - 1)
+      if (result.changed) ownStoreRevisionsRef.current.add(result.revision)
       return result
-    } catch (error) {
-      pendingSelfStoreChangesRef.current = Math.max(0, pendingSelfStoreChangesRef.current - 1)
-      throw error
+    },
+    []
+  )
+
+  const markStoreReconciled = useCallback((revision: number) => {
+    if (!Number.isSafeInteger(revision) || revision < 0) return
+    reconciledStoreRevisionRef.current = Math.max(0, revision)
+    for (const ownRevision of ownStoreRevisionsRef.current) {
+      if (ownRevision <= revision) ownStoreRevisionsRef.current.delete(ownRevision)
     }
+  }, [])
+
+  const isExternalStoreEvent = useCallback((event: ChatStoreChangedEvent | undefined): boolean => {
+    // Older development preloads did not include revision metadata. Fail open to a refresh.
+    if (!event || !Number.isSafeInteger(event.revision) || event.revision < 0) return true
+    if (event.source === 'self') {
+      ownStoreRevisionsRef.current.add(event.revision)
+      return false
+    }
+    return true
+  }, [])
+
+  const hasMissedExternalStoreChanges = useCallback(async (): Promise<boolean> => {
+    const currentRevision = await chatHistoryRepository.getRevision()
+    if (!Number.isSafeInteger(currentRevision) || currentRevision < 0) return false
+    const reconciledRevision = reconciledStoreRevisionRef.current
+    if (currentRevision <= reconciledRevision) return false
+
+    let ownRevisionCount = 0
+    for (const ownRevision of ownStoreRevisionsRef.current) {
+      if (ownRevision > reconciledRevision && ownRevision <= currentRevision) ownRevisionCount += 1
+    }
+    return ownRevisionCount !== currentRevision - reconciledRevision
   }, [])
 
   const flushIndexSave = useCallback(async () => {
@@ -154,7 +183,9 @@ export function useChatHistoryPersistence({ isInitialized, sessionsRef, foldersR
   )
 
   return {
-    pendingSelfStoreChangesRef,
+    markStoreReconciled,
+    isExternalStoreEvent,
+    hasMissedExternalStoreChanges,
     markSessionsDirty,
     hasUnsavedLocalSessionChanges,
     markAllSaved,

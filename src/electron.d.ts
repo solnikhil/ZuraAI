@@ -2,6 +2,7 @@ import type {
   AppInfoAPI,
   AppMenuAPI,
   AgentApprovalAPI,
+  AgentRunAPI,
   AgentSkillsAPI,
   AnalyticsAPI,
   BackgroundWindowAPI,
@@ -36,6 +37,7 @@ declare global {
     providerRuntime: ProviderRuntimeAPI
     appInfo: AppInfoAPI
     agentApproval?: AgentApprovalAPI
+    agentRun?: AgentRunAPI
     agentSkills: AgentSkillsAPI
     windowControls: WindowControlsAPI
     shell: ShellAPI

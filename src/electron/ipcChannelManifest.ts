@@ -6,6 +6,7 @@ export const PRELOAD_CHANNEL_MANIFEST = {
     send: [] as const satisfies readonly IpcSendChannel[],
     invoke: [
       'chat-store:get-metadata',
+      'chat-store:get-revision',
       'chat-store:get-session',
       'chat-store:save-session',
       'chat-store:delete-session',
@@ -142,7 +143,13 @@ export const PRELOAD_CHANNEL_MANIFEST = {
       'agent-approval:request',
       'agent-approval:get-autonomous-mode',
       'agent-approval:set-autonomous-mode',
+      'agent-approval:list-trusted-actions',
+      'agent-approval:revoke-trusted-action',
+      'agent-approval:revoke-all-trusted-actions',
     ],
+  },
+  agentRun: {
+    invoke: ['agent-run:cancel', 'agent-run:get-runtime'],
   },
   backgroundWindow: {
     invoke: ['background-window:release-run'],

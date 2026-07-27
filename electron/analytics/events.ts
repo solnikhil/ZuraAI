@@ -8,6 +8,10 @@ export const ANALYTICS_EVENTS = [
   'tool_used',
   'web_search_used',
   'mcp_server_connected',
+  'agent_run_started',
+  'agent_run_finished',
+  'agent_approval_resolved',
+  'agent_verification_resolved',
   'app_error',
   'app_crash',
 ] as const
@@ -47,23 +51,82 @@ const COMMON_ALLOWED_PROPERTIES = new Set([
   'fatal',
   'previousVersion',
   'currentVersion',
+  'runOutcome',
+  'approvalOutcome',
+  'approvalSource',
+  'verificationOutcome',
+  'recoveryUsed',
+  'stopReason',
+  'budgetReason',
 ])
+
+const AGENT_EVENT_ALLOWED_PROPERTIES: Partial<Record<AnalyticsEventName, ReadonlySet<string>>> = {
+  agent_run_started: new Set(),
+  agent_run_finished: new Set([
+    'runOutcome',
+    'verificationOutcome',
+    'durationMs',
+    'stopReason',
+    'budgetReason',
+  ]),
+  agent_approval_resolved: new Set(['approvalOutcome', 'approvalSource', 'durationMs']),
+  agent_verification_resolved: new Set(['verificationOutcome', 'recoveryUsed', 'durationMs']),
+}
+
+const ENUM_PROPERTIES: Record<string, ReadonlySet<string>> = {
+  runOutcome: new Set(['completed', 'failed', 'cancelled']),
+  approvalOutcome: new Set([
+    'approved_once',
+    'approved_session',
+    'approved_policy',
+    'rejected',
+    'timed_out',
+    'unavailable',
+    'cancelled',
+    'error',
+  ]),
+  approvalSource: new Set(['manual', 'trusted', 'autonomous', 'fallback']),
+  verificationOutcome: new Set([
+    'not_required',
+    'verified',
+    'unverified',
+    'inconclusive',
+    'contradicted',
+  ]),
+  stopReason: new Set([
+    'completed',
+    'cancelled',
+    'failed',
+    'budget_exhausted',
+    'renderer_destroyed',
+    'shutdown',
+    'verification_failed',
+    'user_stop',
+  ]),
+  budgetReason: new Set(['tool_calls', 'mutations', 'elapsed_time', 'computer_use', 'mcp']),
+}
 
 export function isAnalyticsEventName(value: unknown): value is AnalyticsEventName {
   return typeof value === 'string' && ANALYTICS_EVENT_SET.has(value)
 }
 
-export function sanitizeAnalyticsProperties(input: unknown): AnalyticsProperties {
+export function sanitizeAnalyticsProperties(
+  input: unknown,
+  eventName?: AnalyticsEventName
+): AnalyticsProperties {
   if (typeof input !== 'object' || input === null || Array.isArray(input)) {
     return {}
   }
 
   const sanitized: AnalyticsProperties = {}
+  const eventAllowed = eventName ? AGENT_EVENT_ALLOWED_PROPERTIES[eventName] : undefined
   for (const [key, value] of Object.entries(input)) {
     if (!COMMON_ALLOWED_PROPERTIES.has(key)) continue
+    if (eventAllowed && !eventAllowed.has(key)) continue
 
     if (typeof value === 'string') {
-      sanitized[key] = value.slice(0, 160)
+      const allowedValues = ENUM_PROPERTIES[key]
+      if (!allowedValues || allowedValues.has(value)) sanitized[key] = value.slice(0, 160)
     } else if (typeof value === 'boolean') {
       sanitized[key] = value
     } else if (typeof value === 'number' && Number.isFinite(value)) {

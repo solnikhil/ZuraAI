@@ -24,13 +24,13 @@ Opening the config file always opens ZuraAI’s own file. It does not accept arb
 
 ## Auth modes (short version)
 
-| Mode | Idea |
-| ---- | ---- |
-| none | No credentials |
-| env secret | Secret injected into a local stdio process env |
-| header / bearer / basic | Secrets attached to remote requests in main |
-| JSON credential / connection string | Typed secret wrappers; never plain in renderer storage |
-| OAuth 2.1 PKCE | Main-owned browser/loopback flow for saved remote SSE servers |
+| Mode                                | Idea                                                          |
+| ----------------------------------- | ------------------------------------------------------------- |
+| none                                | No credentials                                                |
+| env secret                          | Secret injected into a local stdio process env                |
+| header / bearer / basic             | Secrets attached to remote requests in main                   |
+| JSON credential / connection string | Typed secret wrappers; never plain in renderer storage        |
+| OAuth 2.1 PKCE                      | Main-owned browser/loopback flow for saved remote SSE servers |
 
 The UI can start OAuth only by **saved server id**. It never sends authorization URLs, codes, verifiers, or tokens over IPC.
 
@@ -53,12 +53,12 @@ If the agent asks to add a server, it can only create a **pending review**. It c
 
 ## Troubleshooting
 
-| Symptom | What to try |
-| ------- | ----------- |
-| Needs sign-in | Finish the OAuth action in Settings |
-| Connected but no tools | Trust the server/tools in the MCP UI |
-| Auth failed | Check sanitized status; re-auth rather than pasting tokens into JSON |
-| Config read error | Fix the real filesystem problem; do not assume the file is empty |
-| Reconnect loop | Disconnect, fix transport/auth, reconnect on purpose. There is no silent transport fallback. |
+| Symptom                | What to try                                                                                  |
+| ---------------------- | -------------------------------------------------------------------------------------------- |
+| Needs sign-in          | Finish the OAuth action in Settings                                                          |
+| Connected but no tools | Trust the server/tools in the MCP UI                                                         |
+| Auth failed            | Check sanitized status; re-auth rather than pasting tokens into JSON                         |
+| Config read error      | Fix the real filesystem problem; do not assume the file is empty                             |
+| Reconnect loop         | Disconnect, fix transport/auth, reconnect on purpose. There is no silent transport fallback. |
 
 More architecture context: [`AGENTS.md`](../AGENTS.md).

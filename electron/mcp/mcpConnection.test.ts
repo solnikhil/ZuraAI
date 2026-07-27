@@ -2,7 +2,7 @@
 
 import { fileURLToPath } from 'url'
 
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import type { McpResolvedServerConfig } from '../../src/mcp/types'
 import type { McpTransport } from './transports/base'
@@ -102,6 +102,63 @@ describe('McpConnection', () => {
       isError: false,
     })
 
+    await connection.disconnect()
+  })
+
+  it('fails closed without dispatching when an Agent run is already cancelled', async () => {
+    const transport = createMockTransport()
+    const connection = new McpConnection({
+      server: createResolvedServerConfig({
+        command: process.execPath,
+        args: [MOCK_STDIO_SERVER_PATH],
+      }),
+      transport,
+    })
+    await connection.connect()
+    const controller = new AbortController()
+    controller.abort('run-cancelled')
+
+    await expect(
+      connection.callTool('read_file', { path: '/tmp/demo.txt' }, controller.signal)
+    ).rejects.toThrow('MCP request cancelled: tools/call')
+
+    await connection.disconnect()
+  })
+
+  it('cancels an in-flight MCP tool request and notifies the server', async () => {
+    const transport = createMockTransport()
+    const baseSend = transport.send.bind(transport)
+    const sentMessages: any[] = []
+    transport.send = async (message) => {
+      sentMessages.push(message)
+      if ('method' in message && message.method === 'tools/call') return
+      await baseSend(message)
+    }
+    const connection = new McpConnection({
+      server: createResolvedServerConfig({
+        command: process.execPath,
+        args: [MOCK_STDIO_SERVER_PATH],
+      }),
+      transport,
+    })
+    await connection.connect()
+    const controller = new AbortController()
+    const execution = connection.callTool('read_file', { path: '/tmp/demo.txt' }, controller.signal)
+    await vi.waitFor(() => {
+      expect(sentMessages.some((message) => message.method === 'tools/call')).toBe(true)
+    })
+
+    controller.abort('user-stop')
+
+    await expect(execution).rejects.toThrow('MCP request cancelled: tools/call')
+    await vi.waitFor(() => {
+      expect(sentMessages).toContainEqual(
+        expect.objectContaining({
+          method: 'notifications/cancelled',
+          params: expect.objectContaining({ reason: 'Agent run cancelled.' }),
+        })
+      )
+    })
     await connection.disconnect()
   })
 

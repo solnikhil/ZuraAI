@@ -24,6 +24,7 @@ import type {
   AddMemoryInput,
   AgentApprovalOverlayDecision,
   AgentApprovalOverlayRequest,
+  AgentRunRuntimeSnapshot,
   AgentSkillsQuery,
   AnalyticsEventName,
   AnalyticsProperties,
@@ -106,6 +107,7 @@ const AGENT_SKILLS_INVOKE_CHANNELS = new Set<string>(PRELOAD_CHANNEL_MANIFEST.ag
 const AGENT_APPROVAL_INVOKE_CHANNELS = new Set<string>(
   PRELOAD_CHANNEL_MANIFEST.agentApproval.invoke
 )
+const AGENT_RUN_INVOKE_CHANNELS = new Set<string>(PRELOAD_CHANNEL_MANIFEST.agentRun.invoke)
 const BACKGROUND_WINDOW_INVOKE_CHANNELS = new Set<string>(
   PRELOAD_CHANNEL_MANIFEST.backgroundWindow.invoke
 )
@@ -562,6 +564,28 @@ contextBridge.exposeInMainWorld(
         enabled: boolean
       }>
     },
+    listTrustedActions: () => {
+      assertAllowed('invoke', 'agent-approval:list-trusted-actions', AGENT_APPROVAL_INVOKE_CHANNELS)
+      return ipcRenderer.invoke('agent-approval:list-trusted-actions') as Promise<
+        import('../src/electron/types').AgentTrustedActionMetadata[]
+      >
+    },
+    revokeTrustedAction: (id: string) => {
+      assertAllowed(
+        'invoke',
+        'agent-approval:revoke-trusted-action',
+        AGENT_APPROVAL_INVOKE_CHANNELS
+      )
+      return ipcRenderer.invoke('agent-approval:revoke-trusted-action', id) as Promise<boolean>
+    },
+    revokeAllTrustedActions: () => {
+      assertAllowed(
+        'invoke',
+        'agent-approval:revoke-all-trusted-actions',
+        AGENT_APPROVAL_INVOKE_CHANNELS
+      )
+      return ipcRenderer.invoke('agent-approval:revoke-all-trusted-actions') as Promise<number>
+    },
   })
 )
 
@@ -580,6 +604,23 @@ contextBridge.exposeInMainWorld(
       const listener = () => callback()
       ipcRenderer.on('computer-use:killed', listener)
       return () => ipcRenderer.removeListener('computer-use:killed', listener)
+    },
+  })
+)
+
+contextBridge.exposeInMainWorld(
+  'agentRun',
+  Object.freeze({
+    cancel: (runId: string) => {
+      assertAllowed('invoke', 'agent-run:cancel', AGENT_RUN_INVOKE_CHANNELS)
+      return ipcRenderer.invoke('agent-run:cancel', runId) as Promise<boolean>
+    },
+    getRuntime: (runId: string) => {
+      assertAllowed('invoke', 'agent-run:get-runtime', AGENT_RUN_INVOKE_CHANNELS)
+      return ipcRenderer.invoke(
+        'agent-run:get-runtime',
+        runId
+      ) as Promise<AgentRunRuntimeSnapshot | null>
     },
   })
 )
@@ -763,20 +804,24 @@ contextBridge.exposeInMainWorld(
     executeTool: (
       namespacedToolName: string,
       args: Record<string, unknown>,
-      executionContext?: { approvalToken: string }
+      executionContext?: { approvalToken?: string; runId?: string }
     ) => {
       assertAllowed('invoke', 'mcp:execute-tool', MCP_INVOKE_CHANNELS)
-      const normalizedContext =
-        executionContext && typeof executionContext.approvalToken === 'string'
-          ? { approvalToken: executionContext.approvalToken }
-          : undefined
-      return (normalizedContext
-        ? ipcRenderer.invoke('mcp:execute-tool', namespacedToolName, args, normalizedContext)
-        : ipcRenderer.invoke(
-            'mcp:execute-tool',
-            namespacedToolName,
-            args
-          )) as Promise<McpToolExecutionResult>
+      const normalizedContext = executionContext
+        ? {
+            ...(typeof executionContext.approvalToken === 'string'
+              ? { approvalToken: executionContext.approvalToken }
+              : {}),
+            ...(typeof executionContext.runId === 'string'
+              ? { runId: executionContext.runId }
+              : {}),
+          }
+        : undefined
+      return (
+        normalizedContext
+          ? ipcRenderer.invoke('mcp:execute-tool', namespacedToolName, args, normalizedContext)
+          : ipcRenderer.invoke('mcp:execute-tool', namespacedToolName, args)
+      ) as Promise<McpToolExecutionResult>
     },
     resolveApproval: (requestId: string, approved: boolean) => {
       assertAllowed('invoke', 'mcp:resolve-approval', MCP_INVOKE_CHANNELS)

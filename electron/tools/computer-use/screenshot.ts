@@ -116,7 +116,9 @@ async function getWindowOwners(
 ): Promise<Map<number, WindowOwner>> {
   const owners = new Map<number, WindowOwner>()
   if (process.platform !== 'win32') return owners
-  const handles = [...new Set(sources.map((source) => parseWindowHandle(source.id)).filter(Boolean))]
+  const handles = [
+    ...new Set(sources.map((source) => parseWindowHandle(source.id)).filter(Boolean)),
+  ]
   if (handles.length === 0) return owners
 
   const script = `

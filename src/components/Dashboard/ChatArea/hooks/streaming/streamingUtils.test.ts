@@ -285,6 +285,10 @@ describe('streamingUtils final synthesis helpers', () => {
         reason: 'File changes were made and need a read-only filesystem check.',
         preferredTools: ['file_search', 'file_read'],
         mutatingToolNames: ['file_move'],
+        postconditions: [
+          { kind: 'file-exists', path: 'b' },
+          { kind: 'file-absent', path: 'a' },
+        ],
       },
       'Research context',
       1,

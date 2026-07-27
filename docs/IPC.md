@@ -23,6 +23,8 @@ Handlers the UI can call must register through `electron/ipc/trustedIpc.ts`. Do 
 | Scheduled tasks              | `monitorHandlers.ts`                | Bounded task payloads; respect feature enablement                       |
 | Windows / shell              | window and system modules           | Sender-owned window; capability allowlists                              |
 
+Chat-store writes return `{ changed, revision }` only after durable persistence. Main broadcasts the same monotonic process-local revision to every live window and derives each event's `self`/`external` label from the trusted invoking `webContents`; renderer-provided identity is never accepted. The narrow `chat-store:get-revision` read lets a window reconcile notification gaps after it regains focus.
+
 When you add a channel, write down domain, direction, argument bounds, return shape, privilege, and who cleans it up.
 
 ## Subscriptions

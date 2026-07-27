@@ -62,6 +62,7 @@ describe('verification recovery tool restriction', () => {
           reason: 'Verify the final UI state.',
           preferredTools: ['computer_screenshot'],
           mutatingToolNames: ['computer_click'],
+          postconditions: [],
         },
         true
       )?.map((tool) => tool.function.name)
@@ -75,6 +76,7 @@ describe('verification recovery tool restriction', () => {
           reason: 'Verify the final UI state.',
           preferredTools: ['computer_screenshot'],
           mutatingToolNames: ['computer_click'],
+          postconditions: [],
         },
         false
       )
@@ -1603,11 +1605,20 @@ describe('useProviderStreaming', () => {
             delta: [
               {
                 index: 0,
-                id: 'verify_1',
+                id: 'verify_destination',
                 type: 'function',
                 function: {
                   name: 'file_search',
                   arguments: '{"root":"Desktop/Images","query":"a.png"}',
+                },
+              },
+              {
+                index: 1,
+                id: 'verify_source',
+                type: 'function',
+                function: {
+                  name: 'file_search',
+                  arguments: '{"root":"Desktop","query":"a.png"}',
                 },
               },
             ],
@@ -1629,14 +1640,34 @@ describe('useProviderStreaming', () => {
       },
       result: { success: true },
     }
-    const verifiedResult = {
-      toolCall: {
-        id: 'verify_1',
-        name: 'file_search',
-        arguments: { root: 'Desktop/Images', query: 'a.png' },
+    const verifiedResults = [
+      {
+        toolCall: {
+          id: 'verify_destination',
+          name: 'file_search',
+          arguments: { root: 'Desktop/Images', query: 'a.png' },
+        },
+        result: {
+          success: true,
+          data: {
+            root: 'Desktop/Images',
+            query: 'a.png',
+            results: ['Desktop/Images/a.png'],
+          },
+        },
       },
-      result: { success: true, data: { results: ['Desktop/Images/a.png'] } },
-    }
+      {
+        toolCall: {
+          id: 'verify_source',
+          name: 'file_search',
+          arguments: { root: 'Desktop', query: 'a.png' },
+        },
+        result: {
+          success: true,
+          data: { root: 'Desktop', query: 'a.png', results: [] },
+        },
+      },
+    ]
     const handleToolCalls = vi
       .fn()
       .mockResolvedValueOnce({
@@ -1649,8 +1680,12 @@ describe('useProviderStreaming', () => {
       })
       .mockResolvedValueOnce({
         hasTools: true,
-        toolResults: [verifiedResult],
-        formattedResults: [{ role: 'tool', tool_call_id: 'verify_1', content: 'Found file' }],
+        toolResults: verifiedResults,
+        formattedResults: verifiedResults.map((verifiedResult) => ({
+          role: 'tool',
+          tool_call_id: verifiedResult.toolCall.id,
+          content: 'Checked file',
+        })),
         needsFollowUp: true,
         shouldContinueResearch: true,
         executionSummary: buildExecutionSummary(),
@@ -1719,10 +1754,11 @@ describe('useProviderStreaming', () => {
     expect(onVerificationStart).toHaveBeenCalledWith(expect.objectContaining({ category: 'file' }))
     expect(onVerificationComplete).toHaveBeenCalledWith(
       expect.objectContaining({ category: 'file' }),
-      true
+      'verified'
     )
+    expect(streamResult.verificationOutcome).toBe('verified')
     expect(streamResult.content).toBe('Verified and done.')
-    expect(streamResult.toolResults).toEqual([movedResult, verifiedResult])
+    expect(streamResult.toolResults).toEqual([movedResult, ...verifiedResults])
   })
 
   it('stops after one failed verification recovery instead of looping to the safety cap', async () => {
@@ -1822,13 +1858,175 @@ describe('useProviderStreaming', () => {
     expect(streamCalls[2]?.tools?.map((tool) => tool.function.name)).toEqual(['file_search'])
     expect(onVerificationComplete).toHaveBeenCalledWith(
       expect.objectContaining({ category: 'file' }),
-      false
+      'inconclusive'
     )
+    expect(streamResult.verificationOutcome).toBe('inconclusive')
+    expect(streamResult.finishReason).toBe('verification_failed')
     expect(streamResult.content).not.toContain('Unverified claim.')
     expect(streamResult.toolResults).toEqual([movedResult])
     expect(streamResult.thinkingBlocks.filter((block) => block.type === 'thinking')).toEqual([])
     expect(streamResult.thinkingBlocks.filter((block) => block.type === 'tool')).toHaveLength(1)
   })
+
+  it.each([
+    {
+      label: 'failed preferred calls',
+      verificationCalls: [
+        ['verify_1', 'file_search', '{"root":"Desktop/Images","query":"a.png"}'],
+        ['verify_2', 'file_read', '{"path":"Desktop/Images/a.png"}'],
+      ],
+      results: [
+        {
+          toolCall: { id: 'verify_1', name: 'file_search', arguments: {} },
+          result: { success: false, error: 'Search unavailable.' },
+        },
+        {
+          toolCall: {
+            id: 'verify_2',
+            name: 'file_read',
+            arguments: { path: 'Desktop/Images/a.png' },
+          },
+          result: { success: false, error: 'Read unavailable.' },
+        },
+      ],
+      expectedOutcome: 'inconclusive',
+    },
+    {
+      label: 'irrelevant initial evidence',
+      verificationCalls: [
+        ['verify_1', 'app_find', '{"query":"Notepad"}'],
+        ['verify_2', 'file_search', '{"root":"Desktop/Images","query":"a.png"}'],
+      ],
+      results: [
+        {
+          toolCall: { id: 'verify_1', name: 'app_find', arguments: {} },
+          result: { success: true, data: { results: ['Notepad'] } },
+        },
+        {
+          toolCall: {
+            id: 'verify_2',
+            name: 'file_search',
+            arguments: { root: 'Desktop/Images', query: 'a.png' },
+          },
+          result: {
+            success: true,
+            data: { root: 'Desktop/Images', query: 'a.png', results: [] },
+          },
+        },
+      ],
+      expectedOutcome: 'contradicted',
+    },
+  ] as const)(
+    'uses one recovery and stops for $label',
+    async ({ verificationCalls, results, expectedOutcome }) => {
+      const streamCalls: Array<{ tools?: Array<{ function: { name: string } }> }> = []
+      const calls = [
+        ['move_1', 'file_move', '{"source":"Desktop/a.png","destination":"Desktop/Images/a.png"}'],
+        ...verificationCalls,
+      ] as const
+      let invocation = 0
+      mocks.createProviderStreamClient.mockReturnValue({
+        stream: async function* (request: { tools?: Array<{ function: { name: string } }> }) {
+          streamCalls.push(request)
+          const call = calls[invocation]
+          invocation += 1
+          if (call) {
+            yield {
+              type: 'tool-call-delta',
+              delta: [
+                {
+                  index: 0,
+                  id: call[0],
+                  type: 'function',
+                  function: { name: call[1], arguments: call[2] },
+                },
+              ],
+            }
+            yield { type: 'finish', finishReason: 'tool_calls' }
+          }
+        },
+      })
+
+      const movedResult = {
+        toolCall: {
+          id: 'move_1',
+          name: 'file_move',
+          arguments: { source: 'Desktop/a.png', destination: 'Desktop/Images/a.png' },
+        },
+        result: { success: true },
+      }
+      const handleToolCalls = vi.fn()
+      for (const result of [movedResult, ...results]) {
+        handleToolCalls.mockResolvedValueOnce({
+          hasTools: true,
+          toolResults: [result],
+          formattedResults: [
+            { role: 'tool', tool_call_id: result.toolCall.id, content: 'Tool result' },
+          ],
+          needsFollowUp: true,
+          shouldContinueResearch: true,
+          executionSummary: buildExecutionSummary(),
+        })
+      }
+      const onVerificationComplete = vi.fn()
+
+      const { result } = renderHook(() =>
+        useProviderStreaming({
+          settings: {
+            aiModel: 'openai/gpt-4.1',
+            modelProvider: 'openrouter',
+            temperature: 0.4,
+            maxTokens: 1024,
+            streamResponses: true,
+            openRouterApiKey: 'or-key',
+          },
+          toolCalling: {
+            canUseTools: true,
+            getToolsForRequest: () =>
+              ['file_move', 'file_search', 'file_read', 'app_find'].map((name) => ({
+                type: 'function' as const,
+                function: {
+                  name,
+                  description: name,
+                  parameters: { type: 'object' as const, properties: {} },
+                },
+              })),
+            handleToolCalls,
+            getResearchContext: () => '',
+          },
+          updateStreamingMessage: vi.fn(),
+          flushThrottledUpdates: vi.fn(),
+          throttledUpdateStreamingMessage: vi.fn(),
+        })
+      )
+
+      const streamResult = await result.current.runProviderStream({
+        provider: 'openrouter',
+        model: 'openai/gpt-4.1',
+        sessionId: `bounded-${expectedOutcome}`,
+        messageId: `bounded-${expectedOutcome}`,
+        messages: [{ role: 'user', content: 'move the file' }],
+        startTime: performance.now() - 25,
+        researchMaxRounds: 8,
+        syncToStreamingContext: false,
+        enableTools: true,
+        toolEventCallbacks: { onVerificationComplete },
+      })
+
+      expect(invocation).toBe(3)
+      expect(streamCalls[2]?.tools?.map((tool) => tool.function.name)).toEqual([
+        'file_search',
+        'file_read',
+      ])
+      expect(onVerificationComplete).toHaveBeenCalledTimes(1)
+      expect(onVerificationComplete).toHaveBeenCalledWith(
+        expect.objectContaining({ category: 'file' }),
+        expectedOutcome
+      )
+      expect(streamResult.verificationOutcome).toBe(expectedOutcome)
+      expect(streamResult.finishReason).toBe('verification_failed')
+    }
+  )
 
   it('allows an evidenced multi-step UI workflow before terminal read-only verification', async () => {
     const streamCalls: Array<{ messages: Array<{ role: string; content?: unknown }> }> = []
@@ -1890,6 +2088,7 @@ describe('useProviderStreaming', () => {
           success: true,
           data: {
             screenshotId: 'shot-5',
+            semanticOutcome: 'verified',
             ocr: { status: 'available', elements: [{ text: 'Punjabi playlist' }] },
           },
         },
@@ -1966,8 +2165,9 @@ describe('useProviderStreaming', () => {
     expect(onVerificationStart).toHaveBeenCalledTimes(1)
     expect(onVerificationComplete).toHaveBeenCalledWith(
       expect.objectContaining({ category: 'visual' }),
-      true
+      'verified'
     )
+    expect(streamResult.verificationOutcome).toBe('verified')
     expect(streamResult.content).toBe('Punjabi playlist opened and verified.')
   })
 

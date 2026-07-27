@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, beforeEach } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   extractOpencodeStreamReasoningDelta,
   fetchOpencodeModels,
@@ -66,6 +66,12 @@ describe('opencode service', () => {
 
   beforeEach(() => {
     vi.restoreAllMocks()
+    vi.unstubAllGlobals()
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+    vi.unstubAllGlobals()
   })
 
   it('posts chat completions to the documented endpoint', async () => {

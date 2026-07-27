@@ -11,6 +11,7 @@ Only after you opt in, the app may send event names such as:
 - Provider used / model used
 - Tool used / web search used
 - MCP server connected
+- Agent run started/finished, approval outcome/latency, and verification outcome/recovery
 - App error / crash
 
 Shared metadata is limited to things like:
@@ -22,6 +23,8 @@ Shared metadata is limited to things like:
 
 Event-specific fields stay coarse: provider or model name, assistant mode, whether an attachment was present, tool name, success or failure, duration, a coarse error category, and high-level MCP trust/transport state.
 
+Agent diagnostics are categorical only: completion, verification, approval, stop/budget reason, whether one verification recovery was used, and rounded duration. They never include an Agent run ID or task content.
+
 ## What is never collected
 
 ZuraAI does **not** collect:
@@ -30,6 +33,7 @@ ZuraAI does **not** collect:
 - Conversation content or titles
 - API keys
 - File paths
+- Agent run IDs, task text, stop-control target IDs, window titles, or HWNDs
 - Clipboard data
 - MCP tool arguments or resource bodies
 - Screenshots or uploaded/generated files

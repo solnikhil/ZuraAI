@@ -19,7 +19,7 @@ import {
   getPendingMcpAddRequest,
 } from './mcpAddRequests'
 import { trackAnalyticsEvent } from '../analytics'
-import { consumeToolApprovalAuthorization } from '../tools/toolApprovalAuthorizations'
+import { privilegedToolExecutionCoordinator } from '../tools/privilegedToolExecutionCoordinator'
 
 const MCP_STATE_CHANGED_CHANNEL = 'mcp:state-changed'
 
@@ -218,17 +218,35 @@ export function registerMcpHandlers(): void {
   ipcMain.handle(
     'mcp:execute-tool',
     async (event, namespacedToolName: string, args: unknown, executionContext?: unknown) => {
-      await manager.initialize()
       const normalizedToolName = assertMcpToolName(namespacedToolName)
       const normalizedArgs = assertArgumentsRecord(args)
-      const approvalToken = assertMcpExecutionContext(executionContext)
-      const approved = consumeToolApprovalAuthorization(
-      approvalToken,
-      event.sender?.id ?? -1,
-        normalizedToolName,
-        normalizedArgs
+      const context = assertMcpExecutionContext(executionContext)
+      const coordinated = await privilegedToolExecutionCoordinator.execute(
+        {
+          senderWebContentsId: event.sender?.id ?? -1,
+          toolName: normalizedToolName,
+          args: normalizedArgs,
+          approvalToken: context.approvalToken,
+          runId: context.runId,
+          // MCP annotations are external input and never weaken main-owned accounting.
+          mutating: true,
+        },
+        async ({ approved, signal }) => {
+          await manager.initialize()
+          return executeMcpTool(
+            manager,
+            approvals,
+            normalizedToolName,
+            normalizedArgs,
+            approved,
+            signal
+          )
+        }
       )
-      return executeMcpTool(manager, approvals, normalizedToolName, normalizedArgs, approved)
+      if (!coordinated.ok) {
+        return buildCoordinatorDeniedResult(normalizedToolName, coordinated.reason)
+      }
+      return coordinated.value
     }
   )
 
@@ -369,23 +387,36 @@ function assertArgumentsRecord(args: unknown): Record<string, unknown> {
   return args as Record<string, unknown>
 }
 
-function assertMcpExecutionContext(value: unknown): string | undefined {
-  if (value === undefined) return undefined
+function assertMcpExecutionContext(value: unknown): {
+  approvalToken?: string
+  runId?: string
+} {
+  if (value === undefined) return {}
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     throw new Error('Invalid MCP execution context')
   }
   const record = value as Record<string, unknown>
-  if (Object.keys(record).some((key) => key !== 'approvalToken')) {
+  if (Object.keys(record).some((key) => key !== 'approvalToken' && key !== 'runId')) {
     throw new Error('Invalid MCP execution context')
   }
   if (
-    typeof record.approvalToken !== 'string' ||
-    record.approvalToken.length < 1 ||
-    record.approvalToken.length > 200
+    record.approvalToken !== undefined &&
+    (typeof record.approvalToken !== 'string' ||
+      record.approvalToken.length < 1 ||
+      record.approvalToken.length > 200)
   ) {
     throw new Error('Invalid MCP approval token')
   }
-  return record.approvalToken
+  if (
+    record.runId !== undefined &&
+    (typeof record.runId !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(record.runId))
+  ) {
+    throw new Error('Invalid MCP Agent run id')
+  }
+  return {
+    approvalToken: record.approvalToken as string | undefined,
+    runId: record.runId as string | undefined,
+  }
 }
 
 function extractServerId(serverConfig: unknown): string | null {
@@ -414,7 +445,8 @@ async function executeMcpTool(
   approvals: McpApprovalManager,
   namespacedToolName: string,
   args: Record<string, unknown>,
-  autoApprove = false
+  autoApprove = false,
+  signal?: AbortSignal
 ): Promise<McpToolExecutionResult> {
   const startedAt = Date.now()
 
@@ -441,7 +473,9 @@ async function executeMcpTool(
       approvalState = 'approved'
     }
 
-    const result = await manager.executeTool(namespacedToolName, args)
+    const result = signal
+      ? await manager.executeTool(namespacedToolName, args, signal)
+      : await manager.executeTool(namespacedToolName, args)
     const durationMs = Date.now() - startedAt
     const toolErrorMessage = extractToolErrorMessage(result.result)
 
@@ -496,6 +530,34 @@ async function executeMcpTool(
         outcome: inferExecutionOutcome(message),
       },
     }
+  }
+}
+
+function buildCoordinatorDeniedResult(
+  namespacedToolName: string,
+  reason:
+    | 'cancelled'
+    | 'tool_budget'
+    | 'mutation_budget'
+    | 'time_budget'
+    | 'global_capacity'
+    | 'sender_capacity'
+): McpToolExecutionResult {
+  const message = `Agent run stopped by ${reason.replace(/_/g, ' ')}.`
+  return {
+    success: false,
+    error: message,
+    metadata: {
+      origin: 'mcp',
+      serverId: '',
+      serverName: '',
+      namespacedToolName,
+      originalToolName: namespacedToolName,
+      trusted: false,
+      approvalState: 'not-required',
+      durationMs: 0,
+      outcome: inferExecutionOutcome(message),
+    },
   }
 }
 

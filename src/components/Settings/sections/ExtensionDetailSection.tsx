@@ -9,6 +9,7 @@ import { BUILT_IN_SKILLS, type BuiltInSkill, type SkillId, type SkillsSettings }
 import { getCatalogExtension, type CatalogExtensionId } from './extensionCatalog'
 import { MemorySection } from './MemorySection'
 import { NotificationsSection } from './NotificationsSection'
+import { AgentTrustedActionsCard } from './AgentTrustedActionsCard'
 
 export interface ExtensionDetailSectionProps {
   extensionId: CatalogExtensionId
@@ -104,6 +105,7 @@ export function ExtensionDetailSection({
         <>
           {skill ? <ExtensionInfoCard skill={skill} /> : null}
           <AgentModeAutonomyCard enabled={enabled} />
+          <AgentTrustedActionsCard />
           <Card className="settings-list-card extension-detail__note-card">
             <div className="settings-list-row">
               <div className="settings-list-row__meta">
@@ -137,8 +139,11 @@ function AgentModeAutonomyCard({ enabled }: { enabled: boolean }): React.ReactEl
   const [autonomous, setAutonomous] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const activeAutonomy = enabled && autonomous
+  const mountedRef = useRef(false)
 
   useEffect(() => {
+    mountedRef.current = true
     let active = true
     void window.agentApproval
       ?.getAutonomousMode()
@@ -155,6 +160,7 @@ function AgentModeAutonomyCard({ enabled }: { enabled: boolean }): React.ReactEl
     if (!window.agentApproval) setLoading(false)
     return () => {
       active = false
+      mountedRef.current = false
     }
   }, [])
 
@@ -167,18 +173,20 @@ function AgentModeAutonomyCard({ enabled }: { enabled: boolean }): React.ReactEl
     setError('')
     try {
       const state = await window.agentApproval.setAutonomousMode(nextEnabled)
-      setAutonomous(state.enabled)
+      if (mountedRef.current) setAutonomous(state.enabled)
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Autonomous mode could not be updated.')
+      if (mountedRef.current) {
+        setError(cause instanceof Error ? cause.message : 'Autonomous mode could not be updated.')
+      }
     } finally {
-      setLoading(false)
+      if (mountedRef.current) setLoading(false)
     }
   }
 
   return (
     <Card
       className="settings-list-card extension-detail__autonomy-card"
-      data-active={autonomous ? 'true' : 'false'}
+      data-active={activeAutonomy ? 'true' : 'false'}
     >
       <div className="settings-list-row">
         <div className="settings-list-row__meta">
@@ -202,7 +210,7 @@ function AgentModeAutonomyCard({ enabled }: { enabled: boolean }): React.ReactEl
         </div>
         <div className="settings-list-row__control">
           <Switch
-            checked={autonomous}
+            checked={activeAutonomy}
             disabled={!enabled || loading}
             onCheckedChange={(checked) => void setMode(checked)}
             aria-label="Fully autonomous mode"

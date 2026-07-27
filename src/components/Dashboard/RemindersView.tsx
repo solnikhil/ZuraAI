@@ -37,16 +37,7 @@ import {
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { motionSpring } from '@/lib/motion'
 import { motion } from 'framer-motion'
-import {
-  Copy,
-  ExternalLink,
-  MoreVertical,
-  Pause,
-  Pencil,
-  Play,
-  Plus,
-  Trash2,
-} from 'lucide-react'
+import { Copy, ExternalLink, MoreVertical, Pause, Pencil, Play, Plus, Trash2 } from 'lucide-react'
 import {
   INTERVAL_OPTIONS,
   WEEKDAY_LABELS,
@@ -545,7 +536,9 @@ export default function RemindersView(): React.ReactElement {
                             : [...form.outputDestinations, option.id]
                           patchForm(
                             'outputDestinations',
-                            next.length > 0 ? next : (['log'] as ScheduleFormState['outputDestinations'])
+                            next.length > 0
+                              ? next
+                              : (['log'] as ScheduleFormState['outputDestinations'])
                           )
                         }}
                       />
@@ -782,10 +775,7 @@ export default function RemindersView(): React.ReactElement {
                 <button type="button" onClick={() => openCreate('ai_automation')}>
                   New automation
                 </button>
-                <button
-                  type="button"
-                  onClick={() => askAgent('Remind me tomorrow at 9 AM')}
-                >
+                <button type="button" onClick={() => askAgent('Remind me tomorrow at 9 AM')}>
                   Ask agent
                 </button>
               </div>
@@ -832,9 +822,7 @@ export default function RemindersView(): React.ReactElement {
                 variant="ghost"
                 size="sm"
                 className="reminders-view__ask-agent"
-                onClick={() =>
-                  askAgent('Help me create a reminder, lookout, or AI automation.')
-                }
+                onClick={() => askAgent('Help me create a reminder, lookout, or AI automation.')}
               >
                 <Brain size={15} data-icon="inline-start" />
                 Ask agent
@@ -930,19 +918,13 @@ export default function RemindersView(): React.ReactElement {
                   {drawerTask.type === 'ai_automation' && (
                     <>
                       {renderDetailField('Mode', automationModeLabel(drawerTask.automationMode))}
-                      {renderDetailField(
-                        'Approval',
-                        approvalModeLabel(drawerTask.approvalMode)
-                      )}
+                      {renderDetailField('Approval', approvalModeLabel(drawerTask.approvalMode))}
                       {renderDetailField('Notify', notifyPolicyLabel(drawerTask.notifyPolicy))}
                       {renderDetailField(
                         'Outputs',
                         outputDestinationsLabel(drawerTask.outputDestinations)
                       )}
-                      {renderDetailField(
-                        'Tools',
-                        drawerTask.allowedTools?.join(', ') || 'None'
-                      )}
+                      {renderDetailField('Tools', drawerTask.allowedTools?.join(', ') || 'None')}
                     </>
                   )}
                   {renderDetailField('Instructions', drawerTask.instructions || 'None')}
@@ -986,9 +968,7 @@ export default function RemindersView(): React.ReactElement {
                         {run.changeVerdict?.summary && (
                           <p className="reminders-view__summary">{run.changeVerdict.summary}</p>
                         )}
-                        {run.model && (
-                          <p className="reminders-view__summary">Model: {run.model}</p>
-                        )}
+                        {run.model && <p className="reminders-view__summary">Model: {run.model}</p>}
                         {run.error && <p className="reminders-view__run-error">{run.error}</p>}
                         {run.automationChatSessionId && (
                           <Button

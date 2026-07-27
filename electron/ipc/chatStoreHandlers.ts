@@ -11,14 +11,26 @@ import {
   assertSessionLoadOptions,
   assertSessionsInput,
 } from './chatStoreValidation'
+import type { ChatStoreChangedEvent, ChatStoreMutationResult } from '../../src/electron/types'
 
 const CHAT_STORE_CHANGED_CHANNEL = 'chat-store:changed'
 const MEMORY_CHANGED_CHANNEL = 'memory-store:changed'
 
-function broadcastChatStoreChanged(): void {
+let chatStoreRevision = 0
+
+function getMutationResult(changed: boolean): ChatStoreMutationResult {
+  if (changed) chatStoreRevision += 1
+  return { changed, revision: chatStoreRevision }
+}
+
+function broadcastChatStoreChanged(originWebContentsId: number, revision: number): void {
   for (const window of BrowserWindow.getAllWindows()) {
     if (window.isDestroyed()) continue
-    window.webContents.send(CHAT_STORE_CHANGED_CHANNEL)
+    const event: ChatStoreChangedEvent = {
+      revision,
+      source: window.webContents.id === originWebContentsId ? 'self' : 'external',
+    }
+    window.webContents.send(CHAT_STORE_CHANGED_CHANNEL, event)
   }
 }
 
@@ -36,6 +48,9 @@ export function registerChatStoreHandlers(): void {
     return chatStore.getSessionMetadataAsync()
   })
 
+  /** Return the process-local durable mutation revision for missed-event reconciliation. */
+  ipcMain.handle('chat-store:get-revision', async () => chatStoreRevision)
+
   /** Return one chat session on demand. Supports optional { limit } to load only the most recent N messages for fast UI. */
   ipcMain.handle(
     'chat-store:get-session',
@@ -49,38 +64,42 @@ export function registerChatStoreHandlers(): void {
   )
 
   /** Save or replace one full chat session. */
-  ipcMain.handle('chat-store:save-session', async (_event, session: unknown) => {
+  ipcMain.handle('chat-store:save-session', async (ipcEvent, session: unknown) => {
     assertChatSessionInput(session)
     await chatStore.saveSessionAsync(session)
-    broadcastChatStoreChanged()
-    return true
+    const result = getMutationResult(true)
+    broadcastChatStoreChanged(ipcEvent.sender.id, result.revision)
+    return result
   })
 
   /** Delete one full chat session and its metadata. */
-  ipcMain.handle('chat-store:delete-session', async (_event, sessionId) => {
+  ipcMain.handle('chat-store:delete-session', async (ipcEvent, sessionId) => {
     if (typeof sessionId !== 'string' || !sessionId.trim()) {
       throw new Error('Invalid chat session id')
     }
     const deleted = await chatStore.deleteSessionAsync(sessionId)
     if (deleted) {
+      const result = getMutationResult(true)
+      broadcastChatStoreChanged(ipcEvent.sender.id, result.revision)
       const [deletedMemories, deletedSummary] = await Promise.all([
         memoryStore.deleteMemoriesForSessionAsync(sessionId),
         summaryStore.deleteSummaryAsync(sessionId),
       ])
-      broadcastChatStoreChanged()
       if (deletedMemories > 0 || deletedSummary) {
         broadcastMemoryStoreChanged()
       }
+      return result
     }
-    return deleted
+    return getMutationResult(false)
   })
 
   /** Replace lightweight session metadata and folders. */
-  ipcMain.handle('chat-store:save-index', async (_event, index: unknown) => {
+  ipcMain.handle('chat-store:save-index', async (ipcEvent, index: unknown) => {
     assertChatIndexInput(index)
     await chatStore.saveChatIndexAsync(index)
-    broadcastChatStoreChanged()
-    return true
+    const result = getMutationResult(true)
+    broadcastChatStoreChanged(ipcEvent.sender.id, result.revision)
+    return result
   })
 
   /** Return all stored chat sessions. */
@@ -97,18 +116,21 @@ export function registerChatStoreHandlers(): void {
   })
 
   /** Replace all stored chat sessions. */
-  ipcMain.handle('chat-store:save-all', async (_event, sessions: unknown) => {
+  ipcMain.handle('chat-store:save-all', async (ipcEvent, sessions: unknown) => {
     assertSessionsInput(sessions)
     await chatStore.saveAllSessionsAsync(sessions)
-    broadcastChatStoreChanged()
-    return true
+    const result = getMutationResult(true)
+    broadcastChatStoreChanged(ipcEvent.sender.id, result.revision)
+    return result
   })
 
   /** Import legacy renderer-localStorage chat history. */
-  ipcMain.handle('chat-store:migrate', async (_event, localStorageData: unknown) => {
+  ipcMain.handle('chat-store:migrate', async (ipcEvent, localStorageData: unknown) => {
     assertSessionsInput(localStorageData)
-    chatStore.migrateFromLocalStorage(localStorageData)
-    return true
+    const changed = await chatStore.migrateFromLocalStorage(localStorageData)
+    const result = getMutationResult(changed)
+    if (changed) broadcastChatStoreChanged(ipcEvent.sender.id, result.revision)
+    return result
   })
 
   /** Return all stored chat folders. */
@@ -128,17 +150,19 @@ export function registerChatStoreHandlers(): void {
   })
 
   /** Replace all stored chat folders. */
-  ipcMain.handle('chat-store:save-folders', async (_event, folders: unknown) => {
+  ipcMain.handle('chat-store:save-folders', async (ipcEvent, folders: unknown) => {
     assertFoldersInput(folders)
     await chatStore.saveFoldersAsync(folders)
-    broadcastChatStoreChanged()
-    return true
+    const result = getMutationResult(true)
+    broadcastChatStoreChanged(ipcEvent.sender.id, result.revision)
+    return result
   })
 }
 
 /** Unregister all chat-store IPC handlers. */
 export function unregisterChatStoreHandlers(): void {
   ipcMain.removeHandler('chat-store:get-metadata')
+  ipcMain.removeHandler('chat-store:get-revision')
   ipcMain.removeHandler('chat-store:get-session')
   ipcMain.removeHandler('chat-store:save-session')
   ipcMain.removeHandler('chat-store:delete-session')

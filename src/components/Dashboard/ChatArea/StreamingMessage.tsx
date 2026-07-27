@@ -12,6 +12,7 @@ import type {
   ResponseVersion,
 } from '../../../contexts/ChatHistoryContext'
 import type { AgentRun } from '../../../chat/types'
+import { getAgentRunMemoKey } from './agentRunMemo'
 
 interface StreamingMessageProps {
   /** The base message from the session (may have stale content during streaming) */
@@ -42,6 +43,8 @@ interface StreamingMessageProps {
   activeToolCalls?: Array<{ name: string; arguments?: Record<string, unknown> }>
   /** Ephemeral streaming phase for the active message */
   streamPhase?: StreamingPhase
+  /** Stops the active Agent run. */
+  onStop?: () => void
   /** Callback when content is copied */
   onCopy?: (content: string) => void
   /** Callback when regenerate is requested */
@@ -62,6 +65,7 @@ function StreamingMessageComponent({
   message,
   sessionId,
   activeToolCalls,
+  onStop,
   onCopy,
   onRegenerate,
 }: StreamingMessageProps) {
@@ -120,6 +124,7 @@ function StreamingMessageComponent({
       sessionId={sessionId}
       activeToolCalls={activeToolCalls}
       streamPhase={streamingState?.phase}
+      onStop={onStop}
       onCopy={onCopy}
       onRegenerate={onRegenerate}
     />
@@ -158,6 +163,9 @@ function arePropsEqual(
   if (prevProps.onRegenerate !== nextProps.onRegenerate) {
     return false
   }
+  if (prevProps.onStop !== nextProps.onStop) {
+    return false
+  }
 
   // For non-streaming messages, compare content
   // This handles the case where the message is updated after streaming completes
@@ -173,6 +181,12 @@ function arePropsEqual(
     return false
   }
   if (prevProps.message.latency !== nextProps.message.latency) {
+    return false
+  }
+  if (
+    getAgentRunMemoKey(prevProps.message.agentRun) !==
+    getAgentRunMemoKey(nextProps.message.agentRun)
+  ) {
     return false
   }
 

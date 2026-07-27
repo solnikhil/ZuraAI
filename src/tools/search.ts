@@ -103,10 +103,7 @@ export function parseSearchQuery(value: string): ParsedSearchQuery {
   }
 }
 
-export function queryAllowsSource(
-  query: ParsedSearchQuery,
-  source: SearchSource
-): boolean {
+export function queryAllowsSource(query: ParsedSearchQuery, source: SearchSource): boolean {
   return query.sources.length === 0 || query.sources.includes(source)
 }
 
@@ -193,7 +190,11 @@ export function scoreSearchFields(
     const best = Math.max(
       0,
       ...normalizedFields.map((field) =>
-        field.value === phrase ? 1100 * field.weight : field.value.includes(phrase) ? 700 * field.weight : 0
+        field.value === phrase
+          ? 1100 * field.weight
+          : field.value.includes(phrase)
+            ? 700 * field.weight
+            : 0
       )
     )
     if (best === 0) return { score: 0, matchReasons: [] }
@@ -209,7 +210,9 @@ export function scoreSearchFields(
     )
     if (best === 0) return { score: 0, matchReasons: [] }
     total += best
-    reasons.push(best >= 1000 ? 'exact' : best >= 760 ? 'prefix' : best >= 600 ? 'fuzzy' : 'contains')
+    reasons.push(
+      best >= 1000 ? 'exact' : best >= 760 ? 'prefix' : best >= 600 ? 'fuzzy' : 'contains'
+    )
   }
   const divisor = Math.max(1, query.terms.length + query.phrases.length)
   return { score: Math.round(total / divisor), matchReasons: Array.from(new Set(reasons)) }
@@ -225,11 +228,9 @@ export function scoreAppSearch(name: string, aliases: string[], query: string): 
 export function scoreWindowSearch(title: string, processName: string, query: string): number {
   const parsed = parseSearchQuery(query)
   if (parsed.terms.length !== 1 || parsed.phrases.length > 0 || parsed.excluded.length > 0) {
-    return scoreSearchFields(
-      [{ value: processName }, { value: title, weight: 0.92 }],
-      parsed,
-      { allowFuzzy: false }
-    ).score
+    return scoreSearchFields([{ value: processName }, { value: title, weight: 0.92 }], parsed, {
+      allowFuzzy: false,
+    }).score
   }
   const term = parsed.terms[0]
   const normalizedProcess = normalizeSearchQuery(processName)
@@ -239,7 +240,11 @@ export function scoreWindowSearch(title: string, processName: string, query: str
   if (hasWordPrefix(normalizedProcess, term)) return 480
   if (hasWordPrefix(normalizedTitle, term)) return 560
   for (const word of `${normalizedProcess} ${normalizedTitle}`.split(/[^a-z0-9]+/)) {
-    if (word.length >= 3 && Math.abs(word.length - term.length) <= 2 && levenshtein(word, term) <= 2) {
+    if (
+      word.length >= 3 &&
+      Math.abs(word.length - term.length) <= 2 &&
+      levenshtein(word, term) <= 2
+    ) {
       return 600
     }
   }

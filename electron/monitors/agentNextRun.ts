@@ -8,8 +8,7 @@ export const AGENT_NEXT_RUN_MIN_MS = 60 * 1000
 export const AGENT_NEXT_RUN_MAX_MS = 7 * 24 * 60 * 60 * 1000
 
 /** Marker the automation model should append when it owns the cadence. */
-export const AGENT_NEXT_RUN_MARKER_RE =
-  /\[\[\s*next_run\s*:\s*([^\]]+?)\s*\]\]/gi
+export const AGENT_NEXT_RUN_MARKER_RE = /\[\[\s*next_run\s*:\s*([^\]]+?)\s*\]\]/gi
 
 export type AgentNextRunDecision =
   | { kind: 'delay'; nextRunAt: number }
@@ -18,7 +17,9 @@ export type AgentNextRunDecision =
 
 function parseRelativeDelayMs(token: string): number | null {
   const normalized = token.trim().toLowerCase()
-  const match = normalized.match(/^\+?\s*(\d+(?:\.\d+)?)\s*(ms|s|m|h|d|min|mins|minute|minutes|hr|hrs|hour|hours|day|days)?$/)
+  const match = normalized.match(
+    /^\+?\s*(\d+(?:\.\d+)?)\s*(ms|s|m|h|d|min|mins|minute|minutes|hr|hrs|hour|hours|day|days)?$/
+  )
   if (!match) return null
   const amount = Number(match[1])
   if (!Number.isFinite(amount) || amount < 0) return null
@@ -57,7 +58,10 @@ export function clampAgentNextRunAt(fromMs: number, candidateMs: number): number
 }
 
 export function stripAgentNextRunMarkers(text: string): string {
-  return text.replace(AGENT_NEXT_RUN_MARKER_RE, '').replace(/[ \t]+\n/g, '\n').trim()
+  return text
+    .replace(AGENT_NEXT_RUN_MARKER_RE, '')
+    .replace(/[ \t]+\n/g, '\n')
+    .trim()
 }
 
 /**

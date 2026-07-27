@@ -114,9 +114,7 @@ export default function FolderMemoryPanel({ folder, onModeChange }: FolderMemory
   }, [memories, folder.id, isFolderOnly])
 
   const count = classified.length
-  const emptyCopy = isFolderOnly
-    ? 'No folder memories yet.'
-    : 'No folder or global memories yet.'
+  const emptyCopy = isFolderOnly ? 'No folder memories yet.' : 'No folder or global memories yet.'
 
   const handleAddMemory = useCallback(async () => {
     const content = newMemoryText.trim()
@@ -138,14 +136,17 @@ export default function FolderMemoryPanel({ folder, onModeChange }: FolderMemory
     }
   }, [newMemoryText, memoryBridgeAvailable, folderId, loadMemories, showToast])
 
-  const beginEdit = useCallback((memory: ClassifiedMemory) => {
-    if (memory.isGlobal) {
-      showToast(GLOBAL_MEMORY_READONLY_MESSAGE, 'error')
-      return
-    }
-    setEditingId(memory.memory.id)
-    setEditingText(memory.memory.content)
-  }, [showToast])
+  const beginEdit = useCallback(
+    (memory: ClassifiedMemory) => {
+      if (memory.isGlobal) {
+        showToast(GLOBAL_MEMORY_READONLY_MESSAGE, 'error')
+        return
+      }
+      setEditingId(memory.memory.id)
+      setEditingText(memory.memory.content)
+    },
+    [showToast]
+  )
 
   const cancelEdit = useCallback(() => {
     setEditingId(null)

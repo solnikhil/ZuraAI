@@ -91,8 +91,7 @@ function ScheduledTaskResultCard({
   toolArguments?: Record<string, unknown>
 }) {
   const data = result as Record<string, unknown> | unknown[] | undefined
-  const titleFromArgs =
-    typeof toolArguments?.title === 'string' ? toolArguments.title.trim() : ''
+  const titleFromArgs = typeof toolArguments?.title === 'string' ? toolArguments.title.trim() : ''
 
   let title: string
   let subtitle: string
@@ -103,13 +102,9 @@ function ScheduledTaskResultCard({
     actionLabel = 'Schedule created'
     statusLabel = error ? 'Failed' : 'Created'
     const task = data && !Array.isArray(data) ? data : undefined
-    title =
-      (typeof task?.title === 'string' && task.title) ||
-      titleFromArgs ||
-      'New schedule'
+    title = (typeof task?.title === 'string' && task.title) || titleFromArgs || 'New schedule'
     const typeLabel = scheduledTaskTypeLabel(task?.type ?? toolArguments?.type)
-    const enabled =
-      typeof task?.enabled === 'boolean' ? (task.enabled ? 'Active' : 'Paused') : null
+    const enabled = typeof task?.enabled === 'boolean' ? (task.enabled ? 'Active' : 'Paused') : null
     subtitle = [typeLabel, enabled].filter(Boolean).join(' · ')
   } else if (toolName === 'scheduled_task_update') {
     actionLabel = 'Schedule updated'
@@ -120,8 +115,7 @@ function ScheduledTaskResultCard({
       titleFromArgs ||
       (typeof toolArguments?.id === 'string' ? toolArguments.id.slice(0, 8) : 'Schedule')
     const typeLabel = scheduledTaskTypeLabel(task?.type)
-    const enabled =
-      typeof task?.enabled === 'boolean' ? (task.enabled ? 'Active' : 'Paused') : null
+    const enabled = typeof task?.enabled === 'boolean' ? (task.enabled ? 'Active' : 'Paused') : null
     subtitle = [typeLabel, enabled].filter(Boolean).join(' · ')
   } else if (toolName === 'scheduled_task_delete') {
     actionLabel = 'Schedule deleted'
@@ -148,7 +142,8 @@ function ScheduledTaskResultCard({
       )
       .filter((name): name is string => Boolean(name))
       .slice(0, 3)
-    subtitle = names.length > 0 ? names.join(', ') + (tasks.length > 3 ? '…' : '') : 'From Schedules'
+    subtitle =
+      names.length > 0 ? names.join(', ') + (tasks.length > 3 ? '…' : '') : 'From Schedules'
   } else {
     actionLabel = 'Schedule history'
     statusLabel = error ? 'Failed' : 'Loaded'

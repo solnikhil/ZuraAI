@@ -50,6 +50,7 @@ vi.mock('@/hooks/useToolCalling', () => ({
 vi.mock('@/agent/AgentToolApprovalContext', () => ({
   useAgentToolApproval: () => ({
     requestApproval: vi.fn(),
+    requestApprovalDecision: vi.fn(),
   }),
 }))
 

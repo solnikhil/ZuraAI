@@ -41,7 +41,6 @@ export function DeepseekModelSearchDialog({
         setError(err.message ?? 'Failed to fetch models')
         setLoading(false)
       })
-
   }, [apiKey])
 
   useEffect(() => {

@@ -21,11 +21,11 @@ API keys and similar secrets are rewritten as whole encrypted documents. Reads a
 
 Treat errors by type:
 
-| Situation | Correct behavior |
-| --------- | ---------------- |
-| File missing (`ENOENT`) | Start with empty state |
-| Invalid JSON / wrong root shape | Treat as corruption (MCP may quarantine a proven-bad config file) |
-| Permission, lock, device, or other operational I/O errors | Surface the error. Do **not** pretend the store is empty |
+| Situation                                                 | Correct behavior                                                  |
+| --------------------------------------------------------- | ----------------------------------------------------------------- |
+| File missing (`ENOENT`)                                   | Start with empty state                                            |
+| Invalid JSON / wrong root shape                           | Treat as corruption (MCP may quarantine a proven-bad config file) |
+| Permission, lock, device, or other operational I/O errors | Surface the error. Do **not** pretend the store is empty          |
 
 That last rule matters: a temporary filesystem problem must not look like “user deleted everything,” then get saved permanently.
 

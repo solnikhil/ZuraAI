@@ -100,6 +100,60 @@ describe('chatStore metadata-first persistence', () => {
     )
   })
 
+  it('awaits and durably commits renderer-localStorage migration', async () => {
+    const chatStore = await import('./chatStore')
+    const migrated = await chatStore.migrateFromLocalStorage([
+      {
+        id: 'renderer-session',
+        title: 'Renderer chat',
+        messages: [{ id: 'm1', role: 'user', content: 'persist me', timestamp: 1 }],
+        createdAt: 1,
+        updatedAt: 2,
+      },
+    ])
+
+    expect(migrated).toBe(true)
+    await expect(chatStore.getSessionAsync('renderer-session')).resolves.toEqual(
+      expect.objectContaining({
+        id: 'renderer-session',
+        messages: [expect.objectContaining({ content: 'persist me' })],
+      })
+    )
+    const index = JSON.parse(
+      await readFile(path.join(electronMock.userDataPath, 'chat-index.json'), 'utf8')
+    )
+    expect(index.sessions).toEqual([
+      expect.objectContaining({ id: 'renderer-session', title: 'Renderer chat' }),
+    ])
+  })
+
+  it('does not replace an existing main-owned store during renderer migration', async () => {
+    const chatStore = await import('./chatStore')
+    await chatStore.saveSessionAsync({
+      id: 'main-session',
+      title: 'Main chat',
+      messages: [],
+      createdAt: 1,
+      updatedAt: 1,
+    })
+
+    const migrated = await chatStore.migrateFromLocalStorage([
+      {
+        id: 'renderer-session',
+        title: 'Renderer chat',
+        messages: [],
+        createdAt: 2,
+        updatedAt: 2,
+      },
+    ])
+
+    expect(migrated).toBe(false)
+    await expect(chatStore.getSessionAsync('renderer-session')).resolves.toBeNull()
+    expect((await chatStore.getSessionMetadataAsync()).map((session) => session.id)).toEqual([
+      'main-session',
+    ])
+  })
+
   it('surfaces a corrupt index instead of replacing it with empty state', async () => {
     await writeFile(path.join(electronMock.userDataPath, 'chat-index.json'), '{invalid json')
     const chatStore = await import('./chatStore')

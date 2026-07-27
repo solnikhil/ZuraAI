@@ -16,6 +16,12 @@ export type AgentStepStatus =
   | 'failed'
   | 'rejected'
 
+export type AgentVerificationOutcome = 'verified' | 'contradicted' | 'inconclusive'
+
+export type AgentRunVerificationState = 'not-required' | 'pending' | AgentVerificationOutcome
+
+export type AgentRunPhase = 'discover' | 'plan' | 'act' | 'verify' | 'report'
+
 export interface AgentRunCapabilities {
   web: AgentCapabilityState
   code: AgentCapabilityState
@@ -36,13 +42,26 @@ export interface AgentStep {
   startedAt?: number
   completedAt?: number
   durationMs?: number
-  approvalState?: 'not-required' | 'pending' | 'approved' | 'rejected' | 'timed_out' | 'cancelled'
+  approvalState?:
+    | 'not-required'
+    | 'pending'
+    | 'approved'
+    | 'rejected'
+    | 'timed_out'
+    | 'cancelled'
+    | 'unavailable'
+    | 'error'
+  verificationOutcome?: AgentVerificationOutcome
 }
 
 export interface AgentRun {
   id: string
   mode: 'agent'
-  status: 'running' | 'completed' | 'failed' | 'cancelled'
+  status: 'running' | 'completed' | 'completed_unverified' | 'failed' | 'cancelled'
+  /** Optional only so sessions persisted before execution phases were introduced still load. */
+  phase?: AgentRunPhase
+  /** Orthogonal evidence state. Inconclusive work is explicitly completed_unverified. */
+  verification: AgentRunVerificationState
   startedAt: number
   completedAt?: number
   capabilities: AgentRunCapabilities

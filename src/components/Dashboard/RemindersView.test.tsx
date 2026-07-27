@@ -120,9 +120,7 @@ describe('RemindersView (Schedules)', () => {
     render(<RemindersView />)
 
     expect(await screen.findByRole('heading', { name: 'Schedules' })).toBeInTheDocument()
-    expect(
-      screen.getByText(/only run while ZuraAI is open/i)
-    ).toBeInTheDocument()
+    expect(screen.getByText(/only run while ZuraAI is open/i)).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: 'All 3' })).toHaveAttribute('aria-selected', 'true')
     const allTasks = screen.getByRole('region', { name: 'All schedules' })
 

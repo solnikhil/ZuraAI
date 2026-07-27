@@ -60,8 +60,12 @@ export async function executeTool(
       })
 
       try {
-        const execution = options.approvalToken
-          ? window.mcp.executeTool(toolName, args, { approvalToken: options.approvalToken })
+        const executionContext =
+          options.approvalToken || options.runId
+            ? { approvalToken: options.approvalToken, runId: options.runId }
+            : undefined
+        const execution = executionContext
+          ? window.mcp.executeTool(toolName, args, executionContext)
           : window.mcp.executeTool(toolName, args)
         const result = await Promise.race([execution, timeoutPromise])
 
@@ -158,7 +162,10 @@ export async function executeTool(
     let formattedMessage = errorMessage
 
     // Provide more user-friendly error messages
-    if (formattedMessage.includes('timeout')) {
+    if (/timeout|timed out/i.test(formattedMessage)) {
+      if (options.runId && window.agentRun?.cancel) {
+        await window.agentRun.cancel(options.runId).catch(() => undefined)
+      }
       formattedMessage = `Tool "${toolName}" took too long to execute. Please try again.`
     } else if (formattedMessage.includes('network') || formattedMessage.includes('fetch')) {
       formattedMessage = `Network error while executing "${toolName}". Please check your internet connection.`

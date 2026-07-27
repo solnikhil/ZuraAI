@@ -9,6 +9,14 @@ const mocks = vi.hoisted(() => ({
   streamOllamaCompletion: vi.fn(),
   generateOpenRouterCompletion: vi.fn(),
   streamOpenRouterCompletion: vi.fn(),
+  generateAlibabaCompletion: vi.fn(),
+  streamAlibabaCompletion: vi.fn(),
+  generateDeepSeekCompletion: vi.fn(),
+  streamDeepSeekCompletion: vi.fn(),
+  generateNvidiaCompletion: vi.fn(),
+  streamNvidiaCompletion: vi.fn(),
+  generateOpencodeCompletion: vi.fn(),
+  streamOpencodeCompletion: vi.fn(),
 }))
 
 vi.mock('../services/groq', async (importOriginal) => ({
@@ -33,6 +41,30 @@ vi.mock('../services/openrouter', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../services/openrouter')>()),
   generateOpenRouterCompletion: mocks.generateOpenRouterCompletion,
   streamOpenRouterCompletion: mocks.streamOpenRouterCompletion,
+}))
+
+vi.mock('../services/alibaba', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../services/alibaba')>()),
+  generateAlibabaCompletion: mocks.generateAlibabaCompletion,
+  streamAlibabaCompletion: mocks.streamAlibabaCompletion,
+}))
+
+vi.mock('../services/deepseek', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../services/deepseek')>()),
+  generateDeepSeekCompletion: mocks.generateDeepSeekCompletion,
+  streamDeepSeekCompletion: mocks.streamDeepSeekCompletion,
+}))
+
+vi.mock('../services/nvidia', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../services/nvidia')>()),
+  generateNvidiaCompletion: mocks.generateNvidiaCompletion,
+  streamNvidiaCompletion: mocks.streamNvidiaCompletion,
+}))
+
+vi.mock('../services/opencode', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../services/opencode')>()),
+  generateOpencodeCompletion: mocks.generateOpencodeCompletion,
+  streamOpencodeCompletion: mocks.streamOpencodeCompletion,
 }))
 
 import {
@@ -76,8 +108,35 @@ describe('provider runtime adapter registry', () => {
     mocks.generateOpenRouterCompletion.mockResolvedValue({
       choices: [{ message: { content: 'openrouter' }, finish_reason: 'stop' }],
     })
+    mocks.generateAlibabaCompletion.mockResolvedValue({
+      choices: [{ message: { content: 'alibaba' }, finish_reason: 'stop' }],
+    })
+    mocks.generateDeepSeekCompletion.mockResolvedValue({
+      choices: [{ message: { content: 'deepseek' }, finish_reason: 'stop' }],
+    })
+    mocks.generateNvidiaCompletion.mockResolvedValue({
+      choices: [{ message: { content: 'nvidia' }, finish_reason: 'stop' }],
+    })
+    mocks.generateOpencodeCompletion.mockResolvedValue({
+      choices: [{ message: { content: 'opencode' }, finish_reason: 'stop' }],
+    })
     mocks.streamOpenRouterCompletion.mockImplementation(async function* () {
       yield { choices: [{ delta: { content: 'openrouter' }, finish_reason: 'stop' }] }
+    })
+    ;[
+      mocks.streamGroqCompletion,
+      mocks.streamFireworksCompletion,
+      mocks.streamAlibabaCompletion,
+      mocks.streamDeepSeekCompletion,
+      mocks.streamNvidiaCompletion,
+      mocks.streamOpencodeCompletion,
+    ].forEach((stream) =>
+      stream.mockImplementation(async function* () {
+        yield { choices: [{ delta: { content: 'chunk' }, finish_reason: 'stop' }] }
+      })
+    )
+    mocks.streamOllamaCompletion.mockImplementation(async function* () {
+      yield { message: { content: 'chunk' }, done: true }
     })
   })
 
@@ -117,6 +176,20 @@ describe('provider runtime adapter registry', () => {
       mocks.generateOllamaCompletion,
       'num_predict',
     ],
+    ['alibaba', { alibabaApiKey: 'alibaba-key' }, mocks.generateAlibabaCompletion, 'max_tokens'],
+    [
+      'deepseek',
+      { deepseekApiKey: 'deepseek-key' },
+      mocks.generateDeepSeekCompletion,
+      'max_tokens',
+    ],
+    ['nvidia', { nvidiaApiKey: 'nvidia-key' }, mocks.generateNvidiaCompletion, 'max_tokens'],
+    [
+      'opencode',
+      { opencodeGoApiKey: 'opencode-key' },
+      mocks.generateOpencodeCompletion,
+      'max_tokens',
+    ],
     [
       'openrouter',
       { openRouterApiKey: 'router-key' },
@@ -152,6 +225,20 @@ describe('provider runtime adapter registry', () => {
       mocks.generateOllamaCompletion,
       'num_predict',
     ],
+    ['alibaba', { alibabaApiKey: 'alibaba-key' }, mocks.generateAlibabaCompletion, 'max_tokens'],
+    [
+      'deepseek',
+      { deepseekApiKey: 'deepseek-key' },
+      mocks.generateDeepSeekCompletion,
+      'max_tokens',
+    ],
+    ['nvidia', { nvidiaApiKey: 'nvidia-key' }, mocks.generateNvidiaCompletion, 'max_tokens'],
+    [
+      'opencode',
+      { opencodeGoApiKey: 'opencode-key' },
+      mocks.generateOpencodeCompletion,
+      'max_tokens',
+    ],
   ] as const)(
     'shapes %s non-stream chat requests through the same adapter',
     async (provider, settings, generate, maxTokenField) => {
@@ -173,5 +260,39 @@ describe('provider runtime adapter registry', () => {
       [message],
       expect.objectContaining({ temperature: 0.25, maxTokens: 321 })
     )
+  })
+
+  it.each([
+    ['groq', { groqApiKey: 'key' }, mocks.streamGroqCompletion],
+    ['fireworks', { fireworksApiKey: 'key' }, mocks.streamFireworksCompletion],
+    ['ollama', { ollamaUrl: 'http://127.0.0.1:11434' }, mocks.streamOllamaCompletion],
+    ['alibaba', { alibabaApiKey: 'key' }, mocks.streamAlibabaCompletion],
+    ['deepseek', { deepseekApiKey: 'key' }, mocks.streamDeepSeekCompletion],
+    ['nvidia', { nvidiaApiKey: 'key' }, mocks.streamNvidiaCompletion],
+    ['opencode', { opencodeGoApiKey: 'key' }, mocks.streamOpencodeCompletion],
+  ] as const)('owns the %s streaming transport path', async (provider, settings, stream) => {
+    const events = await Array.fromAsync(
+      streamProviderEvents(
+        { streamResponses: true, ...settings },
+        { provider, model: 'acme/model', messages: [message], streamResponses: true }
+      )
+    )
+    expect(stream).toHaveBeenCalledOnce()
+    expect(events).toContainEqual({ type: 'text-delta', delta: 'chunk' })
+    expect(events).toContainEqual({ type: 'finish', finishReason: 'stop' })
+  })
+
+  it('keeps Codex unavailable outside the Electron main-process bridge', async () => {
+    await expect(generateProviderTitleText({}, 'codex', 'gpt-5', 'title')).rejects.toThrow(
+      'main-process runtime'
+    )
+    await expect(
+      Array.fromAsync(
+        streamProviderEvents(
+          { streamResponses: true },
+          { provider: 'codex', model: 'gpt-5', messages: [message] }
+        )
+      )
+    ).rejects.toMatchObject({ message: expect.stringContaining('main-process runtime') })
   })
 })

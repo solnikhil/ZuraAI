@@ -4,6 +4,7 @@
  */
 
 import type {
+  AgentVerificationOutcome,
   FileAttachment,
   Message,
   ThinkingBlock,
@@ -16,8 +17,13 @@ import type {
   ProviderRuntimeSettings,
   ProviderRuntimeStreamRequest,
 } from '../../../../../providers/providerRuntimeTypes'
-import type { ToolCallingResponse } from '../../../../../tools/types'
-import type { ToolExecutionPolicy, ToolExecutionSummary } from '../../../../../tools/types'
+import type {
+  ToolApprovalDecision,
+  ToolApprovalAuthorization,
+  ToolCallingResponse,
+  ToolExecutionPolicy,
+  ToolExecutionSummary,
+} from '../../../../../tools/types'
 import type { AgentVerificationStrategy } from '../../../../../agent/reliability'
 import type { ServiceAssistantMessage, ToolDefinition } from '../../../../../services/types'
 import type { ActiveProviderId } from '../../../../../providers'
@@ -58,6 +64,8 @@ export interface StreamingResult {
   latency?: number
   /** Finish reason from the API */
   finishReason?: string
+  /** Terminal mutation-checkpoint evidence outcome, when Agent verification was required. */
+  verificationOutcome?: AgentVerificationOutcome
 }
 
 export type { FileAttachment }
@@ -126,16 +134,19 @@ export interface HandleToolCallsOptions {
   }) => void
   onToolApprovalResolved?: (
     toolCall: { id: string; name: string; arguments: Record<string, unknown> },
-    approved: boolean
+    decision: ToolApprovalDecision
   ) => void
   onToolComplete?: (result: ToolCallResult) => void
   onVerificationStart?: (strategy: AgentVerificationStrategy) => void
-  onVerificationComplete?: (strategy: AgentVerificationStrategy, verified: boolean) => void
+  onVerificationComplete?: (
+    strategy: AgentVerificationStrategy,
+    outcome: AgentVerificationOutcome
+  ) => void
   requestToolApproval?: (toolCall: {
     id: string
     name: string
     arguments: Record<string, unknown>
-  }) => Promise<boolean>
+  }) => Promise<ToolApprovalAuthorization | boolean>
   executionPolicy?: ToolExecutionPolicy
 }
 

@@ -12,6 +12,45 @@ import { buildAgentPlanPrompt, type AgentVerificationStrategy } from './reliabil
 
 const COMPUTER_TOOL_PREFIX = 'computer_'
 
+function sanitizeVerificationPostconditions(strategy: AgentVerificationStrategy) {
+  return strategy.postconditions.map((postcondition) => {
+    if (postcondition.kind === 'file-content') {
+      return {
+        kind: postcondition.kind,
+        path: postcondition.path,
+        expectedLength: postcondition.expectedContent.length,
+      }
+    }
+    if (postcondition.kind === 'ui-value') {
+      return {
+        kind: postcondition.kind,
+        elementId: postcondition.elementId,
+        expectedLength: postcondition.expectedValue.length,
+      }
+    }
+    return postcondition
+  })
+}
+
+function sanitizeToolArguments(args: ToolCall['arguments']): Record<string, unknown> {
+  if (!args || typeof args !== 'object') return {}
+  return {
+    argumentKeys: Object.keys(args)
+      .filter((key) => !key.startsWith('_'))
+      .sort()
+      .slice(0, 24),
+  }
+}
+
+function sanitizeToolResult(result: ToolCallResult['result']): Record<string, unknown> | undefined {
+  if (!result) return undefined
+  return {
+    success: result.success,
+    ...(result.error ? { hasError: true } : {}),
+    ...(typeof result.executionTime === 'number' ? { executionTime: result.executionTime } : {}),
+  }
+}
+
 export function isAgentWorkspaceMode(mode: AssistantMode): mode is 'agent' {
   return mode === 'agent'
 }
@@ -35,13 +74,17 @@ export function buildAgentCapabilities(mode: AssistantMode): AgentRunCapabilitie
   }
 }
 
-export function createAgentRun(mode: 'agent', taskText?: string): AgentRun {
+export function createAgentRun(mode: 'agent', taskText?: string, runId?: string): AgentRun {
   const now = Date.now()
   const plan = buildAgentPlanPrompt(taskText)
   return {
-    id: `agent-run-${now}-${Math.random().toString(36).slice(2, 8)}`,
+    // Share the trusted ChatRunController identity so renderer progress and the main-owned
+    // budget/cancellation ledger address the same run.
+    id: runId ?? `agent-run-${now}-${Math.random().toString(36).slice(2, 8)}`,
     mode,
     status: 'running',
+    phase: 'discover',
+    verification: 'not-required',
     startedAt: now,
     capabilities: buildAgentCapabilities(mode),
     steps: [
@@ -87,6 +130,7 @@ export function upsertAgentVerificationStep(
       category: strategy.category,
       preferredTools: strategy.preferredTools,
       mutatingToolNames: strategy.mutatingToolNames,
+      postconditions: sanitizeVerificationPostconditions(strategy),
     },
     startedAt: existing?.startedAt,
     approvalState: 'not-required',
@@ -98,7 +142,17 @@ export function upsertAgentVerificationStep(
     ? run.steps.map((step) => (step.id === existing.id ? nextStep : step))
     : [...run.steps, nextStep]
 
-  return { ...run, steps }
+  const verification = update.verificationOutcome
+    ? update.verificationOutcome
+    : update.status === 'running' || update.status === 'pending'
+      ? 'pending'
+      : update.status === 'completed'
+        ? 'verified'
+        : update.status === 'failed'
+          ? 'inconclusive'
+          : run.verification
+
+  return { ...run, phase: 'verify', verification, steps }
 }
 
 export function getToolStepKind(toolName: string): AgentStep['kind'] {
@@ -114,13 +168,13 @@ export function describeToolCall(toolCall: ToolCall): { title: string; summary: 
   if (toolCall.name === 'web_search') {
     return {
       title: 'Search web',
-      summary: String(args.query || 'Preparing search query'),
+      summary: summarizeArguments(args),
     }
   }
   if (toolCall.name === 'code_execution') {
     return {
       title: 'Run code',
-      summary: String(args.description || args.language || 'Execute sandboxed code'),
+      summary: summarizeArguments(args),
     }
   }
   if (toolCall.name.startsWith(COMPUTER_TOOL_PREFIX)) {
@@ -157,7 +211,9 @@ export function upsertAgentToolStep(
     summary: description.summary,
     toolCallId: toolCall.id,
     toolName: toolCall.name,
-    arguments: toolCall.arguments,
+    // The durable run ledger records shape, not sensitive values. Full tool data already has its
+    // own visibility/persistence path and must not be duplicated into AgentRun diagnostics.
+    arguments: sanitizeToolArguments(toolCall.arguments),
     startedAt: existing?.startedAt,
     ...existing,
     ...update,
@@ -169,6 +225,7 @@ export function upsertAgentToolStep(
 
   return {
     ...run,
+    phase: 'act',
     steps,
   }
 }
@@ -180,7 +237,7 @@ export function completeAgentToolStep(run: AgentRun, result: ToolCallResult): Ag
   const rejected = result.result?.error?.toLowerCase().includes('rejected')
   return upsertAgentToolStep(run, result.toolCall, {
     status: result.result?.success ? 'completed' : rejected ? 'rejected' : 'failed',
-    result: result.result,
+    result: sanitizeToolResult(result.result),
     startedAt,
     completedAt: now,
     durationMs: result.result?.executionTime ?? Math.max(0, now - startedAt),
@@ -200,11 +257,32 @@ export function finishAgentRun(
   status: AgentRun['status']
 ): AgentRun | undefined {
   if (!run) return undefined
+  const verification = resolveAgentRunVerification(run)
+  const truthfulStatus =
+    status === 'completed' && verification === 'inconclusive'
+      ? 'completed_unverified'
+      : status === 'completed' && (verification === 'pending' || verification === 'contradicted')
+        ? 'failed'
+        : status
   return {
     ...run,
-    status,
+    status: truthfulStatus,
+    phase: 'report',
+    verification,
     completedAt: Date.now(),
   }
+}
+
+/** Infer evidence state for older persisted runs that predate the orthogonal field. */
+export function resolveAgentRunVerification(run: AgentRun): AgentRun['verification'] {
+  if (run.verification) return run.verification
+  const verificationSteps = run.steps.filter((step) => step.kind === 'verify')
+  const latest = verificationSteps.at(-1)
+  if (!latest) return 'not-required'
+  if (latest.verificationOutcome) return latest.verificationOutcome
+  if (latest.status === 'completed') return 'verified'
+  if (latest.status === 'failed') return 'inconclusive'
+  return 'pending'
 }
 
 function formatComputerToolTitle(toolName: string): string {
@@ -216,10 +294,9 @@ function formatComputerToolTitle(toolName: string): string {
 }
 
 function summarizeArguments(args: Record<string, unknown>): string {
-  const entries = Object.entries(args)
-  if (entries.length === 0) return 'No arguments'
-  return entries
+  const keys = Object.keys(args)
+    .filter((key) => !key.startsWith('_'))
+    .sort()
     .slice(0, 3)
-    .map(([key, value]) => `${key}: ${String(value).slice(0, 60)}`)
-    .join(', ')
+  return keys.length === 0 ? 'No arguments' : `Inputs: ${keys.join(', ')}`
 }

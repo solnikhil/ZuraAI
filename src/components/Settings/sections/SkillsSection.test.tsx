@@ -85,6 +85,30 @@ describe('SkillsSection', () => {
     )
   })
 
+  it('enters Agent Mode when the settings extension is enabled', async () => {
+    const onChange = vi.fn()
+    render(
+      <SkillsSection
+        skills={withComputerUseEnabled(defaultSkillsSettings, false)}
+        onActiveExtensionChange={vi.fn()}
+        onChange={onChange}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: /enable agent mode/i }))
+
+    await waitFor(() =>
+      expect(onChange).toHaveBeenCalledWith(
+        expect.objectContaining({
+          assistantMode: 'agent',
+          skills: expect.objectContaining({
+            computer_use: expect.objectContaining({ enabled: true }),
+          }),
+        })
+      )
+    )
+  })
+
   it('opens an extension settings view when clicking the row', () => {
     const onActiveExtensionChange = vi.fn()
     render(
@@ -174,6 +198,7 @@ describe('SkillsSection', () => {
     await waitFor(() => expect(window.agentApproval?.setAutonomousMode).toHaveBeenCalledWith(false))
     expect(onChange).toHaveBeenCalledWith(
       expect.objectContaining({
+        assistantMode: 'chat',
         skills: expect.objectContaining({
           computer_use: expect.objectContaining({ enabled: false }),
         }),

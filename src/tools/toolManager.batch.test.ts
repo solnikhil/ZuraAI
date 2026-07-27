@@ -99,6 +99,112 @@ describe('toolManager web search batch policy', () => {
     )
   })
 
+  it('preserves a structured approval timeout instead of reporting user rejection', async () => {
+    const response = buildToolResponse([
+      {
+        id: 'shell-timeout',
+        name: 'system_shell',
+        arguments: { command: 'Write-Output test', description: 'test command' },
+      },
+    ])
+    const onToolApprovalResolved = vi.fn()
+
+    const result = await processToolCalls(response, {
+      provider: 'openrouter',
+      model: 'openai/gpt-4.1',
+      requestToolApproval: async () => ({ approved: false, outcome: 'timed_out' }),
+      onToolApprovalResolved,
+    })
+
+    expect(mocks.executeToolCalls).not.toHaveBeenCalled()
+    expect(result.results[0]?.result.error).toBe('Tool approval timed out.')
+    expect(onToolApprovalResolved).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'shell-timeout' }),
+      { approved: false, outcome: 'timed_out' }
+    )
+  })
+
+  it('keeps approval tokens scoped to concurrent executions with duplicate call ids', async () => {
+    const executions: Array<{
+      marker: unknown
+      approvalToken: string | undefined
+      runId: string | undefined
+    }> = []
+    mocks.executeToolCalls.mockImplementation(async ([toolCall], options) => {
+      executions.push({
+        marker: toolCall.arguments.marker,
+        approvalToken: options?.approvalToken,
+        runId: options?.runId,
+      })
+      return [
+        {
+          toolCall,
+          result: {
+            success: true,
+            data: { ok: true },
+            metadata: { origin: 'builtin-main' as const },
+          },
+        },
+      ]
+    })
+
+    const processCall = (marker: string, approvalToken: string, runId: string) =>
+      processToolCalls(
+        buildToolResponse([
+          {
+            id: 'provider-reused-id',
+            name: 'system_shell',
+            arguments: { command: `Write-Output ${marker}`, description: marker, marker },
+          },
+        ]),
+        {
+          provider: 'openrouter',
+          model: 'openai/gpt-4.1',
+          executionPolicy: { runId },
+          requestToolApproval: async () => ({
+            approved: true,
+            outcome: 'approved_once',
+            approvalToken,
+          }),
+        }
+      )
+
+    await Promise.all([
+      processCall('first', 'token-first', 'run-first'),
+      processCall('second', 'token-second', 'run-second'),
+    ])
+
+    expect(executions).toEqual(
+      expect.arrayContaining([
+        { marker: 'first', approvalToken: 'token-first', runId: 'run-first' },
+        { marker: 'second', approvalToken: 'token-second', runId: 'run-second' },
+      ])
+    )
+  })
+
+  it('discards authorization attached to a cancelled approval', async () => {
+    const response = buildToolResponse([
+      {
+        id: 'cancelled-shell',
+        name: 'system_shell',
+        arguments: { command: 'Write-Output cancelled', description: 'cancelled' },
+      },
+    ])
+
+    const result = await processToolCalls(response, {
+      provider: 'openrouter',
+      model: 'openai/gpt-4.1',
+      requestToolApproval: async () => ({
+        approved: false,
+        outcome: 'cancelled',
+        approvalToken: 'must-not-escape',
+      }),
+    })
+
+    expect(mocks.executeToolCalls).not.toHaveBeenCalled()
+    expect(result.results[0]?.result.error).toBe('Tool approval was cancelled.')
+  })
+
   it('executes five independent year-sliced web_search calls as one parallel batch and preserves order', async () => {
     const startedQueries: string[] = []
     const batchQueries: string[][] = []
@@ -186,6 +292,67 @@ describe('toolManager web search batch policy', () => {
       'search-2023',
       'search-2024',
       'search-2025',
+    ])
+  })
+
+  it('serializes mutations in response order while read-only calls continue in parallel', async () => {
+    const started: string[] = []
+    const resolvers = new Map<string, () => void>()
+    mocks.executeToolCalls.mockImplementation(async ([toolCall]) => {
+      started.push(toolCall.id)
+      await new Promise<void>((resolve) => resolvers.set(toolCall.id, resolve))
+      return [
+        {
+          toolCall,
+          result: {
+            success: true,
+            data: { ok: true },
+            metadata: { origin: 'builtin-main' as const },
+          },
+        },
+      ]
+    })
+
+    const response = buildToolResponse([
+      {
+        id: 'write-first',
+        name: 'file_write',
+        arguments: { path: 'C:\\tmp\\first.txt', content: 'first' },
+      },
+      { id: 'read-a', name: 'file_read', arguments: { path: 'C:\\tmp\\a.txt' } },
+      { id: 'read-b', name: 'file_search', arguments: { query: 'b', root: 'C:\\tmp' } },
+      {
+        id: 'move-second',
+        name: 'file_move',
+        arguments: { source: 'C:\\tmp\\first.txt', destination: 'C:\\tmp\\second.txt' },
+      },
+    ])
+
+    const processedPromise = processToolCalls(response, {
+      provider: 'openrouter',
+      model: 'openai/gpt-4.1',
+      requestToolApproval: async () => true,
+    })
+
+    await vi.waitFor(() => {
+      expect(started).toEqual(expect.arrayContaining(['write-first', 'read-a', 'read-b']))
+    })
+    expect(started).not.toContain('move-second')
+
+    resolvers.get('write-first')?.()
+    await vi.waitFor(() => expect(started).toContain('move-second'))
+    expect(started.indexOf('write-first')).toBeLessThan(started.indexOf('move-second'))
+
+    resolvers.get('read-a')?.()
+    resolvers.get('read-b')?.()
+    resolvers.get('move-second')?.()
+    const processed = await processedPromise
+
+    expect(processed.results.map((result) => result.toolCall.id)).toEqual([
+      'write-first',
+      'read-a',
+      'read-b',
+      'move-second',
     ])
   })
 

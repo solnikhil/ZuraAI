@@ -4,15 +4,7 @@
 
 import * as React from 'react'
 import { motion } from 'framer-motion'
-import {
-  Paperclip,
-  ArrowUp,
-  Square,
-  Plus,
-  FolderOpen,
-  Brain,
-  X,
-} from 'lucide-react'
+import { Paperclip, ArrowUp, Square, Plus, FolderOpen, Brain, X } from 'lucide-react'
 import ModelSelector from '../ModelSelector/index'
 import { useSettings } from '../../../contexts/SettingsContext'
 import {
@@ -40,8 +32,9 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Switch } from '@/components/ui/switch'
 import { ComposerAttachments } from './ComposerAttachments'
-import { isSkillEnabled, withComputerUseEnabled } from '@/skills'
+import { isSkillEnabled } from '@/skills'
 import { isWindowsRuntime } from '@/utils/platform'
+import { buildAgentModeSettingsUpdate, prepareAgentModeExit } from '@/agent/agentModeTransition'
 
 export interface InputAreaProps {
   input: string
@@ -193,21 +186,26 @@ export function InputArea({
   }
 
   const setComputerUseMode = React.useCallback(
-    (enabled: boolean) => {
-      updateSettings({
-        assistantMode: enabled ? 'agent' : assistantMode,
-        skills: withComputerUseEnabled(settings.skills, enabled),
-      })
+    async (enabled: boolean) => {
+      if (!enabled) {
+        try {
+          await prepareAgentModeExit()
+        } catch (cause) {
+          onError?.(
+            cause instanceof Error ? cause.message : 'Agent Mode could not be disabled safely.'
+          )
+          return
+        }
+      }
+
+      updateSettings(buildAgentModeSettingsUpdate(settings.skills, enabled))
     },
-    [assistantMode, settings.skills, updateSettings]
+    [onError, settings.skills, updateSettings]
   )
 
   const disableAgentWorkspace = React.useCallback(() => {
-    updateSettings({
-      assistantMode: 'chat',
-      skills: withComputerUseEnabled(settings.skills, false),
-    })
-  }, [settings.skills, updateSettings])
+    void setComputerUseMode(false)
+  }, [setComputerUseMode])
 
   React.useEffect(() => {
     const handleShortcut = (event: KeyboardEvent) => {

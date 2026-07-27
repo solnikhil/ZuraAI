@@ -4,6 +4,7 @@ import {
   buildAgentCapabilities,
   completeAgentToolStep,
   createAgentRun,
+  finishAgentRun,
   upsertAgentVerificationStep,
   upsertAgentToolStep,
 } from './agentRun'
@@ -22,6 +23,8 @@ describe('agentRun helpers', () => {
 
   it('creates and completes tool steps', () => {
     const run = createAgentRun('agent')
+    expect(run.phase).toBe('discover')
+    expect(run.verification).toBe('not-required')
     expect(run.capabilities).not.toHaveProperty('agentDesktop')
     const toolCall = {
       id: 'call-1',
@@ -41,6 +44,7 @@ describe('agentRun helpers', () => {
         approvalState: 'pending',
       })
     )
+    expect(awaitingApproval.phase).toBe('act')
 
     const completed = completeAgentToolStep(awaitingApproval, {
       toolCall,
@@ -59,8 +63,48 @@ describe('agentRun helpers', () => {
     )
   })
 
+  it('persists only privacy-safe tool metadata in the run ledger', () => {
+    const toolCall = {
+      id: 'call-sensitive',
+      name: 'file_write',
+      arguments: {
+        path: 'C:\\Users\\Example\\private.txt',
+        content: 'never persist this secret',
+      },
+    }
+
+    const started = upsertAgentToolStep(createAgentRun('agent'), toolCall, {
+      status: 'running',
+    })
+    const completed = completeAgentToolStep(started, {
+      toolCall,
+      result: {
+        success: true,
+        data: { content: 'nor this returned secret' },
+        executionTime: 15,
+      },
+    })
+    const serialized = JSON.stringify(completed.steps.at(-1))
+
+    expect(completed.steps.at(-1)?.arguments).toEqual({
+      argumentKeys: ['content', 'path'],
+    })
+    expect(completed.steps.at(-1)?.result).toEqual({
+      success: true,
+      executionTime: 15,
+    })
+    expect(serialized).not.toContain('private.txt')
+    expect(serialized).not.toContain('secret')
+  })
+
   it('stores a task-specific plan step on new agent runs', () => {
-    const run = createAgentRun('agent', 'Sort my desktop without touching shortcuts')
+    const run = createAgentRun(
+      'agent',
+      'Sort my desktop without touching shortcuts',
+      'controller-run-1'
+    )
+
+    expect(run.id).toBe('controller-run-1')
 
     expect(run.steps[0]).toEqual(
       expect.objectContaining({
@@ -86,9 +130,15 @@ describe('agentRun helpers', () => {
         reason: 'File changes were made and need a read-only filesystem check.',
         preferredTools: ['file_search', 'file_read'],
         mutatingToolNames: ['file_move'],
+        postconditions: [
+          { kind: 'file-exists', path: 'b' },
+          { kind: 'file-absent', path: 'a' },
+        ],
       },
       { status: 'running', startedAt: 10 }
     )
+    expect(started.verification).toBe('pending')
+    expect(started.phase).toBe('verify')
 
     const completed = upsertAgentVerificationStep(
       started,
@@ -97,8 +147,17 @@ describe('agentRun helpers', () => {
         reason: 'File changes were made and need a read-only filesystem check.',
         preferredTools: ['file_search', 'file_read'],
         mutatingToolNames: ['file_move'],
+        postconditions: [
+          { kind: 'file-exists', path: 'b' },
+          { kind: 'file-absent', path: 'a' },
+        ],
       },
-      { status: 'completed', completedAt: 25, durationMs: 15 }
+      {
+        status: 'completed',
+        verificationOutcome: 'verified',
+        completedAt: 25,
+        durationMs: 15,
+      }
     )
 
     expect(completed.steps.at(-1)).toEqual(
@@ -109,9 +168,89 @@ describe('agentRun helpers', () => {
         arguments: expect.objectContaining({
           preferredTools: ['file_search', 'file_read'],
           mutatingToolNames: ['file_move'],
+          postconditions: [
+            { kind: 'file-exists', path: 'b' },
+            { kind: 'file-absent', path: 'a' },
+          ],
         }),
       })
     )
     expect(completed.steps.filter((step) => step.kind === 'verify')).toHaveLength(1)
+    expect(completed.verification).toBe('verified')
+  })
+
+  it.each(['pending', 'contradicted'] as const)(
+    'does not let completed mask %s verification',
+    (verification) => {
+      const finished = finishAgentRun({ ...createAgentRun('agent'), verification }, 'completed')
+
+      expect(finished).toEqual(
+        expect.objectContaining({ status: 'failed', phase: 'report', verification })
+      )
+    }
+  )
+
+  it('reports inconclusive evidence as completed but explicitly unverified', () => {
+    const finished = finishAgentRun(
+      { ...createAgentRun('agent'), verification: 'inconclusive' },
+      'completed'
+    )
+
+    expect(finished).toEqual(
+      expect.objectContaining({
+        status: 'completed_unverified',
+        phase: 'report',
+        verification: 'inconclusive',
+      })
+    )
+  })
+
+  it.each(['not-required', 'verified'] as const)(
+    'allows completed when verification is %s',
+    (verification) => {
+      const finished = finishAgentRun({ ...createAgentRun('agent'), verification }, 'completed')
+
+      expect(finished).toEqual(expect.objectContaining({ status: 'completed', verification }))
+    }
+  )
+
+  it('records a typed failed verification outcome', () => {
+    const failed = upsertAgentVerificationStep(
+      createAgentRun('agent'),
+      {
+        category: 'file',
+        reason: 'The destination did not contain the moved file.',
+        preferredTools: ['file_search'],
+        mutatingToolNames: ['file_move'],
+        postconditions: [{ kind: 'file-exists', path: 'destination.txt' }],
+      },
+      { status: 'failed', verificationOutcome: 'contradicted' }
+    )
+
+    expect(failed.verification).toBe('contradicted')
+    expect(failed.steps.at(-1)?.verificationOutcome).toBe('contradicted')
+  })
+
+  it('does not persist expected file content or UI values in verification arguments', () => {
+    const run = upsertAgentVerificationStep(
+      createAgentRun('agent'),
+      {
+        category: 'file',
+        reason: 'Verify sensitive changes.',
+        preferredTools: ['file_read', 'ui_get_app_state'],
+        mutatingToolNames: ['file_write', 'ui_set_value'],
+        postconditions: [
+          { kind: 'file-content', path: 'secret.txt', expectedContent: 'private-content' },
+          { kind: 'ui-value', elementId: 'uie-secret', expectedValue: 'private-value' },
+        ],
+      },
+      { status: 'running' }
+    )
+
+    expect(run.steps.at(-1)?.arguments?.postconditions).toEqual([
+      { kind: 'file-content', path: 'secret.txt', expectedLength: 15 },
+      { kind: 'ui-value', elementId: 'uie-secret', expectedLength: 13 },
+    ])
+    expect(JSON.stringify(run.steps.at(-1)?.arguments)).not.toContain('private-')
   })
 })

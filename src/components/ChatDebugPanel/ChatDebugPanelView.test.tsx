@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import React from 'react'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen, within } from '@testing-library/react'
 
 import type { ChatDiagnosticEvent } from '@/diagnostics/chatDiagnostics'
@@ -102,6 +102,11 @@ const DEFAULT_VISIBLE_TIMELINE_COUNT = mockEvents.filter(
 ).length
 
 describe('ChatDebugPanelView (standalone window)', () => {
+  beforeEach(() => {
+    window.localStorage.removeItem('zura.chatDebugPanel.view')
+    window.localStorage.removeItem('zura.chatDebugPanel.category')
+  })
+
   it('renders the timeline of events with phase chips', () => {
     render(<ChatDebugPanelView sessionId="session-test" />)
 

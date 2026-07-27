@@ -560,9 +560,13 @@ export const SETTINGS_PAGE_URIS: Record<SettingsPage, string> = Object.fromEntri
   WINDOWS_SETTINGS_CATALOG.map((entry) => [entry.page, entry.uri])
 ) as Record<SettingsPage, string>
 
-export const SETTINGS_PAGE_IDS = new Set<string>(WINDOWS_SETTINGS_CATALOG.map((entry) => entry.page))
+export const SETTINGS_PAGE_IDS = new Set<string>(
+  WINDOWS_SETTINGS_CATALOG.map((entry) => entry.page)
+)
 
-export function getSupportedWindowsSettingsCatalog(build?: number): readonly WindowsSettingsPageDef[] {
+export function getSupportedWindowsSettingsCatalog(
+  build?: number
+): readonly WindowsSettingsPageDef[] {
   const windowsBuild = build ?? Number.POSITIVE_INFINITY
   return WINDOWS_SETTINGS_CATALOG.filter(
     (entry) => !entry.deprecated && (!entry.minBuild || windowsBuild >= entry.minBuild)

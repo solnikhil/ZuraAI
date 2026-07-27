@@ -80,7 +80,11 @@ function stripBinaryToolMedia(data: unknown): unknown {
   const obj = data as Record<string, unknown>
   const next: Record<string, unknown> = {}
   for (const [key, value] of Object.entries(obj)) {
-    if ((key === 'image' || key === 'screenshot') && typeof value === 'string' && isLikelyBase64Image(value)) {
+    if (
+      (key === 'image' || key === 'screenshot') &&
+      typeof value === 'string' &&
+      isLikelyBase64Image(value)
+    ) {
       next[key] = '[screenshot omitted — use dimensions/mediaRef; re-capture if needed]'
       continue
     }

@@ -518,6 +518,118 @@ describe('electron MCP handler registration', () => {
     expect(approvals.requestApproval).not.toHaveBeenCalled()
     expect(manager.executeTool).toHaveBeenCalledWith(toolName, args)
   })
+
+  it('keeps cancellation authoritative before MCP preparation or dispatch', async () => {
+    const mcpIndex = await import('./index')
+    const { agentRunRegistry } = await import('../tools/agent-run/registry')
+    mcpIndex.registerMcpHandlers()
+    const manager = getManagerInstance()
+    agentRunRegistry.cancel('cancelled-mcp-run', 7)
+
+    const result = await invokeHandler(
+      'mcp:execute-tool',
+      { sender: { id: 7 } },
+      'mcp__server__read_file',
+      {},
+      { runId: 'cancelled-mcp-run' }
+    )
+
+    expect(result).toMatchObject({ success: false, error: expect.stringContaining('cancelled') })
+    expect(manager.initialize).not.toHaveBeenCalled()
+    expect(manager.getExecutableTool).not.toHaveBeenCalled()
+    expect(manager.executeTool).not.toHaveBeenCalled()
+  })
+
+  it('propagates in-flight Agent cancellation to MCP transport and releases accounting', async () => {
+    const mcpIndex = await import('./index')
+    const { agentRunRegistry } = await import('../tools/agent-run/registry')
+    mcpIndex.registerMcpHandlers()
+    const manager = getManagerInstance()
+    let executionSignal: AbortSignal | undefined
+    manager.executeTool.mockImplementationOnce(
+      async (_toolName: string, _args: Record<string, unknown>, signal?: AbortSignal) => {
+        executionSignal = signal
+        await new Promise<void>((resolve) => signal?.addEventListener('abort', () => resolve()))
+        throw new Error('MCP transport aborted')
+      }
+    )
+
+    const execution = invokeHandler(
+      'mcp:execute-tool',
+      { sender: { id: 7 } },
+      'mcp__server__read_file',
+      {},
+      { runId: 'in-flight-mcp-run' }
+    )
+    await vi.waitFor(() => expect(executionSignal).toBeDefined())
+    expect(agentRunRegistry.cancel('in-flight-mcp-run', 7)).toBe(true)
+
+    await expect(execution).resolves.toMatchObject({
+      success: false,
+      error: 'MCP transport aborted',
+    })
+    expect(executionSignal?.aborted).toBe(true)
+    expect(agentRunRegistry.get('in-flight-mcp-run', 7)).toMatchObject({
+      activeToolCalls: 0,
+      status: 'cancelled',
+    })
+  })
+
+  it('accounts every MCP call as mutating and stops before the 51st dispatch', async () => {
+    const mcpIndex = await import('./index')
+    const { agentRunRegistry } = await import('../tools/agent-run/registry')
+    mcpIndex.registerMcpHandlers()
+    const manager = getManagerInstance()
+    const event = { sender: { id: 7 } }
+    const context = { runId: 'mcp-mutation-budget' }
+
+    for (let index = 0; index < 50; index += 1) {
+      await expect(
+        invokeHandler('mcp:execute-tool', event, 'mcp__server__read_file', { index }, context)
+      ).resolves.toMatchObject({ success: true })
+    }
+    await expect(
+      invokeHandler('mcp:execute-tool', event, 'mcp__server__read_file', { index: 50 }, context)
+    ).resolves.toMatchObject({
+      success: false,
+      error: expect.stringContaining('mutation budget'),
+    })
+    expect(manager.executeTool).toHaveBeenCalledTimes(50)
+    expect(agentRunRegistry.get('mcp-mutation-budget', 7)).toMatchObject({
+      mutations: 50,
+      budgetReason: 'mutations',
+      activeToolCalls: 0,
+    })
+  })
+
+  it('consumes approval tokens once so replay returns to the MCP approval path', async () => {
+    const mcpIndex = await import('./index')
+    const { issueToolApprovalAuthorization } = await import('../tools/toolApprovalAuthorizations')
+    mcpIndex.registerMcpHandlers()
+    const manager = getManagerInstance()
+    const approvals = indexMocks.approvalInstances[0]
+    const toolName = 'mcp__server__read_file'
+    const args = { path: 'once.txt' }
+    manager.getExecutableTool.mockImplementation(async () => ({
+      server: {
+        id: 'server-1',
+        name: 'Server',
+        trustState: 'trusted',
+        transport: 'stdio',
+        requireApproval: true,
+      },
+      tool: { namespacedName: toolName, toolName: 'read_file' },
+      connection: {},
+    }))
+    const token = issueToolApprovalAuthorization(7, toolName, args)
+    const event = { sender: { id: 7 } }
+
+    await invokeHandler('mcp:execute-tool', event, toolName, args, { approvalToken: token })
+    await invokeHandler('mcp:execute-tool', event, toolName, args, { approvalToken: token })
+
+    expect(manager.executeTool).toHaveBeenCalledTimes(2)
+    expect(approvals.requestApproval).toHaveBeenCalledTimes(1)
+  })
 })
 
 function getManagerInstance(): MockMcpManager {

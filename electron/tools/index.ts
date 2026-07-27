@@ -72,6 +72,7 @@ import type { ScheduledTaskInput, ScheduledTaskUpdateInput } from '../monitors'
 import type { ScreenshotArgs, TypeArgs, KeyArgs } from './computerUse'
 import { showSpotlight } from '../windows/spotlightOverlay'
 import {
+  getBuiltinToolSecurityProfile,
   isBuiltinMainToolName,
   type BuiltinMainToolName,
 } from '../../src/tools/builtinMainToolContract'
@@ -82,7 +83,6 @@ import {
 } from './computer-use/normalize'
 import { activateAgentSkill } from '../agentSkills/service'
 import { validateBuiltinToolInvocation } from './validateBuiltinToolInvocation'
-import { consumeToolApprovalAuthorization } from './toolApprovalAuthorizations'
 import type { BuiltinToolExecutionContext } from '../../src/electron/types'
 import { backgroundWindowCoordinator } from './background-window'
 import {
@@ -93,6 +93,9 @@ import {
 } from './background-window/toolPolicy'
 import { registerKillSwitch, unregisterKillSwitch } from './computer-use/killSwitch'
 import { requireApproval } from './native-common'
+import { agentRunRegistry } from './agent-run/registry'
+import { privilegedToolExecutionCoordinator } from './privilegedToolExecutionCoordinator'
+import { cancelQueuedAgentApprovalsForRun } from '../windows/agentApprovalOverlay'
 
 import type { ToolResult, ToolHandler, ToolHandlerContext } from './types'
 export type { ToolResult, ToolHandler } from './types'
@@ -135,6 +138,7 @@ function observeToolSender(sender: {
   observedToolSenders.add(sender.id)
   sender.once('destroyed', () => {
     observedToolSenders.delete(sender.id)
+    agentRunRegistry.cancelSender(sender.id)
     void backgroundWindowCoordinator.releaseSender(sender.id)
   })
 }
@@ -191,10 +195,7 @@ async function executeReservedUiAction(
   return handler(args)
 }
 
-async function attachBackgroundWindowForRun(
-  hwnd: number,
-  context?: ToolHandlerContext
-) {
+async function attachBackgroundWindowForRun(hwnd: number, context?: ToolHandlerContext) {
   clearForegroundFallbackPermit(context)
   const owner = requireBackgroundOwner(context)
   const notifyRunStopped = (payload: {
@@ -247,10 +248,7 @@ async function executeReservedScreenshot(
     }
   }
   if (!target) {
-    if (
-      normalizedArgs.reserve_background === false &&
-      !consumeForegroundFallbackPermit(context)
-    ) {
+    if (normalizedArgs.reserve_background === false && !consumeForegroundFallbackPermit(context)) {
       return {
         success: false,
         error:
@@ -264,8 +262,9 @@ async function executeReservedScreenshot(
     const result = await executeScreenshot(normalizedArgs, {
       sessionKey: computerSessionKey(context),
     })
-    const capturedTarget = (result.data as { target?: { type?: unknown; hwnd?: unknown } } | undefined)
-      ?.target
+    const capturedTarget = (
+      result.data as { target?: { type?: unknown; hwnd?: unknown } } | undefined
+    )?.target
     if (
       normalizedArgs.reserve_background !== false &&
       result.success &&
@@ -273,10 +272,7 @@ async function executeReservedScreenshot(
       typeof capturedTarget.hwnd === 'number' &&
       capturedTarget.hwnd > 0
     ) {
-      const reserved = await attachBackgroundWindowForRun(
-        Math.trunc(capturedTarget.hwnd),
-        context
-      )
+      const reserved = await attachBackgroundWindowForRun(Math.trunc(capturedTarget.hwnd), context)
       return {
         ...result,
         data: {
@@ -465,7 +461,7 @@ const spotlightFn = (opts: { x: number; y: number; label?: string }) => showSpot
 
 const toolHandlers: Record<BuiltinMainToolName, ToolHandler> = {
   web_search: (args) => executeWebSearch(normalizeWebSearchArgsInput(args)),
-  code_execution: (args) => executeCode(normalizeCodeExecutionArgsInput(args)),
+  code_execution: (args, context) => executeCode(normalizeCodeExecutionArgsInput(args), context),
   activate_skill: async (args) => {
     const r = typeof args === 'object' && args !== null ? (args as Record<string, unknown>) : {}
     const name = typeof r.name === 'string' ? r.name : ''
@@ -551,8 +547,7 @@ const toolHandlers: Record<BuiltinMainToolName, ToolHandler> = {
   computer_cursor_position: async (args, context) => {
     if (context?.runId) {
       const target = backgroundWindowCoordinator.status(requireBackgroundOwner(context))
-      if (target)
-        return backgroundWindowPhysicalInputBlocked(target, 'computer_cursor_position')
+      if (target) return backgroundWindowPhysicalInputBlocked(target, 'computer_cursor_position')
     }
     const n = normalizeCursorArgs(args)
     return executeCursorPosition(n.args, n.autoApprove, spotlightFn, computerSessionKey(context))
@@ -648,6 +643,27 @@ const toolHandlers: Record<BuiltinMainToolName, ToolHandler> = {
  * Call this from main.ts during app initialization
  */
 export function registerToolHandlers(): void {
+  ipcMain.handle('agent-run:get-runtime', (event, runId: unknown) => {
+    if (typeof runId !== 'string') throw new Error('Invalid Agent run id.')
+    observeToolSender(event.sender)
+    const runtime = agentRunRegistry.get(runId, event.sender.id)
+    if (!runtime) return null
+    const { senderWebContentsId: _senderWebContentsId, ...publicRuntime } = runtime
+    return publicRuntime
+  })
+
+  ipcMain.handle('agent-run:cancel', async (event, runId: unknown): Promise<boolean> => {
+    if (typeof runId !== 'string') throw new Error('Invalid Agent run id.')
+    observeToolSender(event.sender)
+    const cancelled = agentRunRegistry.cancel(runId, event.sender.id)
+    cancelQueuedAgentApprovalsForRun(event.sender.id, runId)
+    await backgroundWindowCoordinator.release(
+      { runId, senderWebContentsId: event.sender.id },
+      'run-cancelled'
+    )
+    return cancelled
+  })
+
   ipcMain.handle(
     'background-window:release-run',
     async (event, runId: unknown, outcome: unknown): Promise<boolean> => {
@@ -658,6 +674,7 @@ export function registerToolHandlers(): void {
         throw new Error('Invalid background window run outcome.')
       }
       observeToolSender(event.sender)
+      agentRunRegistry.finish(runId, event.sender.id, outcome)
       return backgroundWindowCoordinator.release(
         { runId, senderWebContentsId: event.sender.id },
         outcome === 'completed'
@@ -715,34 +732,51 @@ export function registerToolHandlers(): void {
       try {
         const senderId = event.sender?.id ?? -1
         if (event.sender && senderId >= 0) observeToolSender(event.sender)
-        if (
-          executionContext?.runId !== undefined &&
-          (typeof executionContext.runId !== 'string' ||
-            !/^[A-Za-z0-9_-]{1,128}$/.test(executionContext.runId))
-        ) {
-          return { success: false, error: 'Invalid tool execution run id.' }
-        }
-        const approved = consumeToolApprovalAuthorization(
-          executionContext?.approvalToken,
-          senderId,
-          toolName,
-          validation.args
-        )
-        const handlerArgs: Record<string, unknown> = {
-          ...validation.args,
-          ...(approved ? { autoApprove: true } : {}),
-          ...(toolName === 'activate_skill' && executionContext?.agentSkills
-            ? { _agentSkills: executionContext.agentSkills }
-            : {}),
-        }
         const runId = executionContext?.runId
-        return runId
-          ? await handler(handlerArgs, {
+        const coordinated = await privilegedToolExecutionCoordinator.execute(
+          {
+            senderWebContentsId: senderId,
+            toolName,
+            args: validation.args,
+            approvalToken: executionContext?.approvalToken,
+            runId,
+            // Built-in mutation classification is exhaustive and code-owned.
+            mutating:
+              getBuiltinToolSecurityProfile(toolName, validation.args).mutation === 'mutating',
+          },
+          async ({ approved, signal }) => {
+            const handlerArgs: Record<string, unknown> = {
+              ...validation.args,
+              ...(approved ? { autoApprove: true } : {}),
+              ...(toolName === 'activate_skill' && executionContext?.agentSkills
+                ? { _agentSkills: executionContext.agentSkills }
+                : {}),
+            }
+            if (!runId) return handler(handlerArgs)
+            return handler(handlerArgs, {
               senderWebContentsId: senderId,
               runId,
+              signal: signal as AbortSignal,
               sendToRenderer: (channel, payload) => event.sender.send(channel, payload),
             })
-          : await handler(handlerArgs)
+          }
+        )
+        if (!coordinated.ok) {
+          const reason =
+            coordinated.reason === 'tool_budget'
+              ? 'tool-call budget'
+              : coordinated.reason === 'mutation_budget'
+                ? 'mutation budget'
+                : coordinated.reason === 'time_budget'
+                  ? 'time budget'
+                  : coordinated.reason === 'global_capacity'
+                    ? 'global run capacity'
+                    : coordinated.reason === 'sender_capacity'
+                      ? 'renderer run capacity'
+                      : 'run cancellation'
+          return { success: false, error: `Agent run stopped by its ${reason}.` }
+        }
+        return coordinated.value
       } catch (error: unknown) {
         return {
           success: false,
@@ -758,7 +792,10 @@ export function registerToolHandlers(): void {
 
 export function unregisterToolHandlers(): void {
   ipcMain.removeHandler('execute-tool')
+  ipcMain.removeHandler('agent-run:cancel')
+  ipcMain.removeHandler('agent-run:get-runtime')
   ipcMain.removeHandler('background-window:release-run')
   observedToolSenders.clear()
+  agentRunRegistry.dispose()
   void backgroundWindowCoordinator.dispose()
 }

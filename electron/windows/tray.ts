@@ -1,6 +1,11 @@
 import { app, Tray, Menu } from 'electron'
 import { showAboutWindow } from './aboutWindow'
-import { allowMainWindowToClose, createMainWindow, getMainWindow, showMainWindow } from './mainWindow'
+import {
+  allowMainWindowToClose,
+  createMainWindow,
+  getMainWindow,
+  showMainWindow,
+} from './mainWindow'
 import { showMainWindowAndNavigateSettings } from './navigation'
 import { createTrayIcon } from '../windowIcon'
 

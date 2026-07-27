@@ -13,7 +13,6 @@ import type { EmailNotificationSettings } from '@/electron/types'
 import {
   BUILT_IN_SKILLS,
   isSkillEnabled as checkSkillEnabled,
-  withComputerUseEnabled,
   withSkillEnabled,
   type BuiltInSkill,
   type SkillsSettings,
@@ -21,6 +20,7 @@ import {
 import { isMacOSRuntime } from '@/utils/platform'
 import { ExtensionDetailSection } from './ExtensionDetailSection'
 import { getCatalogExtension, type CatalogExtensionId } from './extensionCatalog'
+import { buildAgentModeSettingsUpdate, prepareAgentModeExit } from '@/agent/agentModeTransition'
 
 export interface SkillsSectionProps {
   skills: SkillsSettings
@@ -77,16 +77,14 @@ export function SkillsSection({
 
   const setEnabled = async (extensionId: CatalogExtensionId, enabled: boolean) => {
     if (extensionId === 'computer_use') {
-      if (!enabled && window.agentApproval) {
+      if (!enabled) {
         try {
-          await window.agentApproval.setAutonomousMode(false)
+          await prepareAgentModeExit()
         } catch {
           return
         }
       }
-      onChange({
-        skills: withComputerUseEnabled(skills, enabled),
-      })
+      onChange(buildAgentModeSettingsUpdate(skills, enabled))
       return
     }
 

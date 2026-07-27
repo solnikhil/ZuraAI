@@ -28,6 +28,7 @@ import { WebSearchImageCarousel } from './WebSearchImageCarousel'
 import { AssistantMessageActions } from './AssistantMessageActions'
 import { RegenerateDialog } from './RegenerateDialog'
 import { useWebSources, useWebSearchImages } from './useWebSourceData'
+import { AgentRunTimeline } from '../AgentRunTimeline'
 
 export type { MessageRendererProps } from './types'
 
@@ -70,6 +71,7 @@ function MessageRendererComponent({
   isStreaming = false,
   streamPhase,
   activeToolCalls,
+  onStop,
   onCopy,
   onRegenerate,
 }: MessageRendererProps) {
@@ -298,6 +300,10 @@ function MessageRendererComponent({
       {!isStreaming && webSearchImages.length > 0 && (
         <WebSearchImageCarousel images={webSearchImages} mode={webImageMode} />
       )}
+
+      {message.agentRun ? (
+        <AgentRunTimeline run={message.agentRun} isActive={isStreaming} onStop={onStop} />
+      ) : null}
 
       {renderedSegments.map((segment, index) => {
         const isActiveSegment = index === activeSegmentIndex

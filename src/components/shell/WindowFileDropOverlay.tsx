@@ -111,7 +111,12 @@ export default function WindowFileDropOverlay() {
   if (!isDraggingFiles) return null
 
   return (
-    <div className="window-file-drop-overlay" role="dialog" aria-modal="true" aria-label="Drop files to attach">
+    <div
+      className="window-file-drop-overlay"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Drop files to attach"
+    >
       <div className="window-file-drop-overlay__scrim" />
       <div className="window-file-drop-overlay__frame">
         <div className="window-file-drop-overlay__card">

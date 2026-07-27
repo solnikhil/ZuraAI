@@ -13,23 +13,23 @@ This is a contributor map. Architecture rules still live in [`AGENTS.md`](../AGE
 
 ## Important settings
 
-| Setting | Effect |
-| ------- | ------ |
-| Memory enabled | Master switch. Off = no memory block, no memory tools |
+| Setting             | Effect                                                  |
+| ------------------- | ------------------------------------------------------- |
+| Memory enabled      | Master switch. Off = no memory block, no memory tools   |
 | Auto memory enabled | When master is on, the model may manage memories itself |
 
 Manual editing in Settings still works when the master switch is on.
 
 ## Where the code lives
 
-| Concern | Place |
-| ------- | ----- |
-| Disk store | `electron/memoryStore.ts` |
-| IPC | `electron/ipc/memoryStoreHandlers.ts` |
-| Preload bridge | `window.memory.*` |
-| Settings UI | `src/components/Settings/sections/MemorySection.tsx` |
-| Prompt block | `src/prompts/buildMemoryBlock.ts` |
-| Tools | `src/tools/memoryTools.ts` |
+| Concern        | Place                                                |
+| -------------- | ---------------------------------------------------- |
+| Disk store     | `electron/memoryStore.ts`                            |
+| IPC            | `electron/ipc/memoryStoreHandlers.ts`                |
+| Preload bridge | `window.memory.*`                                    |
+| Settings UI    | `src/components/Settings/sections/MemorySection.tsx` |
+| Prompt block   | `src/prompts/buildMemoryBlock.ts`                    |
+| Tools          | `src/tools/memoryTools.ts`                           |
 
 ## Data rules of thumb
 

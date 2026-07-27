@@ -6,15 +6,7 @@
  * session plus two recently used sessions.
  */
 
-import React, {
-  createContext,
-  useContext,
-  useState,
-  useEffect,
-  useCallback,
-  useMemo,
-  useRef,
-} from 'react'
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react'
 import { useSettings } from './SettingsContext'
 import type { SessionMetadata } from './ChatSessionManager'
 import { createSelectableContext } from './createSelectableContext'
@@ -56,6 +48,7 @@ import {
 } from './chatHistoryRepository'
 import { useChatHistoryPersistence } from './useChatHistoryPersistence'
 import { mergeLoadedSessionWithLiveShell, useLoadedSessionCache } from './useLoadedSessionCache'
+import { useTransactionalState } from './useTransactionalState'
 
 export type { SessionMetadata } from './ChatSessionManager'
 
@@ -169,26 +162,26 @@ function withArtifactSummaries(session: ChatSession): ChatSession {
 
 export function ChatHistoryProvider({ children }: { children: React.ReactNode }) {
   const { settings } = useSettings()
-  const [sessions, setSessions] = useState<ChatSession[]>([])
-  const [folders, setFolders] = useState<Folder[]>([])
+  const {
+    value: sessions,
+    ref: sessionsRef,
+    replace: replaceSessions,
+    transact: transactSessions,
+  } = useTransactionalState<ChatSession[]>([])
+  const {
+    value: folders,
+    ref: foldersRef,
+    replace: replaceFolders,
+  } = useTransactionalState<Folder[]>([])
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isInitialized, setIsInitialized] = useState(false)
   const [hasExternalStoreChanges, setHasExternalStoreChanges] = useState(false)
 
-  const sessionsRef = useRef<ChatSession[]>([])
-  const foldersRef = useRef<Folder[]>([])
-
-  useEffect(() => {
-    sessionsRef.current = sessions
-  }, [sessions])
-
-  useEffect(() => {
-    foldersRef.current = folders
-  }, [folders])
-
   const {
-    pendingSelfStoreChangesRef,
+    markStoreReconciled,
+    isExternalStoreEvent,
+    hasMissedExternalStoreChanges,
     markSessionsDirty,
     hasUnsavedLocalSessionChanges,
     markAllSaved,
@@ -208,7 +201,7 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
     loadFullSession,
   } = useLoadedSessionCache({
     sessionsRef,
-    setSessions,
+    replaceSessions,
     getCurrentSessionId: () => currentSessionId,
   })
 
@@ -229,25 +222,28 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
           }
         }
 
-        setSessions(metadata.map((entry) => metadataToSession(entry)))
-        setFolders(await chatHistoryRepository.getFolders())
+        replaceSessions(metadata.map((entry) => metadataToSession(entry)))
+        replaceFolders(await chatHistoryRepository.getFolders())
+        markStoreReconciled(await chatHistoryRepository.getRevision())
       } else {
         const localState = readLocalChatIndex()
         localState.sessions.forEach((session) => markLoaded(session.id))
-        setSessions(localState.sessions)
-        setFolders(localState.folders)
+        replaceSessions(localState.sessions)
+        replaceFolders(localState.folders)
       }
     } catch (error) {
       console.error('Failed to load chat history:', error)
-      const saved = localStorage.getItem(localChatStorage.historyKey)
-      const parsed = saved ? (JSON.parse(saved) as ChatSession[]) : []
-      setSessions(parsed.map(normalizeSession))
+      if (!isElectron) {
+        const saved = localStorage.getItem(localChatStorage.historyKey)
+        const parsed = saved ? (JSON.parse(saved) as ChatSession[]) : []
+        replaceSessions(parsed.map(normalizeSession))
+      }
     } finally {
       markAllSaved()
       setIsLoading(false)
       setIsInitialized(true)
     }
-  }, [markAllSaved, markLoaded])
+  }, [markAllSaved, markLoaded, markStoreReconciled, replaceFolders, replaceSessions])
 
   const reloadFromExternalStore = useCallback(async () => {
     try {
@@ -255,8 +251,9 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
         const metadata = await chatHistoryRepository.getMetadata()
         const nextFolders = await chatHistoryRepository.getFolders()
         clearLoaded()
-        setSessions(metadata.map((entry) => metadataToSession(entry)))
-        setFolders(nextFolders)
+        replaceSessions(metadata.map((entry) => metadataToSession(entry)))
+        replaceFolders(nextFolders)
+        markStoreReconciled(await chatHistoryRepository.getRevision())
         setCurrentSessionId((prev) => {
           if (!prev) return null
           return metadata.some((session) => session.id === prev) ? prev : null
@@ -264,8 +261,8 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
       } else {
         const localState = readLocalChatIndex()
         localState.sessions.forEach((session) => markLoaded(session.id))
-        setSessions(localState.sessions)
-        setFolders(localState.folders)
+        replaceSessions(localState.sessions)
+        replaceFolders(localState.folders)
       }
 
       markAllSaved()
@@ -273,7 +270,7 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
     } catch (error) {
       console.error('Failed to reload chat history from external store:', error)
     }
-  }, [clearLoaded, markAllSaved, markLoaded])
+  }, [clearLoaded, markAllSaved, markLoaded, markStoreReconciled, replaceFolders, replaceSessions])
 
   useEffect(() => {
     void loadSessions()
@@ -322,24 +319,23 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
   useEffect(() => {
     if (!isElectron || !window.ipcRenderer?.on) return
 
-    const handleChatStoreChanged = () => {
-      if (pendingSelfStoreChangesRef.current > 0) {
-        pendingSelfStoreChangesRef.current -= 1
-        return
-      }
-      setHasExternalStoreChanges(true)
+    const handleChatStoreChanged = (event: import('../electron/types').ChatStoreChangedEvent) => {
+      if (isExternalStoreEvent(event)) setHasExternalStoreChanges(true)
     }
 
     return window.ipcRenderer.on('chat-store:changed', handleChatStoreChanged)
-  }, [])
+  }, [isExternalStoreEvent])
 
   useEffect(() => {
     if (!isElectron || !isInitialized) return
 
     const refreshIfNeeded = () => {
-      if (!hasExternalStoreChanges) return
-      if (hasUnsavedLocalSessionChanges()) return
-      void reloadFromExternalStore()
+      void (async () => {
+        const needsRefresh =
+          hasExternalStoreChanges || (await hasMissedExternalStoreChanges().catch(() => false))
+        if (!needsRefresh || hasUnsavedLocalSessionChanges()) return
+        await reloadFromExternalStore()
+      })()
     }
 
     const handleVisibilityChange = () => {
@@ -357,6 +353,7 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
     }
   }, [
     hasExternalStoreChanges,
+    hasMissedExternalStoreChanges,
     hasUnsavedLocalSessionChanges,
     isInitialized,
     reloadFromExternalStore,
@@ -420,9 +417,9 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
           updatedAt: now,
         }
         markLoaded(updatedExisting.id)
-        setSessions((prev) => [
+        replaceSessions([
           updatedExisting,
-          ...prev.filter((session) => session.id !== updatedExisting.id),
+          ...sessionsRef.current.filter((session) => session.id !== updatedExisting.id),
         ])
         persistSessionMutation(updatedExisting)
         if (shouldActivate) {
@@ -456,14 +453,14 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
       })
 
       markLoaded(newSession.id)
-      setSessions((prev) => [newSession, ...prev])
+      replaceSessions([newSession, ...sessionsRef.current])
       persistSessionMutation(newSession)
       if (shouldActivate) {
         setCurrentSessionId(newSession.id)
       }
       return newSession.id
     },
-    [markLoaded, persistSessionMutation]
+    [markLoaded, persistSessionMutation, replaceSessions, sessionsRef]
   )
 
   const getSessionMetadata = useCallback(
@@ -500,7 +497,7 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
       options?: { persist?: boolean }
     ) => {
       const shouldPersist = options?.persist !== false
-      setSessions((prev) => {
+      const updatedSession = transactSessions((prev) => {
         let updatedSession: ChatSession | null = null
         const next = prev.map((session) => {
           if (session.id !== sessionId) return session
@@ -508,14 +505,14 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
           return updatedSession
         })
 
-        if (updatedSession && shouldPersist) {
-          persistSessionMutation(updatedSession)
+        return {
+          state: next.sort((a, b) => b.updatedAt - a.updatedAt),
+          result: updatedSession,
         }
-
-        return next.sort((a, b) => b.updatedAt - a.updatedAt)
       })
+      if (updatedSession && shouldPersist) persistSessionMutation(updatedSession)
     },
-    [persistSessionMutation]
+    [persistSessionMutation, transactSessions]
   )
 
   const persistUnloadedArtifactMutation = useCallback(
@@ -620,7 +617,7 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
     (id: string) => {
       markSessionsDirty()
       forgetLoaded(id)
-      setSessions((prev) => prev.filter((session) => session.id !== id))
+      replaceSessions(sessionsRef.current.filter((session) => session.id !== id))
       setCurrentSessionId((prev) => (prev === id ? null : prev))
       if (isElectron) {
         void trackSelfStoreMutation(() => chatHistoryRepository.deleteSession(id))
@@ -628,14 +625,21 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
         scheduleIndexSave()
       }
     },
-    [forgetLoaded, markSessionsDirty, scheduleIndexSave, trackSelfStoreMutation]
+    [
+      forgetLoaded,
+      markSessionsDirty,
+      replaceSessions,
+      scheduleIndexSave,
+      sessionsRef,
+      trackSelfStoreMutation,
+    ]
   )
 
   const clearAllSessions = useCallback(() => {
     markSessionsDirty()
     const ids = sessionsRef.current.map((session) => session.id)
     clearLoaded()
-    setSessions([])
+    replaceSessions([])
     setCurrentSessionId(null)
     if (isElectron) {
       void Promise.all(
@@ -656,7 +660,7 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
         JSON.stringify({ sessions: [], folders: foldersRef.current, version: INDEX_VERSION })
       )
     }
-  }, [clearLoaded, markSessionsDirty, trackSelfStoreMutation])
+  }, [clearLoaded, markSessionsDirty, replaceSessions, trackSelfStoreMutation])
 
   const updateSessionTitle = useCallback(
     (id: string, title: string) => {
@@ -709,11 +713,11 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
         })
 
         markLoaded(newSession.id)
-        setSessions((prev) => [newSession, ...prev])
+        replaceSessions([newSession, ...sessionsRef.current])
         persistSessionMutation(newSession)
       })()
     },
-    [loadFullSession, markLoaded, persistSessionMutation]
+    [loadFullSession, markLoaded, persistSessionMutation, replaceSessions, sessionsRef]
   )
 
   const createArtifact = useCallback(
@@ -876,13 +880,12 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
 
   const saveFoldersAndIndex = useCallback(
     (nextFolders: Folder[]) => {
-      foldersRef.current = nextFolders
-      setFolders(nextFolders)
+      replaceFolders(nextFolders)
       markSessionsDirty()
       cancelScheduledIndexSave()
       void flushIndexSave()
     },
-    [cancelScheduledIndexSave, flushIndexSave, markSessionsDirty]
+    [cancelScheduledIndexSave, flushIndexSave, markSessionsDirty, replaceFolders]
   )
 
   const createFolder = useCallback(
@@ -913,15 +916,13 @@ export function ChatHistoryProvider({ children }: { children: React.ReactNode })
         now
       )
 
-      foldersRef.current = nextFolders
-      sessionsRef.current = nextSessions
-      setFolders(nextFolders)
-      setSessions(nextSessions)
+      replaceFolders(nextFolders)
+      replaceSessions(nextSessions)
       markSessionsDirty()
       cancelScheduledIndexSave()
       void flushIndexSave()
     },
-    [cancelScheduledIndexSave, flushIndexSave, markSessionsDirty]
+    [cancelScheduledIndexSave, flushIndexSave, markSessionsDirty, replaceFolders, replaceSessions]
   )
 
   const renameFolder = useCallback(

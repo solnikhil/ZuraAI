@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  advanceAgentVerificationCheckpoint,
+  assessVerificationEvidence,
   buildAgentVerificationPrompt,
+  createAgentVerificationCheckpoint,
   didVerificationSucceed,
   hasFreshMutationEvidence,
   selectVerificationStrategy,
@@ -21,6 +24,10 @@ describe('agent reliability helpers', () => {
         category: 'file',
         preferredTools: ['file_search', 'file_read'],
         mutatingToolNames: ['file_move'],
+        postconditions: [
+          { kind: 'file-exists', path: 'b' },
+          { kind: 'file-absent', path: 'a' },
+        ],
       })
     )
   })
@@ -61,12 +68,13 @@ describe('agent reliability helpers', () => {
     )
   })
 
-  it('accepts only a preferred read-only tool as verification evidence', () => {
+  it('requires an explicit semantic verdict when no typed postcondition is available', () => {
     const strategy = {
       category: 'visual' as const,
       reason: 'Verify the screen.',
       preferredTools: ['computer_screenshot'],
       mutatingToolNames: ['computer_click'],
+      postconditions: [],
     }
 
     expect(
@@ -80,8 +88,26 @@ describe('agent reliability helpers', () => {
     expect(
       didVerificationSucceed(strategy, [
         {
+          toolCall: { id: 'shot-unverified', name: 'computer_screenshot', arguments: {} },
+          result: {
+            success: true,
+            data: { screenshotId: 'shot-1', ocr: { status: 'available', elements: [] } },
+          },
+        },
+      ])
+    ).toBe(false)
+    expect(
+      didVerificationSucceed(strategy, [
+        {
           toolCall: { id: 'shot-1', name: 'computer_screenshot', arguments: {} },
-          result: { success: true },
+          result: {
+            success: true,
+            data: {
+              screenshotId: 'shot-1',
+              ocr: { status: 'available', elements: [] },
+              semanticOutcome: 'verified',
+            },
+          },
         },
       ])
     ).toBe(true)
@@ -174,7 +200,14 @@ describe('agent reliability helpers', () => {
       didVerificationSucceed(strategy!, [
         {
           toolCall: { id: 'wait-1', name: 'ui_wait_for', arguments: { query: 'Notepad' } },
-          result: { success: true, data: { state: { title: 'Untitled - Notepad' } } },
+          result: {
+            success: true,
+            data: {
+              semanticOutcome: 'verified',
+              state: { state_id: 'state-1', title: 'Untitled - Notepad' },
+              matches: [{ name: 'Untitled - Notepad' }],
+            },
+          },
         },
       ])
     ).toBe(true)
@@ -240,6 +273,10 @@ describe('agent reliability helpers', () => {
         reason: 'File changes were made and need a read-only filesystem check.',
         preferredTools: ['file_search', 'file_read'],
         mutatingToolNames: ['file_move'],
+        postconditions: [
+          { kind: 'file-exists', path: 'b' },
+          { kind: 'file-absent', path: 'a' },
+        ],
       },
       { recoveryAttempt: true }
     )
@@ -249,5 +286,252 @@ describe('agent reliability helpers', () => {
     expect(prompt).toContain('file_search, file_read')
     expect(prompt).toContain('call only one of the preferred read-only tools')
     expect(prompt).toContain('continuing blind')
+  })
+
+  it('classifies failed and irrelevant evidence as inconclusive', () => {
+    const strategy = {
+      category: 'file' as const,
+      reason: 'Verify the destination.',
+      preferredTools: ['file_search', 'file_read'],
+      mutatingToolNames: ['file_move'],
+      postconditions: [{ kind: 'file-exists', path: 'Desktop/Images/a.png' }],
+    }
+
+    expect(
+      assessVerificationEvidence(strategy, [
+        {
+          toolCall: { id: 'failed', name: 'file_search', arguments: {} },
+          result: { success: false, error: 'Access denied.' },
+        },
+      ])
+    ).toBe('inconclusive')
+    expect(
+      assessVerificationEvidence(strategy, [
+        {
+          toolCall: { id: 'irrelevant', name: 'app_find', arguments: {} },
+          result: { success: true, data: { results: ['Notepad'] } },
+        },
+      ])
+    ).toBe('inconclusive')
+  })
+
+  it('classifies an empty preferred search as contradictory evidence', () => {
+    expect(
+      assessVerificationEvidence(
+        {
+          category: 'file',
+          reason: 'Verify the destination.',
+          preferredTools: ['file_search'],
+          mutatingToolNames: ['file_move'],
+          postconditions: [{ kind: 'file-exists', path: 'Desktop/Images/a.png' }],
+        },
+        [
+          {
+            toolCall: {
+              id: 'search',
+              name: 'file_search',
+              arguments: { root: 'Desktop/Images', query: 'a.png' },
+            },
+            result: {
+              success: true,
+              data: { root: 'Desktop/Images', query: 'a.png', results: [] },
+            },
+          },
+        ]
+      )
+    ).toBe('contradicted')
+  })
+
+  it('verifies file writes only when file_read matches the exact path and content', () => {
+    const strategy = selectVerificationStrategy([
+      {
+        toolCall: {
+          id: 'write',
+          name: 'file_write',
+          arguments: { path: 'Desktop/note.txt', content: 'expected contents' },
+        },
+        result: { success: true },
+      },
+    ])
+
+    expect(strategy?.postconditions).toEqual([
+      { kind: 'file-content', path: 'Desktop/note.txt', expectedContent: 'expected contents' },
+    ])
+    expect(
+      assessVerificationEvidence(strategy!, [
+        {
+          toolCall: {
+            id: 'read',
+            name: 'file_read',
+            arguments: { path: 'Desktop/note.txt' },
+          },
+          result: {
+            success: true,
+            data: { path: 'C:/Users/test/Desktop/note.txt', content: 'expected contents' },
+          },
+        },
+      ])
+    ).toBe('verified')
+    expect(
+      assessVerificationEvidence(strategy!, [
+        {
+          toolCall: {
+            id: 'read',
+            name: 'file_read',
+            arguments: { path: 'Desktop/note.txt' },
+          },
+          result: {
+            success: true,
+            data: { path: 'C:/Users/test/Desktop/note.txt', content: 'different contents' },
+          },
+        },
+      ])
+    ).toBe('contradicted')
+    expect(
+      assessVerificationEvidence(strategy!, [
+        {
+          toolCall: {
+            id: 'read',
+            name: 'file_read',
+            arguments: { path: 'Desktop/note.txt' },
+          },
+          result: {
+            success: true,
+            data: {
+              path: 'C:/Users/test/Desktop/note.txt',
+              content: 'different contents',
+              semanticOutcome: 'verified',
+            },
+          },
+        },
+      ])
+    ).toBe('contradicted')
+  })
+
+  it('requires evidence that a move destination exists and its source is absent', () => {
+    const strategy = selectVerificationStrategy([
+      {
+        toolCall: {
+          id: 'move',
+          name: 'file_move',
+          arguments: { source: 'Desktop/a.png', destination: 'Desktop/Images/a.png' },
+        },
+        result: { success: true },
+      },
+    ])!
+    const destinationEvidence = {
+      toolCall: {
+        id: 'destination',
+        name: 'file_search',
+        arguments: { root: 'Desktop/Images', query: 'a.png' },
+      },
+      result: {
+        success: true,
+        data: {
+          root: 'Desktop/Images',
+          query: 'a.png',
+          results: [{ path: 'C:/Users/test/Desktop/Images/a.png', type: 'file' }],
+        },
+      },
+    }
+
+    expect(assessVerificationEvidence(strategy, [destinationEvidence])).toBe('inconclusive')
+    expect(
+      assessVerificationEvidence(strategy, [
+        destinationEvidence,
+        {
+          toolCall: {
+            id: 'source',
+            name: 'file_search',
+            arguments: { root: 'Desktop', query: 'a.png' },
+          },
+          result: {
+            success: true,
+            data: { root: 'Desktop', query: 'a.png', results: [] },
+          },
+        },
+      ])
+    ).toBe('verified')
+  })
+
+  it('checks fresh UI state against set-value and selection postconditions', () => {
+    const setValueStrategy = selectVerificationStrategy([
+      {
+        toolCall: {
+          id: 'set',
+          name: 'ui_set_value',
+          arguments: { element_id: 'uie-name', value: 'Nikhil' },
+        },
+        result: { success: true },
+      },
+    ])!
+    const selectStrategy = selectVerificationStrategy([
+      {
+        toolCall: {
+          id: 'select',
+          name: 'ui_select',
+          arguments: { element_id: 'uie-enabled' },
+        },
+        result: {
+          success: true,
+          data: {
+            status: 'completed',
+            state: {
+              state_id: 'post-select',
+              elements: [{ element_id: 'uie-enabled', selected: true }],
+            },
+          },
+        },
+      },
+    ])!
+    const uiState = [
+      {
+        toolCall: { id: 'state', name: 'ui_get_app_state', arguments: {} },
+        result: {
+          success: true,
+          data: {
+            state: {
+              state_id: 'state-1',
+              windows: [
+                {
+                  elements: [
+                    { element_id: 'uie-name', value: 'Nikhil' },
+                    { element_id: 'uie-enabled', selected: true },
+                  ],
+                },
+              ],
+            },
+          },
+        },
+      },
+    ]
+
+    expect(assessVerificationEvidence(setValueStrategy, uiState)).toBe('verified')
+    expect(assessVerificationEvidence(selectStrategy, uiState)).toBe('verified')
+  })
+
+  it('allows exactly one recovery for every non-verifying outcome', () => {
+    for (const outcome of ['contradicted', 'inconclusive'] as const) {
+      const recovery = advanceAgentVerificationCheckpoint(
+        createAgentVerificationCheckpoint(),
+        outcome
+      )
+      expect(recovery).toEqual({ phase: 'recovery', outcome })
+      expect(advanceAgentVerificationCheckpoint(recovery, 'inconclusive')).toEqual({
+        phase: 'failed',
+        outcome,
+      })
+    }
+  })
+
+  it('makes a verifying recovery terminal and idempotent', () => {
+    const recovery = advanceAgentVerificationCheckpoint(
+      createAgentVerificationCheckpoint(),
+      'inconclusive'
+    )
+    const verified = advanceAgentVerificationCheckpoint(recovery, 'verified')
+
+    expect(verified).toEqual({ phase: 'verified', outcome: 'verified' })
+    expect(advanceAgentVerificationCheckpoint(verified, 'contradicted')).toBe(verified)
   })
 })

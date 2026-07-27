@@ -304,11 +304,7 @@ describe('computer-use screenshot sessions', () => {
     const screenshotId = (screenshot.data as { screenshotId: string }).screenshotId
 
     await expect(
-      service.executeKey(
-        { screenshot_id: screenshotId, key: 'ctrl+k' },
-        true,
-        'sender:screen'
-      )
+      service.executeKey({ screenshot_id: screenshotId, key: 'ctrl+k' }, true, 'sender:screen')
     ).resolves.toMatchObject({
       success: false,
       error: expect.stringContaining('window-targeted screenshot'),

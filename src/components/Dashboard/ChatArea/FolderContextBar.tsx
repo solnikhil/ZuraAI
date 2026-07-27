@@ -18,7 +18,11 @@ export interface FolderContextBarProps {
   onOpenFolder: () => void
 }
 
-export function FolderContextBar({ folderName, isFolderOnly, onOpenFolder }: FolderContextBarProps) {
+export function FolderContextBar({
+  folderName,
+  isFolderOnly,
+  onOpenFolder,
+}: FolderContextBarProps) {
   return (
     <div className="folder-context-bar" role="note">
       <WithTooltip tooltip={folderName}>

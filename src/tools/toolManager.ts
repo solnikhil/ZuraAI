@@ -10,6 +10,7 @@ import { validateToolCall } from '@zura/provider-core'
 import { convertToolsForProvider, providerSupportsTools, modelSupportsTools } from './adapters'
 import { executeToolCalls } from './executor'
 import { requiresManualToolApproval } from './approvalPolicy'
+import { getToolSecurityProfile } from './builtinMainToolContract'
 import type { ProviderId } from '../providers'
 import {
   parseOpenRouterToolCalls,
@@ -26,10 +27,11 @@ import {
   isMcpToolDescriptor,
   type ToolExecutionPolicy,
   type ToolExecutionSummary,
+  type ToolApprovalDecision,
+  type ToolApprovalAuthorization,
 } from './types'
 import { normalizeWebSearchQueryYear } from './webSearchPreferences'
 import { trackAnalytics } from '../analytics/track'
-import { consumeToolApprovalToken } from './toolApprovalTokens'
 
 type ProviderResponse = OpenRouterResponse
 
@@ -46,8 +48,8 @@ export interface ToolManagerConfig {
   executionPolicy?: ToolExecutionPolicy
   onToolBatchStart?: (toolCalls: ToolCall[]) => void
   onToolApprovalStart?: (toolCall: ToolCall) => void
-  onToolApprovalResolved?: (toolCall: ToolCall, approved: boolean) => void
-  requestToolApproval?: (toolCall: ToolCall) => Promise<boolean>
+  onToolApprovalResolved?: (toolCall: ToolCall, decision: ToolApprovalDecision) => void
+  requestToolApproval?: (toolCall: ToolCall) => Promise<ToolApprovalAuthorization | boolean>
   onToolStart?: (toolCall: ToolCall) => void
   onToolComplete?: (result: ToolCallResult) => void
 }
@@ -92,6 +94,35 @@ function createSyntheticToolResult(
         skippedReason,
       },
     },
+  }
+}
+
+function normalizeApprovalDecision(
+  value: ToolApprovalAuthorization | boolean
+): ToolApprovalAuthorization {
+  return typeof value === 'boolean'
+    ? { approved: value, outcome: value ? 'approved_once' : 'rejected' }
+    : value
+}
+
+function withoutApprovalAuthorization(decision: ToolApprovalAuthorization): ToolApprovalDecision {
+  return { approved: decision.approved, outcome: decision.outcome }
+}
+
+function approvalFailureMessage(outcome: ToolApprovalDecision['outcome']): string {
+  switch (outcome) {
+    case 'rejected':
+      return 'Tool call rejected by user.'
+    case 'timed_out':
+      return 'Tool approval timed out.'
+    case 'cancelled':
+      return 'Tool approval was cancelled.'
+    case 'unavailable':
+      return 'Tool approval is unavailable.'
+    case 'error':
+      return 'Tool approval failed because the approval service returned an error.'
+    default:
+      return 'Tool call was not approved.'
   }
 }
 
@@ -318,16 +349,22 @@ export async function processToolCalls(
     config.onToolBatchStart?.(executableToolCalls)
   }
 
+  const approvalTokensByIndex = new Map<number, string>()
   for (const { index, toolCall: executableToolCall } of executableCalls) {
     if (
       config.requestToolApproval &&
       requiresManualToolApproval(executableToolCall, availableTools)
     ) {
       config.onToolApprovalStart?.(executableToolCall)
-      const approved = await config.requestToolApproval(executableToolCall)
-      config.onToolApprovalResolved?.(executableToolCall, approved)
+      const approvalDecision = normalizeApprovalDecision(
+        await config.requestToolApproval(executableToolCall)
+      )
+      config.onToolApprovalResolved?.(
+        executableToolCall,
+        withoutApprovalAuthorization(approvalDecision)
+      )
 
-      if (!approved) {
+      if (!approvalDecision.approved) {
         if (executableToolCall.name === 'web_search') {
           executionSummary.executedWebSearchCount = Math.max(
             0,
@@ -341,13 +378,17 @@ export async function processToolCalls(
           toolCall: executableToolCall,
           result: {
             success: false,
-            error: 'Tool call rejected by user.',
+            error: approvalFailureMessage(approvalDecision.outcome),
           },
         }
         resultsByIndex[index] = rejectedResult
         config.onToolComplete?.(rejectedResult)
         trackToolResult(rejectedResult)
         continue
+      }
+
+      if (approvalDecision.approvalToken) {
+        approvalTokensByIndex.set(index, approvalDecision.approvalToken)
       }
     }
 
@@ -356,36 +397,57 @@ export async function processToolCalls(
 
   const approvedExecutableCalls = executableCalls.filter(({ index }) => !resultsByIndex[index])
 
-  const executionPromises = approvedExecutableCalls.map(
-    async ({ index, toolCall: executableToolCall }) => {
-      try {
-        const executeOptions = {
-          runId: config.executionPolicy?.runId,
-          userContextText,
-          approvalToken: consumeToolApprovalToken(executableToolCall.id),
-          sessionId: config.executionPolicy?.sessionId,
-          messageId: config.executionPolicy?.messageId,
-        }
-        const result = await executeToolCalls([executableToolCall], executeOptions)
-        resultsByIndex[index] = result[0]
-        config.onToolComplete?.(result[0])
-        trackToolResult(result[0])
-      } catch (execError: unknown) {
-        const errorMessage =
-          execError instanceof Error
-            ? execError.message
-            : `Failed to execute ${executableToolCall.name}`
-        console.error(`Tool execution error for ${executableToolCall.name}:`, execError)
-        const errorResult: ToolCallResult = {
-          toolCall: executableToolCall,
-          result: { success: false, error: errorMessage },
-        }
-        resultsByIndex[index] = errorResult
-        config.onToolComplete?.(errorResult)
-        trackToolResult(errorResult)
+  const executeApprovedCall = async ({
+    index,
+    toolCall: executableToolCall,
+  }: (typeof approvedExecutableCalls)[number]) => {
+    try {
+      // Remove the authorization from local approval state before dispatch so this
+      // exact execution closure is the only code path that can forward it.
+      const approvalToken = approvalTokensByIndex.get(index)
+      approvalTokensByIndex.delete(index)
+      const executeOptions = {
+        runId: config.executionPolicy?.runId,
+        userContextText,
+        approvalToken,
+        sessionId: config.executionPolicy?.sessionId,
+        messageId: config.executionPolicy?.messageId,
       }
+      const result = await executeToolCalls([executableToolCall], executeOptions)
+      resultsByIndex[index] = result[0]
+      config.onToolComplete?.(result[0])
+      trackToolResult(result[0])
+    } catch (execError: unknown) {
+      const errorMessage =
+        execError instanceof Error
+          ? execError.message
+          : `Failed to execute ${executableToolCall.name}`
+      console.error(`Tool execution error for ${executableToolCall.name}:`, execError)
+      const errorResult: ToolCallResult = {
+        toolCall: executableToolCall,
+        result: { success: false, error: errorMessage },
+      }
+      resultsByIndex[index] = errorResult
+      config.onToolComplete?.(errorResult)
+      trackToolResult(errorResult)
     }
-  )
+  }
+
+  let serialMutationTail: Promise<void> = Promise.resolve()
+  const executionPromises = approvedExecutableCalls.map((call) => {
+    const concurrency = getToolSecurityProfile(
+      call.toolCall.name,
+      call.toolCall.arguments
+    )?.concurrency
+    if (concurrency === 'parallel') return executeApprovedCall(call)
+
+    const scheduled = serialMutationTail.then(() => executeApprovedCall(call))
+    serialMutationTail = scheduled.then(
+      () => undefined,
+      () => undefined
+    )
+    return scheduled
+  })
 
   await Promise.all(executionPromises)
   const results = resultsByIndex.filter((result): result is ToolCallResult => Boolean(result))

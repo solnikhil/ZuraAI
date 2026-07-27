@@ -101,7 +101,7 @@ Renderer (React/Vite) → Preload (allowlisted bridges) → Electron Main
 - **Main window** loads `#/dashboard`. Routes under the app shell include `/`, `/dashboard`, `/settings`, and `/chat`.
 - **About** is a separate window (`#/about`).
 - **Chat debug** is a dev-only window (`#/chat-debug?sessionId=…`), disabled in packaged builds.
-- **Agent approval overlay** is a small always-on-top window for tool approvals when ZuraAI is not focused. It only shows sanitized approval HTML and returns approve / reject / always-allow-exact-repeat. It does not run tools.
+- **Agent approval overlay** is a small always-on-top window for tool approvals when ZuraAI is not focused. Main serializes pending requests in a FIFO tagged by trusted sender and optional opaque run ID, cancels only the matching sender/run requests, and returns structured approval, rejection, timeout, cancellation, or infrastructure outcomes. The overlay only shows sanitized approval HTML with task/queue context and offers approve / reject / always-allow-exact-repeat; it does not run tools.
 - **Background window guard** (Windows) is a transparent overlay while an agent run owns one external HWND. It tracks that window only, not the whole desktop.
 - Unknown routes show a dedicated 404.
 - Renderer windows deny in-window navigation and popups. HTTP(S) links open in the OS browser. Dev-server origins are matched exactly.
@@ -127,7 +127,10 @@ Chat run lifecycle:
 
 - Send and regenerate share `ChatRunController` (one AbortController, clear phases, once-only finish). Details: `docs/CHAT_RUNTIME.md`.
 - In-flight assistant state keeps a synchronous authoritative snapshot so completion cannot miss tokens while React is rendering composer edits. Throttled partial updates merge by field, and draft-only renders are isolated from the virtualized message viewport.
-- Agent verification uses checkpoints rather than treating every UI mutation as a terminal outcome. A changed action with fresh main-issued screenshot/UI state may advance one necessary step in a multi-action UI workflow; it remains progress evidence, not proof of task completion. Verification gets one normal attempt followed by at most one recovery round exposing only the strategy's preferred read-only tools; if neither produces verification evidence, the run stops that checkpoint instead of cycling to the global safety cap. Failed attempts do not inject deterministic assistant copy.
+- Chat-history mutations run as once-only transactions outside React updater callbacks. Each transaction advances a synchronous authoritative session/folder ref before publishing React state, then schedules persistence from the committed snapshot. Electron repository failures never fall back to renderer `localStorage`; local storage remains limited to non-Electron operation and explicit one-time migration.
+- Main assigns a process-local monotonic revision after every durable chat-store mutation. Mutation replies and per-window `chat-store:changed` events carry that revision; main labels events as self or external from the trusted sender identity. Renderers reconcile revision gaps on focus, so batched, missed, or out-of-order notifications cannot make an external write look like a self-write.
+- Agent verification uses checkpoints rather than treating every UI mutation as a terminal outcome. A changed action with fresh main-issued screenshot/UI state may advance one necessary step in a multi-action UI workflow; it remains progress evidence, not proof of task completion. Verification gets one normal attempt followed by at most one recovery round exposing only the strategy's preferred read-only tools; if neither produces verification evidence, the run stops that checkpoint instead of cycling to the global safety cap. Contradicted evidence fails the run; inherently non-machine-verifiable outcomes may end as explicitly `completed_unverified` and must include a user-facing warning. Failed attempts do not inject speculative deterministic success copy.
+- Interactive and scheduled Agent tool calls carry one shared opaque run ID in the renderer ledger and trusted execution context. Main lazily creates a sender-bound runtime/tombstone, enforces fixed wall-clock leases with active-work aborts, total-call and mutation budgets, plus bounded global/per-renderer run capacity, and rejects later dispatch after cancellation or exhaustion. Quiescent terminal tombstones expire after bounded retention; aborted runs with unfinished tool calls continue occupying capacity until completion so ignored abort signals cannot cause unbounded runtime growth. Stop cancels matching queued approvals, aborts active MCP/HTTP code work, terminates active shell work, and releases the run's background-window reservation. MCP server-provided read-only annotations do not weaken main-owned mutation accounting.
 - Opaque run ids travel in trusted tool context, never as model-visible arguments.
 - Two distinct tools returning the same infrastructure failure stop further tool/model rounds and show a grounded failure message.
 
@@ -168,7 +171,7 @@ Invokable handlers register through `electron/ipc/trustedIpc.ts`. Requests must 
 
 Primary files: `electron/preload.ts`, `src/electron/ipcChannelManifest.ts`, `src/electron.d.ts`, `electron/ipc/*`.
 
-Dedicated bridges include (non-exhaustive): `windowControls`, `appInfo`, `analytics`, `agentApproval`, `agentSkills`, `mcp`, `memory`, `scheduledTasks`, `artifacts`, `codeExecution`, `terminal`, `providerRuntime`, `backgroundWindow`, and a restricted generic `ipcRenderer` wrapper. `agentApproval` exposes request approval plus narrow get/set autonomous-mode calls. Enabling requires a main-owned native confirmation and persists only in encrypted main storage; renderer settings are never approval authority.
+Dedicated bridges include (non-exhaustive): `windowControls`, `appInfo`, `analytics`, `agentApproval`, `agentRun`, `agentSkills`, `mcp`, `memory`, `scheduledTasks`, `artifacts`, `codeExecution`, `terminal`, `providerRuntime`, `backgroundWindow`, and a restricted generic `ipcRenderer` wrapper. `agentRun` exposes only sender-owned cancellation and a sanitized runtime/budget snapshot; it never exposes cancellation authority for another renderer. `agentApproval` exposes request approval, narrow get/set autonomous-mode calls, and list/revoke controls for sanitized trusted-action metadata. Enabling autonomous mode requires a main-owned native confirmation. Exact-repeat signatures, their sanitized tool/risk/timestamp metadata, and autonomous policy persist only in encrypted main storage; signature authority and raw arguments never cross preload, and renderer settings are never approval authority.
 
 When adding/renaming/removing a channel:
 
@@ -212,8 +215,22 @@ ChatGPT Codex is a main-only OAuth exception: fixed public client, loopback call
 Rules:
 
 - One `execute-tool` channel; exact names only
+- `src/tools/builtinMainToolContract.ts` exhaustively defines each built-in tool's approval,
+  mutation, risk, verification, and concurrency classes. Renderer approval/verification and main
+  Agent-run mutation accounting consume this shared contract; MCP tools remain main-owned and are
+  always treated as approval-gated mutations.
+- A response may execute explicitly read-only tools in parallel, but mutating built-in, renderer,
+  and MCP calls are serialized in model response order so state changes cannot race each other.
+- Built-in and MCP dispatch share a main-only `PrivilegedToolExecutionCoordinator` for exact
+  approval-token consumption, sender/run validation, Agent budget accounting, cancellation-signal
+  composition, and once-only completion. Tool schemas and approval presentation remain with their
+  owning registries; all MCP calls retain their conservative main-owned mutating classification.
 - Full JSON Schema validation without coercion
 - Approval authority is main-issued, one-use, outside model args
+- Renderer approval authorization has no ambient registry: the structured main decision remains
+  local to the exact approved call's execution closure and is forwarded once with that call's
+  trusted execution context. Rejected, cancelled, and abandoned decisions cannot authorize a
+  later call, including a provider call that reuses the same tool-call ID.
 - `web_search` is Tavily-only (no silent backend fallback)
 - MCP tools use `window.mcp.executeTool`
 - Terminal and Computer Use are Windows-oriented, default-disabled, approval-gated
@@ -223,7 +240,8 @@ See `docs/TOOLS_SECURITY.md` and `docs/CREATING_BUILTIN_TOOLS.md`.
 ### Providers
 
 - Registry: `src/providers/providerRegistry.ts`
-- Dispatch: `src/providers/providerRuntime.ts`
+- Dispatch/retries: `src/providers/providerRuntime.ts`
+- Per-provider request/event adapters: `src/providers/runtimeAdapters/`
 - Platform-neutral contracts: `packages/provider-core`
 - Codex: `electron/providers/codexProvider.ts`
 
@@ -244,7 +262,7 @@ There is **no** third-party extension store, manifest extension runtime, or stor
 - AI automations may use `schedule.kind: "agent"` so the running model chooses the next run (clamped 1m–7d) instead of a fixed interval preset; fixed intervals remain available when the user wants a hard cadence.
 - The Schedules sidebar (internal route/view id remains `reminders`) is the UI for reminders, lookouts, and AI automations: create/edit forms, delete confirmation, type-aware run history, and open-run-chat for automation sessions. Schedules only fire while the app is open.
 - Email notification prefs are non-secret; Brevo key stays in secure storage.
-- Analytics is opt-in and sanitized (`TELEMETRY.md`).
+- Analytics is opt-in and sanitized (`TELEMETRY.md`). Agent run diagnostics emit only categorical lifecycle/approval/verification/stop/budget outcomes and rounded durations; run IDs, prompts, titles, tool arguments, paths, HWNDs, screenshots, payloads, and secrets are not accepted properties.
 - Discord RPC is best-effort; missing optional native deps must not crash the app.
 
 ---

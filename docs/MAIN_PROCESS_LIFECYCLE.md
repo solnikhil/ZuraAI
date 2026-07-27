@@ -38,11 +38,11 @@ Esc+Esc emergency stop uses a fixed key-state helper so normal Escape still reac
 
 Four pieces:
 
-| Module | Job |
-| ------ | --- |
-| `scheduler.ts` | Timers, enablement, overdue catch-up, one launch per due key |
-| `rendererBroker.ts` | Ask the UI for automation/summary work with timeouts |
-| `delivery.ts` | Notifications / email policy |
-| `runtime.ts` | Run the task and persist results |
+| Module              | Job                                                          |
+| ------------------- | ------------------------------------------------------------ |
+| `scheduler.ts`      | Timers, enablement, overdue catch-up, one launch per due key |
+| `rendererBroker.ts` | Ask the UI for automation/summary work with timeouts         |
+| `delivery.ts`       | Notifications / email policy                                 |
+| `runtime.ts`        | Run the task and persist results                             |
 
 When the reminders feature is off, timers clear and mutations should refuse. Notification clicks must focus the real main window you pass in — not “first BrowserWindow we find.”

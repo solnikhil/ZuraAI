@@ -15,7 +15,6 @@ import {
   MoreVertical,
   Plus,
   Search,
-  Terminal,
   Trash2,
 } from 'lucide-react'
 import { Card } from '@/components/ui/card'
@@ -42,7 +41,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { ProviderLogo, SkillLogo } from '@/components/shared'
+import { ProviderLogo } from '@/components/shared'
 import { WithTooltip } from '@/components/ui/WithTooltip'
 import type {
   ConfiguredModel,
@@ -50,13 +49,7 @@ import type {
   DeepSeekReasoningEffort,
 } from '@/contexts/SettingsConfigContext'
 import type { AlibabaRegion } from '@/services/alibabaEndpoints'
-import { getAlibabaBaseUrl } from '@/services/alibabaEndpoints'
-import { getDeepseekReasoning, setDeepseekReasoningEnabled } from '@/utils/deepseekReasoning'
 import { isSecureApiKeyPlaceholder } from '@/utils/secureApiKeys'
-import {
-  fetchOpenRouterModels,
-  mapOpenRouterModelToConfiguredModel,
-} from '@/services/openrouterModels'
 import { CreateCustomModelDialog } from './CreateCustomModelDialog'
 import { AlibabaModelSearchDialog } from './AlibabaModelSearchDialog'
 import { DeepseekModelSearchDialog } from './DeepseekModelSearchDialog'
@@ -65,31 +58,35 @@ import { FireworksModelSearchDialog } from './FireworksModelSearchDialog'
 import { NvidiaModelSearchDialog } from './NvidiaModelSearchDialog'
 import { OpenRouterModelSearchDialog } from './OpenRouterModelSearchDialog'
 import {
-  DEFAULT_OLLAMA_URL,
-  getProviderEndpoint,
   getProviderDashboardUrl,
   getProviderEnabledDefaults,
-  getProviderSettingsDefinition,
   type ProviderId,
   type ProviderSecretField,
 } from '../../../providers'
 import {
   buildProviderModelUpdate,
   createProviderModelMap,
-  getBrowserConnectivityDescriptor,
   PROVIDER_HUB_DEFINITIONS,
   type ProviderHubDefinition,
 } from './providerHubDescriptors'
+import { useProviderConnectivity } from './useProviderConnectivity'
+import { useProviderModelDialogs } from './useProviderModelDialogs'
+import { useProviderModels } from './useProviderModels'
+import { ProviderDetailField } from './ProviderDetailField'
+import {
+  SEARCH_APIS,
+  SearchApiDetail,
+  SearchApiSection,
+  type ProviderCatalogFilter,
+  type SearchApiKey,
+} from './ProviderSearchApiViews'
 
 type ManageMode = 'providers' | 'search-apis'
 type ProviderView = 'catalog' | 'detail'
 type ProviderKey = ProviderId
-type ConnectivityStatus = 'idle' | 'checking' | 'success' | 'error'
 type ProviderEnabledMap = Partial<Record<ProviderKey, boolean>>
 
 const PROVIDERS = PROVIDER_HUB_DEFINITIONS
-
-type ProviderCatalogFilter = 'all' | 'needs-setup' | 'disabled' | 'active'
 
 /** Display order for the flat providers catalog (no category headers). */
 const PROVIDER_CATALOG_ORDER: readonly ProviderKey[] = [
@@ -164,18 +161,6 @@ function providerMatchesCatalogFilter(
   }
 }
 
-const PROVIDER_ENDPOINTS: Record<ProviderKey, string> = {
-  alibaba: getProviderEndpoint('alibaba', 'baseUrl') || '',
-  deepseek: getProviderEndpoint('deepseek', 'baseUrl') || '',
-  opencode: getProviderEndpoint('opencode', 'baseUrl') || '',
-  fireworks: getProviderEndpoint('fireworks', 'baseUrl') || '',
-  groq: getProviderEndpoint('groq', 'baseUrl') || '',
-  nvidia: getProviderEndpoint('nvidia', 'baseUrl') || '',
-  ollama: getProviderEndpoint('ollama', 'baseUrl') || DEFAULT_OLLAMA_URL,
-  openrouter: getProviderEndpoint('openrouter', 'baseUrl') || '',
-  codex: 'ChatGPT Codex Responses',
-}
-
 const CATALOG_BASE_BACKGROUND = 'var(--theme-background)'
 const STATUS_COLORS = {
   success: {
@@ -207,43 +192,6 @@ function getSecretFieldPlaceholder(label: string, value: string | undefined): st
   }
   return `${label} API Key`
 }
-
-type SearchApiKey = 'tavily' | 'onlinecompiler'
-
-interface SearchApiDefinition {
-  key: SearchApiKey
-  name: string
-  description: string
-  shortDescription?: string
-  icon: React.ReactNode
-  color?: string
-  learnMoreUrl?: string
-  apiKeyField?: 'tavilyApiKey' | 'onlineCompilerApiKey'
-}
-
-const SEARCH_APIS: SearchApiDefinition[] = [
-  {
-    key: 'tavily',
-    name: 'Tavily',
-    description:
-      'AI-optimized search API for the web_search tool. Best quality results with optional images.',
-    shortDescription: 'AI-optimized search for web_search. Add a key for best results.',
-    icon: <SkillLogo skill="tavily" size={18} />,
-    color: '#4dabf7',
-    learnMoreUrl: 'https://tavily.com',
-    apiKeyField: 'tavilyApiKey',
-  },
-  {
-    key: 'onlinecompiler',
-    name: 'Code Execution API',
-    description: 'Free code execution sandbox for the code_execution tool (1M requests/month).',
-    shortDescription: 'Run code_execution with OnlineCompiler. Add a key for best results.',
-    icon: <Terminal size={16} />,
-    color: '#a78bfa',
-    learnMoreUrl: 'https://onlinecompiler.io',
-    apiKeyField: 'onlineCompilerApiKey',
-  },
-]
 
 interface ModelBasic {
   code: string
@@ -383,40 +331,8 @@ export function ProviderHubSection({
   const [selectedSearchApi, setSelectedSearchApi] = useState<SearchApiKey>('tavily')
   const [showApiKey, setShowApiKey] = useState(false)
   const [displayedApiKey, setDisplayedApiKey] = useState('')
-  const [addDialogOpen, setAddDialogOpen] = useState(false)
-  const [editDialogOpen, setEditDialogOpen] = useState(false)
-  const [alibabaSearchDialogOpen, setAlibabaSearchDialogOpen] = useState(false)
-  const [deepseekSearchDialogOpen, setDeepseekSearchDialogOpen] = useState(false)
-  const [opencodeSearchDialogOpen, setOpencodeSearchDialogOpen] = useState(false)
-  const [fireworksSearchDialogOpen, setFireworksSearchDialogOpen] = useState(false)
-  const [nvidiaSearchDialogOpen, setNvidiaSearchDialogOpen] = useState(false)
-  const [modelToEdit, setModelToEdit] = useState<{
-    provider: ProviderKey
-    model: ConfiguredModel
-  } | null>(null)
-  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
-  const [modelToDelete, setModelToDelete] = useState<{
-    provider: ProviderKey
-    modelCode: string
-    displayName: string
-  } | null>(null)
-  const [clearModelsConfirmOpen, setClearModelsConfirmOpen] = useState(false)
-  const [openRouterSearchDialogOpen, setOpenRouterSearchDialogOpen] = useState(false)
-  const [detectingReasoningModel, setDetectingReasoningModel] = useState<string | null>(null)
-  const [connectivityModel, setConnectivityModel] = useState('')
+  const modelDialogs = useProviderModelDialogs()
   const [modelListFilter, setModelListFilter] = useState<'all' | 'chat'>('all')
-  const [connectivityStatus, setConnectivityStatus] = useState<ConnectivityStatus>('idle')
-  const [codexSigningIn, setCodexSigningIn] = useState(false)
-  const [codexSignedIn, setCodexSignedIn] = useState<boolean | null>(null)
-  const [connectivityMessage, setConnectivityMessage] = useState(
-    'Select a model, then test your connection.'
-  )
-  const [connectivityMeta, setConnectivityMeta] = useState<{
-    latencyMs: number
-    checkedAt: string
-  } | null>(null)
-  const [connectivityDetails, setConnectivityDetails] = useState('')
-  const [showConnectivityDetails, setShowConnectivityDetails] = useState(false)
   const apiKeyOrEndpointInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -431,22 +347,6 @@ export function ProviderHubSection({
       onParamsConsumed?.()
     }
   }, [initialProvider, initialManageMode, onParamsConsumed])
-
-  useEffect(() => {
-    if (selectedProvider !== 'codex' || !window.providerRuntime?.getCodexAuthStatus) return
-    let active = true
-    void window.providerRuntime.getCodexAuthStatus().then(
-      (status) => {
-        if (active) setCodexSignedIn(status.signedIn)
-      },
-      () => {
-        if (active) setCodexSignedIn(false)
-      }
-    )
-    return () => {
-      active = false
-    }
-  }, [selectedProvider])
 
   const providerModelMap = useMemo(
     () =>
@@ -474,65 +374,6 @@ export function ProviderHubSection({
     ]
   )
 
-  const resetConnectivityState = (message: string) => {
-    setConnectivityStatus('idle')
-    setConnectivityMeta(null)
-    setConnectivityDetails('')
-    setShowConnectivityDetails(false)
-    setConnectivityMessage(message)
-  }
-
-  const setConnectivityErrorState = (message: string, details: string) => {
-    setConnectivityStatus('error')
-    setConnectivityMeta(null)
-    setConnectivityDetails(details)
-    setShowConnectivityDetails(false)
-    setConnectivityMessage(message)
-  }
-
-  const runBearerGetConnectivityCheck = async (
-    endpointUrl: string,
-    apiKey: string,
-    failurePrefix: string,
-    signal: AbortSignal
-  ) => {
-    const response = await fetch(endpointUrl, {
-      method: 'GET',
-      headers: { Authorization: `Bearer ${apiKey}` },
-      signal,
-    })
-
-    if (!response.ok) {
-      throw new Error(`${failurePrefix} (${response.status}).`)
-    }
-  }
-
-  const runChatCompletionsConnectivityCheck = async (
-    endpoint: string,
-    apiKey: string,
-    modelCode: string,
-    failurePrefix: string,
-    signal: AbortSignal
-  ) => {
-    const response = await fetch(`${endpoint}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: modelCode,
-        messages: [{ role: 'user', content: 'ping' }],
-        max_tokens: 1,
-      }),
-      signal,
-    })
-
-    if (!response.ok && response.status !== 400) {
-      throw new Error(`${failurePrefix} (${response.status}).`)
-    }
-  }
-
   const selectedProviderDef =
     PROVIDERS.find((provider) => provider.key === selectedProvider) ?? PROVIDERS[0]
 
@@ -547,46 +388,11 @@ export function ProviderHubSection({
     setDisplayedApiKey(isSecureApiKeyPlaceholder(currentValue) ? '' : currentValue)
   }, [selectedProviderDef.key, selectedProviderDef.apiKeyField])
 
-  const providerModels = providerModelMap[selectedProviderDef.key] || []
   const providerDashboardUrl = getProviderDashboardUrl(selectedProviderDef.key)
 
   useEffect(() => {
-    if (providerModels.length === 0) {
-      setConnectivityModel('')
-      return
-    }
-    if (!providerModels.some((model) => model.code === connectivityModel)) {
-      setConnectivityModel(providerModels[0].code)
-    }
-  }, [providerModels, connectivityModel])
-
-  useEffect(() => {
     setModelListFilter('all')
-    resetConnectivityState('Select a model, then test your connection.')
   }, [selectedProviderDef.key])
-
-  const visibleProviderModels = useMemo(() => {
-    const normalized = providerModelQuery.trim().toLowerCase()
-    if (!normalized) return providerModels
-    return providerModels.filter((model) => {
-      return (
-        model.displayName.toLowerCase().includes(normalized) ||
-        model.code.toLowerCase().includes(normalized)
-      )
-    })
-  }, [providerModels, providerModelQuery])
-
-  const visibleChatModels = useMemo(() => {
-    return visibleProviderModels.filter((model) => {
-      const haystack = `${model.code} ${model.displayName}`.toLowerCase()
-      return !/(image|vision|video|embed|embedding|audio|tts|asr)/.test(haystack)
-    })
-  }, [visibleProviderModels])
-
-  const modelsForList = modelListFilter === 'chat' ? visibleChatModels : visibleProviderModels
-
-  const enabledModels = modelsForList.filter((model) => model.enabled !== false)
-  const disabledModels = modelsForList.filter((model) => model.enabled === false)
 
   const getProviderApiKey = (provider: ProviderHubDefinition): string => {
     if (!provider.apiKeyField) return ''
@@ -601,6 +407,38 @@ export function ProviderHubSection({
     }
     return providerApiKeys[provider.apiKeyField] ?? ''
   }
+
+  const providerModelsController = useProviderModels({
+    selectedProvider: selectedProviderDef,
+    providerModelMap: providerModelMap as Record<ProviderKey, ConfiguredModel[]>,
+    query: providerModelQuery,
+    listFilter: modelListFilter,
+    configuredModels,
+    modelProvider,
+    aiModel,
+    deepseekReasoning,
+    deepseekLastEffort,
+    getProviderApiKey,
+    openRouterProvider:
+      PROVIDERS.find((provider) => provider.key === 'openrouter') ?? selectedProviderDef,
+    onChange,
+  })
+  const providerModels = providerModelsController.providerModels
+
+  const connectivity = useProviderConnectivity({
+    provider: selectedProviderDef,
+    models: providerModels,
+    getApiKey: getProviderApiKey,
+    alibabaRegion,
+    ollamaUrl,
+    aiModel,
+    onModelsDiscovered: (models, selectedModel) => {
+      onChange({
+        codexModels: models,
+        ...(modelProvider === 'codex' ? { aiModel: selectedModel } : {}),
+      })
+    },
+  })
 
   const normalizedProviderEnabled = useMemo<Record<ProviderKey, boolean>>(() => {
     return {
@@ -806,229 +644,31 @@ export function ProviderHubSection({
   }
 
   const handleEditModel = (model: ModelBasic) => {
-    setModelToEdit({ provider: selectedProviderDef.key, model: model as ConfiguredModel })
-    setEditDialogOpen(true)
+    modelDialogs.openEdit(selectedProviderDef.key, model as ConfiguredModel)
   }
 
   const handleDeleteModelClick = (model: ModelBasic) => {
-    setModelToDelete({
+    modelDialogs.openDelete({
       provider: selectedProviderDef.key,
       modelCode: model.code,
       displayName: model.displayName || model.code,
     })
-    setDeleteConfirmOpen(true)
   }
 
   const handleDeleteConfirm = () => {
-    if (modelToDelete) {
-      removeModel(modelToDelete.provider, modelToDelete.modelCode)
-      setModelToDelete(null)
+    if (modelDialogs.modelToDelete) {
+      removeModel(modelDialogs.modelToDelete.provider, modelDialogs.modelToDelete.modelCode)
     }
-    setDeleteConfirmOpen(false)
+    modelDialogs.closeDelete()
   }
 
   const clearModelsForProvider = (provider: ProviderKey) => {
     onChange(buildProviderModelUpdate(provider, []))
   }
 
-  const openCatalogDialogForProvider = (provider: ProviderKey) => {
-    const kind = getProviderSettingsDefinition(provider)?.catalogDialogKind
-    if (!kind) return
-    const openDialog = {
-      openrouter: setOpenRouterSearchDialogOpen,
-      fireworks: setFireworksSearchDialogOpen,
-      alibaba: setAlibabaSearchDialogOpen,
-      deepseek: setDeepseekSearchDialogOpen,
-      opencode: setOpencodeSearchDialogOpen,
-      nvidia: setNvidiaSearchDialogOpen,
-    }[kind]
-    openDialog(true)
-  }
-
   const handleClearModelsConfirm = () => {
     clearModelsForProvider(selectedProviderDef.key)
-    setClearModelsConfirmOpen(false)
-  }
-
-  const runConnectivityCheck = async () => {
-    const useMainRuntime = Boolean(window.providerRuntime)
-    const selectedKey = useMainRuntime ? '' : getProviderApiKey(selectedProviderDef).trim()
-    const endpoint =
-      selectedProviderDef.key === 'alibaba'
-        ? getAlibabaBaseUrl(alibabaRegion)
-        : PROVIDER_ENDPOINTS[selectedProviderDef.key]
-
-    if (!useMainRuntime && selectedProviderDef.key === 'codex') {
-      setConnectivityErrorState(
-        'ChatGPT Codex is available only in the ZuraAI desktop runtime.',
-        `Provider: ${selectedProviderDef.name}\nModel: ${connectivityModel || 'none'}`
-      )
-      return
-    }
-
-    if (!useMainRuntime && selectedProviderDef.key !== 'ollama' && !selectedKey) {
-      setConnectivityErrorState(
-        `${selectedProviderDef.name} API key is incorrect or empty. Add a valid key and try again.`,
-        `Provider: ${selectedProviderDef.name}\nModel: ${connectivityModel || 'none'}\nEndpoint: ${endpoint}`
-      )
-      return
-    }
-
-    if (!connectivityModel) {
-      setConnectivityErrorState(
-        'Select a model for this provider before checking.',
-        `Provider: ${selectedProviderDef.name}\nEndpoint: ${endpoint}`
-      )
-      return
-    }
-
-    setConnectivityStatus('checking')
-    setConnectivityMeta(null)
-    setConnectivityDetails('')
-    setShowConnectivityDetails(false)
-    setConnectivityMessage('Checking provider connectivity...')
-
-    const startedAt = Date.now()
-    const controller = new AbortController()
-    const timeout = setTimeout(() => controller.abort(), 9000)
-    let mainRequestId: string | undefined
-
-    try {
-      if (useMainRuntime) {
-        mainRequestId = crypto.randomUUID()
-        const requestId = mainRequestId
-        controller.signal.addEventListener(
-          'abort',
-          () => void window.providerRuntime?.cancel(requestId),
-          { once: true }
-        )
-        await window.providerRuntime!.generate({
-          requestId,
-          provider: selectedProviderDef.key,
-          model: connectivityModel,
-          prompt: 'Reply with OK.',
-          maxTokens: 8,
-          ollamaUrl,
-          alibabaRegion,
-        })
-      } else {
-        const connectivity = getBrowserConnectivityDescriptor(selectedProviderDef.key)
-        if (connectivity.kind === 'bearer-get') {
-          await runBearerGetConnectivityCheck(
-            `${endpoint}${connectivity.path}`,
-            selectedKey,
-            connectivity.failurePrefix,
-            controller.signal
-          )
-        } else if (connectivity.kind === 'chat-completions') {
-          await runChatCompletionsConnectivityCheck(
-            endpoint,
-            selectedKey,
-            connectivityModel,
-            connectivity.failurePrefix,
-            controller.signal
-          )
-        } else {
-          throw new Error(
-            `Connectivity check is not supported for provider: ${selectedProviderDef.key}`
-          )
-        }
-      }
-
-      const latencyMs = Math.max(1, Date.now() - startedAt)
-      setConnectivityStatus('success')
-      setConnectivityMeta({ latencyMs, checkedAt: new Date().toLocaleTimeString() })
-      setConnectivityMessage(
-        selectedProviderDef.key === 'codex'
-          ? 'ChatGPT Codex sign-in and model are reachable.'
-          : 'Connection successful. API key and model are reachable.'
-      )
-      setConnectivityDetails(
-        `Provider: ${selectedProviderDef.name}\nModel: ${connectivityModel}\nEndpoint: ${endpoint}\nStatus: 200 OK`
-      )
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Connectivity check failed.'
-      setConnectivityStatus('error')
-      setConnectivityMeta(null)
-      setConnectivityMessage(
-        selectedProviderDef.key === 'codex'
-          ? 'ChatGPT Codex is unavailable or not signed in. Use "Sign in with ChatGPT", then retry.'
-          : `${selectedProviderDef.name} API key appears invalid or endpoint is unreachable.`
-      )
-      setConnectivityDetails(
-        `Provider: ${selectedProviderDef.name}\nModel: ${connectivityModel}\nEndpoint: ${endpoint}\nError: ${message}`
-      )
-    } finally {
-      clearTimeout(timeout)
-      if (mainRequestId) void window.providerRuntime?.cancel(mainRequestId)
-    }
-  }
-
-  const discoverCodexModels = async (): Promise<ConfiguredModel[]> => {
-    if (!window.providerRuntime) throw new Error('The provider runtime bridge is unavailable.')
-    const requestId = crypto.randomUUID()
-    const result = await window.providerRuntime.listModels({
-      requestId,
-      provider: 'codex',
-    })
-    const models = result.filter((model): model is ConfiguredModel =>
-      Boolean(
-        model &&
-        typeof model === 'object' &&
-        typeof (model as { code?: unknown }).code === 'string' &&
-        typeof (model as { displayName?: unknown }).displayName === 'string'
-      )
-    )
-    if (models.length === 0) throw new Error('ChatGPT returned no usable Codex models.')
-    const selectedModel = models.some((model) => model.code === aiModel) ? aiModel : models[0].code
-    onChange({
-      codexModels: models,
-      ...(modelProvider === 'codex' ? { aiModel: selectedModel } : {}),
-    })
-    setConnectivityModel(selectedModel)
-    return models
-  }
-
-  const runCodexSignIn = async () => {
-    if (!window.providerRuntime?.signInCodex) {
-      setConnectivityErrorState(
-        'ChatGPT sign-in is available only in the ZuraAI desktop runtime.',
-        'The provider runtime bridge is unavailable.'
-      )
-      return
-    }
-    setCodexSigningIn(true)
-    resetConnectivityState('Complete ChatGPT sign-in in the browser window.')
-    try {
-      await window.providerRuntime.signInCodex()
-      setCodexSignedIn(true)
-      const models = await discoverCodexModels()
-      setConnectivityStatus('success')
-      setConnectivityMessage(
-        `ChatGPT sign-in complete. ${models.length} available Codex model${models.length === 1 ? '' : 's'} discovered.`
-      )
-    } catch (error) {
-      setConnectivityErrorState(
-        'ChatGPT Codex sign-in was cancelled or failed.',
-        error instanceof Error ? error.message : 'Unknown sign-in error.'
-      )
-    } finally {
-      setCodexSigningIn(false)
-    }
-  }
-
-  const runCodexSignOut = async () => {
-    if (!window.providerRuntime?.signOutCodex) return
-    try {
-      await window.providerRuntime.signOutCodex()
-      setCodexSignedIn(false)
-      resetConnectivityState('Signed out of ChatGPT on this device.')
-    } catch (error) {
-      setConnectivityErrorState(
-        'Could not sign out of ChatGPT Codex.',
-        error instanceof Error ? error.message : 'Unknown sign-out error.'
-      )
-    }
+    modelDialogs.setClearOpen(false)
   }
 
   return (
@@ -1141,7 +781,7 @@ export function ProviderHubSection({
             <div className="border-t border-border pt-6">
               {selectedProviderDef.apiKeyField ? (
                 <div className="space-y-6">
-                  <DetailField
+                  <ProviderDetailField
                     label="API Key"
                     description={`Please enter your ${selectedProviderDef.name} API key`}
                     control={
@@ -1157,9 +797,7 @@ export function ProviderHubSection({
                           onChange={(e) => {
                             setDisplayedApiKey(e.target.value)
                             setProviderApiKey(selectedProviderDef, e.target.value)
-                            resetConnectivityState(
-                              'API key changed. Run connectivity check to verify.'
-                            )
+                            connectivity.reset('API key changed. Run connectivity check to verify.')
                           }}
                           className="border-border bg-secondary pr-10"
                           placeholder={getSecretFieldPlaceholder(
@@ -1182,7 +820,7 @@ export function ProviderHubSection({
                   />
 
                   {selectedProviderDef.key === 'alibaba' && (
-                    <DetailField
+                    <ProviderDetailField
                       label="Region"
                       description="The API key and endpoint must belong to the same Alibaba region."
                       control={
@@ -1190,7 +828,7 @@ export function ProviderHubSection({
                           value={alibabaRegion}
                           onValueChange={(value) => {
                             onChange({ alibabaRegion: value as AlibabaRegion })
-                            resetConnectivityState('Region changed. Run connectivity check again.')
+                            connectivity.reset('Region changed. Run connectivity check again.')
                           }}
                         >
                           <SelectTrigger
@@ -1209,20 +847,15 @@ export function ProviderHubSection({
                     />
                   )}
 
-                  <DetailField
+                  <ProviderDetailField
                     label="Connectivity Check"
                     description="Test if API key and proxy URL are correctly configured"
                     control={
                       <div className="space-y-2">
                         <div className="flex gap-2">
                           <Select
-                            value={connectivityModel}
-                            onValueChange={(value) => {
-                              setConnectivityModel(value)
-                              resetConnectivityState(
-                                'Model changed. Run check again to verify this model.'
-                              )
-                            }}
+                            value={connectivity.model}
+                            onValueChange={connectivity.selectModel}
                           >
                             <SelectTrigger
                               className="h-10 flex-1 border-border bg-secondary"
@@ -1241,10 +874,10 @@ export function ProviderHubSection({
                           <Button
                             variant="outline"
                             className="min-w-24"
-                            onClick={runConnectivityCheck}
-                            disabled={connectivityStatus === 'checking'}
+                            onClick={connectivity.check}
+                            disabled={connectivity.state.status === 'checking'}
                           >
-                            {connectivityStatus === 'checking' ? (
+                            {connectivity.state.status === 'checking' ? (
                               <span className="inline-flex items-center gap-2">
                                 <Loader2 size={14} className="animate-spin" />
                                 Checking
@@ -1259,62 +892,62 @@ export function ProviderHubSection({
                           className="rounded-xl border"
                           style={{
                             borderColor:
-                              connectivityStatus === 'error'
+                              connectivity.state.status === 'error'
                                 ? STATUS_COLORS.error.border
-                                : connectivityStatus === 'success'
+                                : connectivity.state.status === 'success'
                                   ? STATUS_COLORS.connectivitySuccess.border
                                   : 'var(--theme-border)',
                             background:
-                              connectivityStatus === 'error'
+                              connectivity.state.status === 'error'
                                 ? STATUS_COLORS.error.background
-                                : connectivityStatus === 'success'
+                                : connectivity.state.status === 'success'
                                   ? STATUS_COLORS.connectivitySuccess.background
                                   : 'var(--theme-surface-hover)',
                           }}
                         >
                           <div className="px-4 py-3">
                             <span className="inline-flex items-start gap-2 text-sm leading-6 text-foreground">
-                              {connectivityStatus === 'checking' && (
+                              {connectivity.state.status === 'checking' && (
                                 <Loader2 size={16} className="mt-0.5 animate-spin" />
                               )}
-                              {connectivityStatus === 'success' && (
+                              {connectivity.state.status === 'success' && (
                                 <CheckCircle2
                                   size={16}
                                   className="mt-0.5"
                                   style={{ color: STATUS_COLORS.connectivitySuccess.icon }}
                                 />
                               )}
-                              {connectivityStatus === 'error' && (
+                              {connectivity.state.status === 'error' && (
                                 <AlertCircle
                                   size={16}
                                   className="mt-0.5"
                                   style={{ color: STATUS_COLORS.error.icon }}
                                 />
                               )}
-                              {connectivityStatus === 'idle' && (
+                              {connectivity.state.status === 'idle' && (
                                 <Globe size={16} className="mt-0.5 text-muted-foreground" />
                               )}
-                              <span>{connectivityMessage}</span>
+                              <span>{connectivity.state.message}</span>
                             </span>
-                            {connectivityMeta && (
+                            {connectivity.state.meta && (
                               <span className="mt-2 block text-xs text-muted-foreground">
-                                {`Latency ${connectivityMeta.latencyMs}ms • Checked at ${connectivityMeta.checkedAt}`}
+                                {`Latency ${connectivity.state.meta.latencyMs}ms • Checked at ${connectivity.state.meta.checkedAt}`}
                               </span>
                             )}
                           </div>
 
-                          {connectivityDetails && (
+                          {connectivity.state.details && (
                             <div className="border-t border-dashed border-border/60 px-4 py-2">
                               <button
                                 type="button"
-                                onClick={() => setShowConnectivityDetails((previous) => !previous)}
+                                onClick={connectivity.toggleDetails}
                                 className="text-xs text-foreground/90 transition hover:text-foreground"
                               >
-                                {showConnectivityDetails ? 'Hide Details' : 'Show Details'}
+                                {connectivity.state.showDetails ? 'Hide Details' : 'Show Details'}
                               </button>
-                              {showConnectivityDetails && (
+                              {connectivity.state.showDetails && (
                                 <pre className="mt-2 whitespace-pre-wrap text-[11px] leading-5 text-muted-foreground">
-                                  {connectivityDetails}
+                                  {connectivity.state.details}
                                 </pre>
                               )}
                             </div>
@@ -1326,36 +959,36 @@ export function ProviderHubSection({
                 </div>
               ) : selectedProviderDef.key === 'codex' ? (
                 <div className="space-y-6">
-                  <DetailField
+                  <ProviderDetailField
                     label="ChatGPT Account"
                     description="Unofficial local integration using your ChatGPT Codex allowance. OAuth tokens are OS-encrypted and remain in ZuraAI's main process."
                     control={
                       <div className="flex items-center gap-2">
                         <Button
                           variant="outline"
-                          onClick={runCodexSignIn}
-                          disabled={codexSigningIn}
+                          onClick={connectivity.signInCodex}
+                          disabled={connectivity.codexSigningIn}
                         >
-                          {codexSigningIn ? (
+                          {connectivity.codexSigningIn ? (
                             <Loader2 size={14} className="animate-spin" />
                           ) : (
                             <ExternalLink size={14} />
                           )}
-                          {codexSigningIn
+                          {connectivity.codexSigningIn
                             ? 'Waiting for sign-in'
-                            : codexSignedIn
+                            : connectivity.codexSignedIn
                               ? 'Sign in again'
                               : 'Sign in with ChatGPT'}
                         </Button>
-                        {codexSignedIn && (
-                          <Button variant="ghost" onClick={runCodexSignOut}>
+                        {connectivity.codexSignedIn && (
+                          <Button variant="ghost" onClick={connectivity.signOutCodex}>
                             Sign out
                           </Button>
                         )}
                       </div>
                     }
                   />
-                  <DetailField
+                  <ProviderDetailField
                     label="Connectivity Check"
                     description="Verify the OAuth session and selected account-accessible Codex model."
                     control={
@@ -1363,10 +996,10 @@ export function ProviderHubSection({
                         <Button
                           variant="outline"
                           className="w-full"
-                          onClick={runConnectivityCheck}
-                          disabled={connectivityStatus === 'checking'}
+                          onClick={connectivity.check}
+                          disabled={connectivity.state.status === 'checking'}
                         >
-                          {connectivityStatus === 'checking' ? (
+                          {connectivity.state.status === 'checking' ? (
                             <span className="inline-flex items-center gap-2">
                               <Loader2 size={14} className="animate-spin" />
                               Checking
@@ -1377,18 +1010,18 @@ export function ProviderHubSection({
                         </Button>
                         <div className="rounded-xl border border-border bg-secondary px-4 py-3 text-sm">
                           <span className="inline-flex items-start gap-2">
-                            {connectivityStatus === 'success' ? (
+                            {connectivity.state.status === 'success' ? (
                               <CheckCircle2 size={16} className="mt-0.5 text-emerald-400" />
-                            ) : connectivityStatus === 'error' ? (
+                            ) : connectivity.state.status === 'error' ? (
                               <AlertCircle size={16} className="mt-0.5 text-red-400" />
                             ) : (
                               <ShieldCheck size={16} className="mt-0.5 text-muted-foreground" />
                             )}
-                            <span>{connectivityMessage}</span>
+                            <span>{connectivity.state.message}</span>
                           </span>
-                          {connectivityDetails && (
+                          {connectivity.state.details && (
                             <pre className="mt-2 whitespace-pre-wrap text-[11px] leading-5 text-muted-foreground">
-                              {connectivityDetails}
+                              {connectivity.state.details}
                             </pre>
                           )}
                         </div>
@@ -1397,7 +1030,7 @@ export function ProviderHubSection({
                   />
                 </div>
               ) : (
-                <DetailField
+                <ProviderDetailField
                   label="Ollama Endpoint"
                   description="Set your local Ollama endpoint URL"
                   control={
@@ -1488,7 +1121,7 @@ export function ProviderHubSection({
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => openCatalogDialogForProvider(selectedProviderDef.key)}
+                    onClick={() => modelDialogs.openCatalog(selectedProviderDef.key)}
                     className="gap-2 whitespace-nowrap"
                   >
                     <Search size={14} />
@@ -1498,7 +1131,7 @@ export function ProviderHubSection({
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => setClearModelsConfirmOpen(true)}
+                  onClick={() => modelDialogs.setClearOpen(true)}
                   disabled={providerModels.length === 0}
                   className="gap-2 whitespace-nowrap text-rose-300 hover:text-rose-200"
                 >
@@ -1508,7 +1141,7 @@ export function ProviderHubSection({
                 <Button
                   variant="outline"
                   size="icon-sm"
-                  onClick={() => setAddDialogOpen(true)}
+                  onClick={() => modelDialogs.setAddOpen(true)}
                   aria-label="Add custom model"
                 >
                   <Plus size={16} />
@@ -1560,52 +1193,55 @@ export function ProviderHubSection({
       )}
 
       <CreateCustomModelDialog
-        open={addDialogOpen}
-        onOpenChange={setAddDialogOpen}
+        open={modelDialogs.addOpen}
+        onOpenChange={modelDialogs.setAddOpen}
         provider={selectedProviderDef.key}
         providerApiKey={getProviderApiKey(selectedProviderDef)}
         onCreate={(model) => addCustomModel(model, selectedProviderDef.key)}
       />
 
       <CreateCustomModelDialog
-        open={editDialogOpen}
+        open={modelDialogs.editOpen}
         onOpenChange={(open) => {
-          setEditDialogOpen(open)
-          if (!open) setModelToEdit(null)
+          modelDialogs.setEditOpen(open)
+          if (!open) modelDialogs.setModelToEdit(null)
         }}
-        provider={modelToEdit?.provider}
+        provider={modelDialogs.modelToEdit?.provider}
         providerApiKey={
-          modelToEdit
+          modelDialogs.modelToEdit
             ? getProviderApiKey(
-                PROVIDERS.find((provider) => provider.key === modelToEdit.provider) ??
+                PROVIDERS.find((provider) => provider.key === modelDialogs.modelToEdit?.provider) ??
                   selectedProviderDef
               )
             : ''
         }
         onCreate={addCustomModel}
-        initialModel={modelToEdit?.model}
+        initialModel={modelDialogs.modelToEdit?.model}
         onUpdate={(updated) => {
-          if (modelToEdit) {
-            updateModel(modelToEdit.provider, modelToEdit.model.code, updated)
-            setEditDialogOpen(false)
-            setModelToEdit(null)
+          if (modelDialogs.modelToEdit) {
+            updateModel(
+              modelDialogs.modelToEdit.provider,
+              modelDialogs.modelToEdit.model.code,
+              updated
+            )
+            modelDialogs.closeEdit()
           }
         }}
       />
 
-      <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+      <Dialog open={modelDialogs.deleteOpen} onOpenChange={modelDialogs.setDeleteOpen}>
         <DialogContent className="border-border bg-card sm:max-w-[420px]" showCloseButton={false}>
           <DialogHeader>
             <DialogTitle>Delete Model</DialogTitle>
             <DialogDescription>
-              {modelToDelete && (
+              {modelDialogs.modelToDelete && (
                 <>
                   Remove{' '}
                   <span className="inline-flex rounded bg-secondary px-1.5 py-0.5 font-mono text-[0.9em] text-foreground">
-                    &quot;{modelToDelete.displayName}&quot;
+                    &quot;{modelDialogs.modelToDelete.displayName}&quot;
                   </span>{' '}
                   from your model list?
-                  {modelToDelete.provider === 'ollama' && (
+                  {modelDialogs.modelToDelete.provider === 'ollama' && (
                     <span className="mt-2 block text-muted-foreground">
                       Ollama models will reappear when you refresh the model list.
                     </span>
@@ -1615,7 +1251,7 @@ export function ProviderHubSection({
             </DialogDescription>
           </DialogHeader>
           <div className="flex justify-end gap-2 pt-2">
-            <Button variant="outline" onClick={() => setDeleteConfirmOpen(false)}>
+            <Button variant="outline" onClick={modelDialogs.closeDelete}>
               Cancel
             </Button>
             <Button variant="destructive" onClick={handleDeleteConfirm}>
@@ -1625,7 +1261,7 @@ export function ProviderHubSection({
         </DialogContent>
       </Dialog>
 
-      <Dialog open={clearModelsConfirmOpen} onOpenChange={setClearModelsConfirmOpen}>
+      <Dialog open={modelDialogs.clearOpen} onOpenChange={modelDialogs.setClearOpen}>
         <DialogContent className="border-border bg-card sm:max-w-[440px]" showCloseButton={false}>
           <DialogHeader>
             <DialogTitle>Remove All Models</DialogTitle>
@@ -1643,7 +1279,7 @@ export function ProviderHubSection({
             </DialogDescription>
           </DialogHeader>
           <div className="flex justify-end gap-2 pt-2">
-            <Button variant="outline" onClick={() => setClearModelsConfirmOpen(false)}>
+            <Button variant="outline" onClick={() => modelDialogs.setClearOpen(false)}>
               Cancel
             </Button>
             <Button variant="destructive" onClick={handleClearModelsConfirm}>
@@ -1655,8 +1291,8 @@ export function ProviderHubSection({
 
       {selectedProviderDef.key === 'alibaba' && (
         <AlibabaModelSearchDialog
-          open={alibabaSearchDialogOpen}
-          onOpenChange={setAlibabaSearchDialogOpen}
+          open={modelDialogs.catalogOpen.alibaba === true}
+          onOpenChange={(open) => modelDialogs.setCatalogDialogOpen('alibaba', open)}
           onAddModel={(model) => addCustomModel(model, 'alibaba')}
           existingModelCodes={alibabaModels.map((m) => m.code)}
         />
@@ -1664,8 +1300,8 @@ export function ProviderHubSection({
 
       {selectedProviderDef.key === 'openrouter' && (
         <OpenRouterModelSearchDialog
-          open={openRouterSearchDialogOpen}
-          onOpenChange={setOpenRouterSearchDialogOpen}
+          open={modelDialogs.catalogOpen.openrouter === true}
+          onOpenChange={(open) => modelDialogs.setCatalogDialogOpen('openrouter', open)}
           onAddModel={(model) => addCustomModel(model, 'openrouter')}
           apiKey={openRouterApiKey}
           existingModelCodes={configuredModels.map((m) => m.code)}
@@ -1674,8 +1310,8 @@ export function ProviderHubSection({
 
       {selectedProviderDef.key === 'fireworks' && (
         <FireworksModelSearchDialog
-          open={fireworksSearchDialogOpen}
-          onOpenChange={setFireworksSearchDialogOpen}
+          open={modelDialogs.catalogOpen.fireworks === true}
+          onOpenChange={(open) => modelDialogs.setCatalogDialogOpen('fireworks', open)}
           onAddModel={(model) => addCustomModel(model, 'fireworks')}
           apiKey={fireworksApiKey}
           existingModelCodes={fireworksModels.map((m) => m.code)}
@@ -1684,8 +1320,8 @@ export function ProviderHubSection({
 
       {selectedProviderDef.key === 'deepseek' && (
         <DeepseekModelSearchDialog
-          open={deepseekSearchDialogOpen}
-          onOpenChange={setDeepseekSearchDialogOpen}
+          open={modelDialogs.catalogOpen.deepseek === true}
+          onOpenChange={(open) => modelDialogs.setCatalogDialogOpen('deepseek', open)}
           onAddModel={(model) => addCustomModel(model, 'deepseek')}
           apiKey={getProviderApiKey(selectedProviderDef)}
           existingModelCodes={deepseekModels.map((m) => m.code)}
@@ -1694,8 +1330,8 @@ export function ProviderHubSection({
 
       {selectedProviderDef.key === 'opencode' && (
         <OpencodeModelSearchDialog
-          open={opencodeSearchDialogOpen}
-          onOpenChange={setOpencodeSearchDialogOpen}
+          open={modelDialogs.catalogOpen.opencode === true}
+          onOpenChange={(open) => modelDialogs.setCatalogDialogOpen('opencode', open)}
           onAddModel={(model) => addCustomModel(model, 'opencode')}
           apiKey={getProviderApiKey(selectedProviderDef)}
           existingModelCodes={opencodeModels.map((m) => m.code)}
@@ -1704,8 +1340,8 @@ export function ProviderHubSection({
 
       {selectedProviderDef.key === 'nvidia' && (
         <NvidiaModelSearchDialog
-          open={nvidiaSearchDialogOpen}
-          onOpenChange={setNvidiaSearchDialogOpen}
+          open={modelDialogs.catalogOpen.nvidia === true}
+          onOpenChange={(open) => modelDialogs.setCatalogDialogOpen('nvidia', open)}
           onAddModel={(model) => addCustomModel(model, 'nvidia')}
           apiKey={getProviderApiKey(selectedProviderDef)}
           existingModelCodes={nvidiaModels.map((m) => m.code)}
@@ -1934,28 +1570,6 @@ function ProviderCatalogRow({
   )
 }
 
-function DetailField({
-  label,
-  description,
-  control,
-}: {
-  label: string
-  description: string
-  control: React.ReactNode
-}): React.ReactElement {
-  return (
-    <div className="settings-list-row settings-list-row--field provider-hub-detail-field">
-      <div className="settings-list-row__meta">
-        <div className="settings-list-row__label">{label}</div>
-        <div className="settings-list-row__description">{description}</div>
-      </div>
-      <div className="settings-list-row__control settings-list-row__control--stretch provider-hub-detail-field__control">
-        {control}
-      </div>
-    </div>
-  )
-}
-
 function ModelGroup({
   title,
   models,
@@ -2142,392 +1756,6 @@ function ModelGroup({
         )
       })}
     </div>
-  )
-}
-
-function SearchApiSection({
-  apis,
-  filter,
-  selectedApi,
-  tavilyApiKey,
-  onlineCompilerApiKey,
-  tavilySearchDepthPreference,
-  onCardClick,
-  onChange,
-}: {
-  apis: SearchApiDefinition[]
-  filter: ProviderCatalogFilter
-  selectedApi: SearchApiKey
-  tavilyApiKey: string
-  onlineCompilerApiKey: string
-  tavilySearchDepthPreference: TavilySearchDepthPreference
-  onCardClick: (api: SearchApiDefinition) => void
-  onChange: ProviderHubSectionProps['onChange']
-}): React.ReactElement | null {
-  const getDepthSummary = (preference: TavilySearchDepthPreference): string => {
-    switch (preference) {
-      case 'auto':
-        return 'Auto speed'
-      case 'ultra-fast':
-        return 'Lightning'
-      case 'fast':
-        return 'Fast'
-      case 'basic':
-        return 'Standard'
-      case 'advanced':
-        return 'Thorough'
-      default:
-        return 'Auto speed'
-    }
-  }
-
-  const getApiKeyValue = (api: SearchApiDefinition): string => {
-    if (api.apiKeyField === 'tavilyApiKey') return tavilyApiKey
-    if (api.apiKeyField === 'onlineCompilerApiKey') return onlineCompilerApiKey
-    return ''
-  }
-
-  const visibleApis = apis.filter((api) => {
-    const hasKey = Boolean(
-      api.apiKeyField && typeof getApiKeyValue(api) === 'string' && getApiKeyValue(api).trim()
-    )
-    switch (filter) {
-      case 'needs-setup':
-        return !hasKey
-      case 'active':
-        return hasKey
-      case 'disabled':
-        return false
-      default:
-        return true
-    }
-  })
-
-  if (visibleApis.length === 0) {
-    return null
-  }
-
-  const configuredCount = visibleApis.filter((api) => {
-    const keyValue = getApiKeyValue(api)
-    return Boolean(api.apiKeyField && typeof keyValue === 'string' && keyValue.trim())
-  }).length
-
-  return (
-    <div className="provider-catalog" aria-label="Service APIs">
-      <section className="provider-catalog-group">
-        <div className="provider-catalog-group__header">
-          <h3>Service APIs</h3>
-        </div>
-        <p className="provider-catalog-group__summary">
-          {configuredCount}/{visibleApis.length} configured
-        </p>
-        <div className="provider-catalog-group__grid provider-catalog-group__grid--featured">
-          {visibleApis.map((api) => {
-            const keyValue = getApiKeyValue(api)
-            const normalizedKeyValue = typeof keyValue === 'string' ? keyValue : ''
-            const hasKey = Boolean(api.apiKeyField && normalizedKeyValue.trim())
-            const setupState: ProviderSetupState = hasKey ? 'ready' : 'needs-setup'
-            const speedSummary =
-              api.key === 'tavily'
-                ? `Search speed: ${getDepthSummary(tavilySearchDepthPreference)}`
-                : null
-            const statusLine = hasKey ? speedSummary || 'Key set' : 'API key not set'
-
-            return (
-              <div
-                key={api.key}
-                className={`provider-catalog-row provider-catalog-row--${setupState} ${
-                  selectedApi === api.key ? 'provider-catalog-row--selected' : ''
-                }`}
-              >
-                <button
-                  type="button"
-                  className="provider-catalog-row__main"
-                  onClick={() => onCardClick(api)}
-                  aria-label={`Configure ${api.name}`}
-                >
-                  <span
-                    className={`provider-catalog-row__logo provider-catalog-row__logo--api ${
-                      hasKey ? 'provider-catalog-row__logo--enabled' : ''
-                    }`}
-                    style={api.color ? { color: api.color } : undefined}
-                  >
-                    {api.icon}
-                  </span>
-                  <span className="provider-catalog-row__content">
-                    <span className="provider-catalog-row__title-row">
-                      <span className="provider-catalog-row__title">{api.name}</span>
-                      {api.key === 'tavily' && (
-                        <span className="provider-catalog-row__badge">Recommended</span>
-                      )}
-                    </span>
-                    <span
-                      className={`provider-catalog-row__status provider-catalog-row__status--${setupState}`}
-                    >
-                      {hasKey && (
-                        <span className="provider-catalog-row__status-dot" aria-hidden="true" />
-                      )}
-                      {statusLine}
-                    </span>
-                  </span>
-                </button>
-
-                <div className="provider-catalog-row__actions">
-                  <Switch
-                    className="provider-hub-toggle provider-catalog-row__toggle"
-                    checked={hasKey}
-                    onCheckedChange={(checked) => {
-                      if (!checked) {
-                        if (api.apiKeyField === 'tavilyApiKey') {
-                          onChange({ tavilyApiKey: '' })
-                        }
-                        if (api.apiKeyField === 'onlineCompilerApiKey') {
-                          onChange({ onlineCompilerApiKey: '' })
-                        }
-                      } else {
-                        onCardClick(api)
-                      }
-                    }}
-                    aria-label={`Toggle ${api.name}`}
-                    onClick={(event) => event.stopPropagation()}
-                  />
-
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="provider-catalog-row__menu"
-                        aria-label={`More actions for ${api.name}`}
-                        onClick={(event) => event.stopPropagation()}
-                      >
-                        <MoreVertical size={15} />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent
-                      align="end"
-                      className="settings-menu-surface zura-menu-surface--compact"
-                    >
-                      <DropdownMenuItem
-                        className="zura-menu-item--compact"
-                        onClick={() => onCardClick(api)}
-                      >
-                        Configure
-                      </DropdownMenuItem>
-                      {api.learnMoreUrl ? (
-                        <DropdownMenuItem
-                          className="zura-menu-item--compact"
-                          onClick={() => window.shell?.openExternal(api.learnMoreUrl!)}
-                        >
-                          Learn more
-                        </DropdownMenuItem>
-                      ) : null}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
-              </div>
-            )
-          })}
-        </div>
-      </section>
-    </div>
-  )
-}
-
-function SearchApiDetail({
-  api,
-  tavilyApiKey,
-  onlineCompilerApiKey,
-  tavilySearchDepthPreference,
-  webSearchIncludeImages,
-  onBack,
-  onChange,
-}: {
-  api: SearchApiDefinition
-  tavilyApiKey: string
-  onlineCompilerApiKey: string
-  tavilySearchDepthPreference: TavilySearchDepthPreference
-  webSearchIncludeImages: boolean
-  onBack: () => void
-  onChange: ProviderHubSectionProps['onChange']
-}): React.ReactElement {
-  const [showApiKey, setShowApiKey] = useState(false)
-  const [displayedApiKey, setDisplayedApiKey] = useState('')
-
-  const apiKeyValue =
-    api.apiKeyField === 'tavilyApiKey'
-      ? tavilyApiKey
-      : api.apiKeyField === 'onlineCompilerApiKey'
-        ? onlineCompilerApiKey
-        : ''
-  const normalizedApiKeyValue = typeof apiKeyValue === 'string' ? apiKeyValue : ''
-  const isEnabled = Boolean(api.apiKeyField && normalizedApiKeyValue.trim())
-
-  useEffect(() => {
-    setShowApiKey(false)
-    setDisplayedApiKey('')
-
-    if (!api.apiKeyField) return
-
-    setDisplayedApiKey(
-      isSecureApiKeyPlaceholder(normalizedApiKeyValue) ? '' : normalizedApiKeyValue
-    )
-  }, [api.apiKeyField, normalizedApiKeyValue])
-
-  return (
-    <Card
-      className="settings-section-card provider-hub-base-card mt-4"
-      style={{ background: CATALOG_BASE_BACKGROUND }}
-    >
-      <div className="space-y-6">
-        <div className="flex items-center justify-between gap-2">
-          <div className="inline-flex items-center gap-2">
-            <button
-              type="button"
-              onClick={onBack}
-              className="rounded-md p-1 text-muted-foreground transition hover:bg-secondary hover:text-foreground"
-              aria-label="Back to search APIs"
-            >
-              <ChevronLeft size={16} />
-            </button>
-            <span style={api.color ? { color: api.color } : undefined}>{api.icon}</span>
-            <span className="text-xl font-semibold leading-none text-foreground sm:text-2xl lg:text-[28px]">
-              {api.name}
-            </span>
-            {api.key === 'tavily' && (
-              <span className="rounded bg-[var(--theme-accent)]/20 px-2 py-0.5 text-xs font-medium text-[var(--theme-accent)]">
-                Recommended
-              </span>
-            )}
-          </div>
-          <Switch
-            className="provider-hub-toggle"
-            checked={isEnabled}
-            onCheckedChange={(checked) => {
-              if (!checked) {
-                if (api.apiKeyField === 'tavilyApiKey') {
-                  onChange({ tavilyApiKey: '' })
-                }
-                if (api.apiKeyField === 'onlineCompilerApiKey') {
-                  onChange({ onlineCompilerApiKey: '' })
-                }
-              }
-            }}
-            aria-label={`Enable ${api.name}`}
-          />
-        </div>
-
-        <div className="border-t border-border pt-6">
-          {api.apiKeyField === 'tavilyApiKey' || api.apiKeyField === 'onlineCompilerApiKey' ? (
-            <div className="space-y-6">
-              <DetailField
-                label="API Key"
-                description={
-                  api.apiKeyField === 'tavilyApiKey'
-                    ? 'Without a key, a limited free fallback is used. Add a key for best results. Only API key is required here.'
-                    : 'Used for code execution requests. Add your OnlineCompiler key to enable hosted code sandbox calls.'
-                }
-                control={
-                  <div className="relative w-full">
-                    <Input
-                      type={showApiKey ? 'text' : 'password'}
-                      value={
-                        isSecureApiKeyPlaceholder(normalizedApiKeyValue)
-                          ? displayedApiKey
-                          : normalizedApiKeyValue
-                      }
-                      onChange={(e) => {
-                        setDisplayedApiKey(e.target.value)
-                        if (api.apiKeyField === 'tavilyApiKey') {
-                          onChange({ tavilyApiKey: e.target.value })
-                        } else if (api.apiKeyField === 'onlineCompilerApiKey') {
-                          onChange({ onlineCompilerApiKey: e.target.value })
-                        }
-                      }}
-                      placeholder={
-                        api.apiKeyField === 'tavilyApiKey'
-                          ? isSecureApiKeyPlaceholder(tavilyApiKey)
-                            ? 'Tavily key stored securely. Enter a new key to replace it.'
-                            : 'tvly-...'
-                          : isSecureApiKeyPlaceholder(onlineCompilerApiKey)
-                            ? 'OnlineCompiler key stored securely. Enter a new key to replace it.'
-                            : 'Paste your OnlineCompiler API key'
-                      }
-                      className="border-border bg-secondary pr-10"
-                      autoComplete="new-password"
-                      spellCheck={false}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowApiKey((prev) => !prev)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground transition hover:text-foreground"
-                      aria-label={showApiKey ? 'Hide API key' : 'Show API key'}
-                    >
-                      {showApiKey ? <EyeOff size={16} /> : <Eye size={16} />}
-                    </button>
-                  </div>
-                }
-              />
-              {api.apiKeyField === 'tavilyApiKey' && (
-                <>
-                  <DetailField
-                    label="Search Speed"
-                    description="Sets the default Tavily search depth when the model does not specify one. Auto lets the app choose per query."
-                    control={
-                      <Select
-                        value={tavilySearchDepthPreference}
-                        onValueChange={(value: TavilySearchDepthPreference) =>
-                          onChange({ tavilySearchDepthPreference: value })
-                        }
-                      >
-                        <SelectTrigger className="border-border bg-secondary">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent className="settings-menu-surface">
-                          <SelectItem value="auto">Auto</SelectItem>
-                          <SelectItem value="ultra-fast">Lightning</SelectItem>
-                          <SelectItem value="fast">Fast</SelectItem>
-                          <SelectItem value="basic">Standard</SelectItem>
-                          <SelectItem value="advanced">Thorough</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    }
-                  />
-                  <DetailField
-                    label="Result Images"
-                    description="Include image results in web_search responses and show the inline image strip in chat."
-                    control={
-                      <div className="flex justify-end">
-                        <Switch
-                          checked={webSearchIncludeImages}
-                          onCheckedChange={(checked) =>
-                            onChange({ webSearchIncludeImages: checked })
-                          }
-                          aria-label="Include web search images"
-                        />
-                      </div>
-                    }
-                  />
-                </>
-              )}
-              {api.learnMoreUrl && (
-                <p className="text-sm text-muted-foreground">
-                  Learn more:{' '}
-                  <a
-                    href={api.learnMoreUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-[var(--theme-accent)] hover:underline"
-                  >
-                    {api.learnMoreUrl.replace(/^https?:\/\//, '')}
-                  </a>
-                </p>
-              )}
-            </div>
-          ) : null}
-        </div>
-      </div>
-    </Card>
   )
 }
 

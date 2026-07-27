@@ -2,7 +2,7 @@ import { execFile } from 'child_process'
 import fs from 'fs/promises'
 import path from 'path'
 
-import type { ToolResult } from '../types'
+import type { ToolHandlerContext, ToolResult } from '../types'
 import { boolArg, isRecord, stringArg, truncateOutput } from '../native-common'
 import type { TerminalApprovalManager } from '../terminal/approvalManager'
 import {
@@ -34,6 +34,20 @@ interface PowerShellResult {
   stderr: string
   exitCode: number | null
   timedOut: boolean
+  aborted: boolean
+}
+
+function terminateProcessTree(child: { pid?: number; kill: () => boolean }): void {
+  if (process.platform === 'win32' && Number.isSafeInteger(child.pid) && (child.pid ?? 0) > 0) {
+    execFile(
+      'taskkill.exe',
+      ['/pid', String(child.pid), '/T', '/F'],
+      { windowsHide: true },
+      () => undefined
+    )
+    return
+  }
+  child.kill()
 }
 
 /**
@@ -43,10 +57,16 @@ interface PowerShellResult {
  */
 function runPowerShellWithExitCode(
   script: string,
-  options: { cwd?: string; timeoutMs: number }
+  options: { cwd?: string; timeoutMs: number; signal?: AbortSignal }
 ): Promise<PowerShellResult> {
   return new Promise((resolve, reject) => {
-    execFile(
+    if (options.signal?.aborted) {
+      resolve({ stdout: '', stderr: '', exitCode: null, timedOut: false, aborted: true })
+      return
+    }
+
+    let aborted = false
+    const child = execFile(
       'powershell.exe',
       [
         '-NoLogo',
@@ -64,8 +84,14 @@ function runPowerShellWithExitCode(
         maxBuffer: 20_000 * 4,
       },
       (error, stdout, stderr) => {
+        options.signal?.removeEventListener('abort', abort)
         const out = truncateOutput(stdout ?? '')
         const err = truncateOutput(stderr ?? '')
+
+        if (aborted) {
+          resolve({ stdout: out, stderr: err, exitCode: null, timedOut: false, aborted: true })
+          return
+        }
 
         if (error) {
           const errWithMeta = error as NodeJS.ErrnoException & {
@@ -75,12 +101,18 @@ function runPowerShellWithExitCode(
           }
           // execFile sets `killed` true and signal on timeout.
           if (errWithMeta.killed) {
-            resolve({ stdout: out, stderr: err, exitCode: null, timedOut: true })
+            resolve({ stdout: out, stderr: err, exitCode: null, timedOut: true, aborted: false })
             return
           }
           // Non-zero exit: error.code is the numeric exit code.
           if (typeof errWithMeta.code === 'number') {
-            resolve({ stdout: out, stderr: err, exitCode: errWithMeta.code, timedOut: false })
+            resolve({
+              stdout: out,
+              stderr: err,
+              exitCode: errWithMeta.code,
+              timedOut: false,
+              aborted: false,
+            })
             return
           }
           // Failure to spawn (e.g. powershell.exe missing): genuine reject.
@@ -88,13 +120,27 @@ function runPowerShellWithExitCode(
           return
         }
 
-        resolve({ stdout: out, stderr: err, exitCode: 0, timedOut: false })
+        resolve({ stdout: out, stderr: err, exitCode: 0, timedOut: false, aborted: false })
       }
     )
+    const abort = () => {
+      aborted = true
+      terminateProcessTree(child)
+    }
+    options.signal?.addEventListener('abort', abort, { once: true })
   })
 }
 
-export async function executeSystemShell(args: unknown): Promise<ToolResult> {
+export async function executeSystemShell(
+  args: unknown,
+  context?: ToolHandlerContext
+): Promise<ToolResult> {
+  const cancelledResult = (): ToolResult => ({
+    success: false,
+    error: 'Terminal command cancelled with the Agent run.',
+  })
+  if (context?.signal?.aborted) return cancelledResult()
+
   const command = stringArg(args, 'command')
   if (!command) return { success: false, error: 'command is required.' }
 
@@ -122,6 +168,7 @@ export async function executeSystemShell(args: unknown): Promise<ToolResult> {
           : 'Terminal command was rejected by the user.'
       return { success: false, error: reason }
     }
+    if (context?.signal?.aborted) return cancelledResult()
   }
 
   try {
@@ -132,10 +179,22 @@ export async function executeSystemShell(args: unknown): Promise<ToolResult> {
       }
     }
 
-    const { stdout, stderr, exitCode, timedOut } = await runPowerShellWithExitCode(command, {
-      cwd: resolvedCwd,
-      timeoutMs,
-    })
+    const { stdout, stderr, exitCode, timedOut, aborted } = await runPowerShellWithExitCode(
+      command,
+      {
+        cwd: resolvedCwd,
+        timeoutMs,
+        signal: context?.signal,
+      }
+    )
+
+    if (aborted) {
+      return {
+        success: false,
+        error: 'Terminal command cancelled with the Agent run.',
+        data: { command, cwd: resolvedCwd ?? process.cwd(), stdout, stderr, exitCode: null },
+      }
+    }
 
     if (timedOut) {
       return {

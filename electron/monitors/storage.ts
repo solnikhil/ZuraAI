@@ -1,7 +1,6 @@
 import { app } from 'electron'
 import { randomUUID } from 'crypto'
 import * as fs from 'fs/promises'
-import * as fsSync from 'fs'
 import * as path from 'path'
 import { writeFileAtomic } from '../utils/atomicFile'
 import { resolveAgentOwnedNextRunAt, stripAgentNextRunMarkers } from './agentNextRun'
@@ -617,27 +616,69 @@ function normalizeIndex(data: unknown): ScheduledTaskIndex {
 
 async function readIndex(): Promise<ScheduledTaskIndex> {
   if (cachedIndex && Date.now() - cacheTimestamp < CACHE_TTL_MS) return cachedIndex
-  try {
-    if (fsSync.existsSync(getIndexPath())) {
-      const parsed = normalizeIndex(JSON.parse(await fs.readFile(getIndexPath(), 'utf-8')))
-      cachedIndex = parsed
-      cacheTimestamp = Date.now()
-      return parsed
-    }
-    if (fsSync.existsSync(getLegacyIndexPath())) {
-      const parsed = normalizeIndex(JSON.parse(await fs.readFile(getLegacyIndexPath(), 'utf-8')))
-      cachedIndex = parsed
-      cacheTimestamp = Date.now()
-      await persistIndex(parsed)
-      return parsed
-    }
-  } catch (error) {
-    console.error('Failed to read scheduled tasks:', error)
+
+  const current = await readStoredIndex(getIndexPath())
+  if (current) {
+    cachedIndex = current
+    cacheTimestamp = Date.now()
+    return current
   }
+
+  const legacy = await readStoredIndex(getLegacyIndexPath())
+  if (legacy) {
+    // Complete legacy migration only after a successful read or quarantine. An
+    // operational read error propagates before this point, so it can never be
+    // mistaken for an empty index and overwrite data.
+    return persistIndex(legacy)
+  }
+
   const empty = createEmptyIndex()
   cachedIndex = empty
   cacheTimestamp = Date.now()
   return empty
+}
+
+async function readStoredIndex(filePath: string): Promise<ScheduledTaskIndex | null> {
+  let contents: string
+  try {
+    contents = await fs.readFile(filePath, 'utf-8')
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null
+    console.error(`Failed to read scheduled task storage at ${filePath}:`, error)
+    throw error
+  }
+
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(contents)
+  } catch (error) {
+    if (!(error instanceof SyntaxError)) throw error
+    const quarantinePath = await quarantineCorruptIndex(filePath)
+    console.error(
+      `Scheduled task storage contained invalid JSON and was quarantined at ${quarantinePath}:`,
+      error
+    )
+    return createEmptyIndex()
+  }
+
+  return normalizeIndex(parsed)
+}
+
+async function quarantineCorruptIndex(filePath: string): Promise<string> {
+  const quarantinePath = `${filePath}.corrupt-${Date.now()}-${randomUUID()}`
+  try {
+    await fs.rename(filePath, quarantinePath)
+    return quarantinePath
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+      // Another process already removed or recovered the corrupt file. There is
+      // no longer a path that a future write could silently overwrite.
+      return filePath
+    }
+    throw new Error('Scheduled task storage is corrupt and could not be quarantined.', {
+      cause: error,
+    })
+  }
 }
 
 async function persistIndex(index: ScheduledTaskIndex): Promise<ScheduledTaskIndex> {

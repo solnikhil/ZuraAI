@@ -13,19 +13,29 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
+import type { AgentApprovalOverlayDecision, AgentApprovalOverlayOutcome } from '@/electron/types'
 import type { ToolCall } from '@/tools/types'
 import { describeToolCall, getToolStepKind } from './agentRun'
-import { rememberToolApprovalToken } from '@/tools/toolApprovalTokens'
+import { trackAgentApprovalResolved } from './agentAnalytics'
 
 interface PendingApproval {
   id: string
   toolCall: ToolCall
   requestedAt: number
-  resolve: (approved: boolean) => void
+  resolve: (decision: AgentApprovalOverlayDecision) => void
+}
+
+export interface AgentApprovalRequestContext {
+  runId?: string
+  taskTitle?: string
 }
 
 interface AgentToolApprovalContextValue {
-  requestApproval: (toolCall: ToolCall) => Promise<boolean>
+  requestApproval: (toolCall: ToolCall, context?: AgentApprovalRequestContext) => Promise<boolean>
+  requestApprovalDecision: (
+    toolCall: ToolCall,
+    context?: AgentApprovalRequestContext
+  ) => Promise<AgentApprovalOverlayDecision>
 }
 
 const AgentToolApprovalContext = createContext<AgentToolApprovalContextValue | null>(null)
@@ -35,8 +45,9 @@ export function AgentToolApprovalProvider({ children }: { children: React.ReactN
   const { showToast } = useToast()
   const resolvedIdsRef = useRef(new Set<string>())
 
-  const requestApproval = useCallback(
-    (toolCall: ToolCall) => {
+  const requestApprovalDecision = useCallback(
+    (toolCall: ToolCall, context?: AgentApprovalRequestContext) => {
+      const requestedAt = Date.now()
       if (typeof window !== 'undefined' && window.agentApproval?.requestApproval) {
         const description = describeToolCall(toolCall)
         const kind = getToolStepKind(toolCall.name)
@@ -45,6 +56,8 @@ export function AgentToolApprovalProvider({ children }: { children: React.ReactN
         return window.agentApproval
           .requestApproval({
             id,
+            ...(context?.runId ? { runId: context.runId } : {}),
+            ...(context?.taskTitle ? { taskTitle: context.taskTitle } : {}),
             title: description.title,
             summary: description.summary,
             toolName: toolCall.name,
@@ -56,25 +69,19 @@ export function AgentToolApprovalProvider({ children }: { children: React.ReactN
             toolArguments: toolCall.arguments,
           })
           .then((decision) => {
-            if (decision.approved && decision.approvalToken) {
-              rememberToolApprovalToken(toolCall.id, decision.approvalToken)
-            }
-            if (!decision.autonomous) {
-              showToast(
-                decision.approved
-                  ? decision.trusted
-                    ? 'Tool call trusted.'
-                    : 'Tool call approved.'
-                  : 'Tool call rejected.',
-                decision.approved ? 'success' : 'warning'
-              )
-            }
-            return decision.approved
+            trackApprovalDecision(decision, requestedAt, false)
+            if (!decision.autonomous) showApprovalOutcomeToast(decision, showToast)
+            return decision
           })
-          .catch(() => false)
+          .catch(() => {
+            const decision = createApprovalDecision('error')
+            trackApprovalDecision(decision, requestedAt, false)
+            showApprovalOutcomeToast(decision, showToast)
+            return decision
+          })
       }
 
-      return new Promise<boolean>((resolve) => {
+      return new Promise<AgentApprovalOverlayDecision>((resolve) => {
         setPending((prev) => [
           ...prev,
           {
@@ -84,9 +91,18 @@ export function AgentToolApprovalProvider({ children }: { children: React.ReactN
             resolve,
           },
         ])
+      }).then((decision) => {
+        trackApprovalDecision(decision, requestedAt, true)
+        return decision
       })
     },
     [showToast]
+  )
+
+  const requestApproval = useCallback(
+    async (toolCall: ToolCall, context?: AgentApprovalRequestContext) =>
+      (await requestApprovalDecision(toolCall, context)).approved,
+    [requestApprovalDecision]
   )
 
   const active = useMemo(
@@ -99,17 +115,18 @@ export function AgentToolApprovalProvider({ children }: { children: React.ReactN
       if (!active) return
       if (resolvedIdsRef.current.has(active.id)) return
       resolvedIdsRef.current.add(active.id)
-      active.resolve(approved)
+      const decision = createApprovalDecision(approved ? 'approved_once' : 'rejected')
+      active.resolve(decision)
       setPending((prev) => prev.filter((request) => request.id !== active.id))
-      showToast(
-        approved ? 'Tool call approved.' : 'Tool call rejected.',
-        approved ? 'success' : 'warning'
-      )
+      showApprovalOutcomeToast(decision, showToast)
     },
     [active, showToast]
   )
 
-  const contextValue = useMemo(() => ({ requestApproval }), [requestApproval])
+  const contextValue = useMemo(
+    () => ({ requestApproval, requestApprovalDecision }),
+    [requestApproval, requestApprovalDecision]
+  )
 
   return (
     <AgentToolApprovalContext.Provider value={contextValue}>
@@ -126,11 +143,77 @@ export function AgentToolApprovalProvider({ children }: { children: React.ReactN
 export function useAgentToolApproval(): AgentToolApprovalContextValue {
   const context = useContext(AgentToolApprovalContext)
   if (!context) {
+    const unavailableDecision = async () => createApprovalDecision('unavailable')
     return {
-      requestApproval: async () => true,
+      requestApproval: async () => false,
+      requestApprovalDecision: unavailableDecision,
     }
   }
   return context
+}
+
+function createApprovalDecision(
+  outcome: AgentApprovalOverlayOutcome
+): AgentApprovalOverlayDecision {
+  return {
+    approved:
+      outcome === 'approved_once' ||
+      outcome === 'approved_session' ||
+      outcome === 'approved_policy',
+    outcome,
+  }
+}
+
+function trackApprovalDecision(
+  decision: AgentApprovalOverlayDecision,
+  requestedAt: number,
+  fallback: boolean
+): void {
+  trackAgentApprovalResolved({
+    outcome: decision.outcome,
+    source: fallback
+      ? 'fallback'
+      : decision.autonomous
+        ? 'autonomous'
+        : decision.trusted
+          ? 'trusted'
+          : 'manual',
+    durationMs: Date.now() - requestedAt,
+  })
+}
+
+function showApprovalOutcomeToast(
+  decision: AgentApprovalOverlayDecision,
+  showToast: ReturnType<typeof useToast>['showToast']
+): void {
+  switch (decision.outcome) {
+    case 'approved_once':
+      showToast('Tool call approved.', 'success')
+      return
+    case 'approved_session':
+      showToast('Tool call approved for this Agent run.', 'success')
+      return
+    case 'approved_policy':
+      showToast(
+        decision.trusted ? 'Tool call trusted.' : 'Tool call approved by policy.',
+        'success'
+      )
+      return
+    case 'rejected':
+      showToast('Tool call rejected.', 'warning')
+      return
+    case 'timed_out':
+      showToast('Tool approval timed out.', 'warning')
+      return
+    case 'cancelled':
+      showToast('Tool approval cancelled.', 'info')
+      return
+    case 'unavailable':
+      showToast('Tool approval is unavailable.', 'error')
+      return
+    case 'error':
+      showToast('Tool approval failed. Try again.', 'error')
+  }
 }
 
 function AgentToolApprovalDialog({
@@ -153,7 +236,7 @@ function AgentToolApprovalDialog({
       <AlertDialogContent className="sm:max-w-2xl">
         <AlertDialogHeader>
           <AlertDialogTitle className="flex items-center gap-2">
-            <Wrench className="h-5 w-5 text-[var(--theme-accent)]" />
+            <Wrench className="h-5 w-5 text-[var(--theme-accent)]" aria-hidden="true" />
             Approve Agent Mode action
           </AlertDialogTitle>
           <AlertDialogDescription>
@@ -167,7 +250,7 @@ function AgentToolApprovalDialog({
             <Badge variant="secondary">{kind}</Badge>
             <Badge variant="outline">{request.toolCall.name}</Badge>
             <Badge variant="outline">
-              <TimerReset className="mr-1 h-3 w-3" />
+              <TimerReset className="mr-1 h-3 w-3" aria-hidden="true" />
               Manual approval
             </Badge>
             {queuedCount > 0 && <Badge variant="destructive">{queuedCount} queued</Badge>}
@@ -204,11 +287,11 @@ function AgentToolApprovalDialog({
 
         <AlertDialogFooter>
           <AlertDialogCancel onClick={() => onResolve(false)}>
-            <XCircle className="mr-1.5 h-4 w-4" />
+            <XCircle className="mr-1.5 h-4 w-4" aria-hidden="true" />
             Reject
           </AlertDialogCancel>
           <AlertDialogAction onClick={() => onResolve(true)}>
-            <CheckCircle2 className="mr-1.5 h-4 w-4" />
+            <CheckCircle2 className="mr-1.5 h-4 w-4" aria-hidden="true" />
             Approve once
           </AlertDialogAction>
         </AlertDialogFooter>
