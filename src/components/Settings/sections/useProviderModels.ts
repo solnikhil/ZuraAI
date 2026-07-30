@@ -9,8 +9,15 @@ import {
   mapOpenRouterModelToConfiguredModel,
 } from '@/services/openrouterModels'
 import type { ProviderId } from '../../../providers'
-import { buildProviderModelUpdate, type ProviderHubDefinition } from './providerHubDescriptors'
+import {
+  buildProviderModelUpdate,
+  type ProviderHubDefinition,
+  type ProviderModelSettingsUpdate,
+} from './providerHubDescriptors'
 import type { ProviderHubSectionProps } from './ProviderHubSection'
+
+type ProviderModelsUpdate = ProviderModelSettingsUpdate &
+  Partial<Pick<ProviderHubSectionProps, 'aiModel' | 'modelProvider'>>
 
 interface UseProviderModelsOptions {
   selectedProvider: ProviderHubDefinition
@@ -86,7 +93,7 @@ export function useProviderModels({
     const updatedModels = (providerModelMap[provider] || []).map((model) =>
       model.code === modelCode ? { ...model, enabled: checked } : model
     )
-    const updates = buildProviderModelUpdate(provider, updatedModels)
+    const updates: ProviderModelsUpdate = buildProviderModelUpdate(provider, updatedModels)
     if (!checked && modelProvider === provider && aiModel === modelCode) {
       const fallback = updatedModels.find((model) => model.enabled !== false)
       if (fallback) {
@@ -148,7 +155,7 @@ export function useProviderModels({
     const updatedModels = (providerModelMap[provider] || []).filter(
       (model) => model.code !== modelCode
     )
-    const updates = buildProviderModelUpdate(provider, updatedModels)
+    const updates: ProviderModelsUpdate = buildProviderModelUpdate(provider, updatedModels)
     if (modelProvider === provider && aiModel === modelCode) {
       const fallback = updatedModels.find((model) => model.enabled !== false)
       if (fallback) {

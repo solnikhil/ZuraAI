@@ -64,7 +64,6 @@ import {
   type ProviderSecretField,
 } from '../../../providers'
 import {
-  buildProviderModelUpdate,
   createProviderModelMap,
   PROVIDER_HUB_DEFINITIONS,
   type ProviderHubDefinition,
@@ -423,7 +422,22 @@ export function ProviderHubSection({
       PROVIDERS.find((provider) => provider.key === 'openrouter') ?? selectedProviderDef,
     onChange,
   })
-  const providerModels = providerModelsController.providerModels
+  const {
+    providerModels,
+    visibleProviderModels,
+    visibleChatModels,
+    enabledModels,
+    disabledModels,
+    add: addCustomModel,
+    toggleEnabled: toggleModelEnabled,
+    toggleReasoning: toggleModelReasoning,
+    reasoningEnabledFor,
+    detectOpenRouterReasoning,
+    detectingReasoningModel,
+    update: updateModel,
+    remove: removeModel,
+    clear: clearModelsForProvider,
+  } = providerModelsController
 
   const connectivity = useProviderConnectivity({
     provider: selectedProviderDef,
@@ -538,111 +552,6 @@ export function ProviderHubSection({
     onChange(updates)
   }
 
-  const getModelsForProvider = (provider: ProviderKey): ConfiguredModel[] => {
-    return (providerModelMap[provider] as ConfiguredModel[] | undefined) || []
-  }
-
-  const setModelsForProvider = (provider: ProviderKey, models: ConfiguredModel[]) => {
-    onChange(buildProviderModelUpdate(provider, models))
-  }
-
-  const addCustomModel = (
-    model: ConfiguredModel,
-    provider: ProviderKey = selectedProviderDef.key
-  ) => {
-    const currentModels = getModelsForProvider(provider)
-    const exists = currentModels.some((item) => item.code === model.code)
-    if (exists) {
-      setModelsForProvider(
-        provider,
-        currentModels.map((item) => (item.code === model.code ? { ...item, ...model } : item))
-      )
-      return
-    }
-    setModelsForProvider(provider, [...currentModels, model])
-  }
-
-  const toggleModelEnabled = (provider: ProviderKey, modelCode: string, checked: boolean) => {
-    const currentModels = providerModelMap[provider] as ConfiguredModel[]
-    const updatedModels = currentModels.map((model) => {
-      if (model.code !== modelCode) return model
-      return { ...model, enabled: checked }
-    })
-
-    const updates: ProviderSettingsUpdate = buildProviderModelUpdate(provider, updatedModels)
-
-    if (!checked && modelProvider === provider && aiModel === modelCode) {
-      const fallback = updatedModels.find((model) => model.enabled !== false)
-      if (fallback) {
-        updates.aiModel = fallback.code
-        updates.modelProvider = provider
-      }
-    }
-
-    onChange(updates)
-  }
-
-  const toggleModelReasoning = (modelCode: string, checked: boolean) => {
-    // DeepSeek-only: the user's explicit per-model toggle is the source of truth.
-    onChange(
-      setDeepseekReasoningEnabled({ deepseekReasoning, deepseekLastEffort }, modelCode, checked)
-    )
-  }
-
-  const detectOpenRouterReasoning = async (modelCode: string) => {
-    setDetectingReasoningModel(modelCode)
-    try {
-      const openRouterProvider =
-        PROVIDERS.find((provider) => provider.key === 'openrouter') ?? selectedProviderDef
-      const catalogModels = await fetchOpenRouterModels(getProviderApiKey(openRouterProvider))
-      const catalogModel = catalogModels.find((model) => model.id === modelCode)
-      if (!catalogModel) return
-
-      const mappedModel = mapOpenRouterModelToConfiguredModel(catalogModel)
-      const supportsReasoning = mappedModel.supportsDeepThinking === true
-      const updatedModels = configuredModels.map((model) => {
-        if (model.code !== modelCode) return model
-        return {
-          ...model,
-          supportsDeepThinking: supportsReasoning,
-          modelType: supportsReasoning ? 'reasoning' : model.modelType,
-          openRouterReasoningDetected: true,
-        }
-      })
-
-      onChange({ configuredModels: updatedModels })
-    } finally {
-      setDetectingReasoningModel(null)
-    }
-  }
-
-  const updateModel = (provider: ProviderKey, modelCode: string, updatedModel: ConfiguredModel) => {
-    const currentModels = providerModelMap[provider] as ConfiguredModel[]
-    const updatedModels = currentModels.map((model) => {
-      if (model.code !== modelCode) return model
-      return { ...model, ...updatedModel, code: modelCode }
-    })
-
-    onChange(buildProviderModelUpdate(provider, updatedModels))
-  }
-
-  const removeModel = (provider: ProviderKey, modelCode: string) => {
-    const currentModels = providerModelMap[provider] as ConfiguredModel[]
-    const updatedModels = currentModels.filter((model) => model.code !== modelCode)
-
-    const updates: ProviderSettingsUpdate = buildProviderModelUpdate(provider, updatedModels)
-
-    if (modelProvider === provider && aiModel === modelCode) {
-      const fallback = updatedModels.find((model) => model.enabled !== false)
-      if (fallback) {
-        updates.aiModel = fallback.code
-        updates.modelProvider = provider
-      }
-    }
-
-    onChange(updates)
-  }
-
   const handleEditModel = (model: ModelBasic) => {
     modelDialogs.openEdit(selectedProviderDef.key, model as ConfiguredModel)
   }
@@ -660,10 +569,6 @@ export function ProviderHubSection({
       removeModel(modelDialogs.modelToDelete.provider, modelDialogs.modelToDelete.modelCode)
     }
     modelDialogs.closeDelete()
-  }
-
-  const clearModelsForProvider = (provider: ProviderKey) => {
-    onChange(buildProviderModelUpdate(provider, []))
   }
 
   const handleClearModelsConfirm = () => {
@@ -1156,11 +1061,7 @@ export function ProviderHubSection({
                     toggleModelEnabled(selectedProviderDef.key, code, checked)
                   }
                   reasoningEnabledFor={
-                    selectedProviderDef.key === 'deepseek'
-                      ? (code) =>
-                          getDeepseekReasoning({ deepseekReasoning, deepseekLastEffort }, code)
-                            .enabled
-                      : undefined
+                    selectedProviderDef.key === 'deepseek' ? reasoningEnabledFor : undefined
                   }
                   onToggleReasoning={
                     selectedProviderDef.key === 'deepseek' ? toggleModelReasoning : undefined
