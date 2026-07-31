@@ -11,7 +11,7 @@ This file is the single source of truth for how an automated coding agent should
 
 Core capabilities:
 - Dashboard UI (chat history, settings, model selection)
-- Multi-provider AI calls (Alibaba Cloud, Fireworks, Groq, Ollama, OpenRouter, Perplexity)
+- Multi-provider AI calls (Alibaba Cloud, DeepSeek, Fireworks, Groq, Ollama, OpenRouter, Perplexity)
 - Hardened IPC boundary (renderer ↔ preload ↔ main)
 - Tool calling system (restricted; built-in `web_search` in main process, plus renderer-managed MCP tool exposure)
 
@@ -535,7 +535,7 @@ Never commit `.env` or API keys.
 
 ### Known Architecture Gaps / TODOs (Current Code)
 These are useful breadcrumbs for agents:
-- User-configured global shortcut strings in settings are still not wired to `globalShortcut.register(...)`.
+- The Overlay global hotkey (`settings.overlay.hotkey`) IS wired to `globalShortcut.register(...)` in `electron/windows/overlayWindow.ts`. The command-bar hotkey (`settings.commandBar`) remains renderer-only (registered as a DOM/window key listener), not an OS-level global shortcut.
 
 ---
 

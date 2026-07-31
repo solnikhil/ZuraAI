@@ -210,7 +210,8 @@ export const generateOllamaCompletion = async (
     })
 
     if (!response.ok) {
-        throw new Error(`Ollama API Error: ${response.statusText}`)
+        const errorText = await response.text().catch(() => '')
+        throw new Error(`Ollama API Error: ${response.status} ${response.statusText} - ${errorText}`)
     }
 
     return await response.json()
