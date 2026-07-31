@@ -1,6 +1,6 @@
 import { ChatMessage, parseErrorResponse, extractErrorMessage } from './types'
-import { parseSSEStream } from './streamUtils'
 import { getProviderEndpoint } from '../providers'
+import { streamOpenAICompatibleChat } from './openAICompatible'
 
 /**
  * Citation/search result from Perplexity API
@@ -146,36 +146,13 @@ export async function* streamPerplexityCompletion(
     requestBody.max_tokens = options.max_tokens
   }
 
-  const response = await fetch(PERPLEXITY_CHAT_COMPLETIONS_URL, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(requestBody),
-    signal: options?.signal,
-  })
-
-  if (!response.ok) {
-    const errorText = await response.text()
-    const errorData = parseErrorResponse(errorText)
-    const errorMessage = extractErrorMessage(
-      errorData,
-      errorText,
-      response.status,
-      response.statusText
-    )
-    throw new Error(errorMessage)
-  }
-
-  const reader = response.body?.getReader()
-  if (!reader) {
-    throw new Error('Failed to get response reader')
-  }
-
-  yield* parseSSEStream<PerplexityStreamChunk>(reader, {
-    onChunk: options?.onChunk,
+  yield* streamOpenAICompatibleChat<PerplexityStreamChunk>({
+    url: PERPLEXITY_CHAT_COMPLETIONS_URL,
+    apiKey,
     providerName: 'Perplexity',
+    body: requestBody,
+    signal: options?.signal,
+    onChunk: options?.onChunk,
   })
 }
 

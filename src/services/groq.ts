@@ -1,6 +1,6 @@
 import { ChatMessage, ToolDefinition, parseErrorResponse, extractErrorMessage } from './types'
-import { parseSSEStream } from './streamUtils'
 import { getProviderEndpoint } from '../providers'
+import { streamOpenAICompatibleChat } from './openAICompatible'
 
 /**
  * Groq API Service
@@ -118,31 +118,13 @@ export async function* streamGroqCompletion(
         requestBody.tool_choice = options.toolChoice || 'auto'
     }
 
-    const response = await fetch(GROQ_CHAT_COMPLETIONS_URL, {
-        method: "POST",
-        headers: {
-            "Authorization": `Bearer ${apiKey}`,
-            "Content-Type": "application/json"
-        },
-        body: JSON.stringify(requestBody),
-        signal: options?.signal
-    })
-
-    if (!response.ok) {
-        const errorText = await response.text()
-        const errorData = parseErrorResponse(errorText)
-        const errorMessage = extractErrorMessage(errorData, errorText, response.status, response.statusText)
-        throw new Error(errorMessage)
-    }
-
-    const reader = response.body?.getReader()
-    if (!reader) {
-        throw new Error("Failed to get response reader")
-    }
-
-    yield* parseSSEStream<GroqStreamChunk>(reader, {
+    yield* streamOpenAICompatibleChat<GroqStreamChunk>({
+        url: GROQ_CHAT_COMPLETIONS_URL,
+        apiKey,
+        providerName: 'Groq',
+        body: requestBody,
+        signal: options?.signal,
         onChunk: options?.onChunk,
-        providerName: 'Groq'
     })
 }
 

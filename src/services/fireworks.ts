@@ -1,6 +1,6 @@
 import { ChatMessage, ToolDefinition, parseErrorResponse, extractErrorMessage } from './types'
-import { parseSSEStream } from './streamUtils'
 import { getProviderEndpoint } from '../providers'
+import { streamOpenAICompatibleChat } from './openAICompatible'
 
 /**
  * Fireworks AI API Service
@@ -119,32 +119,14 @@ export async function* streamFireworksCompletion(
         requestBody.tool_choice = options.toolChoice || 'auto'
     }
 
-    const response = await fetch(FIREWORKS_CHAT_COMPLETIONS_URL, {
-        method: "POST",
-        headers: {
-            "Authorization": `Bearer ${apiKey}`,
-            "Content-Type": "application/json",
-            ...(options?.extraHeaders || {})
-        },
-        body: JSON.stringify(requestBody),
-        signal: options?.signal
-    })
-
-    if (!response.ok) {
-        const errorText = await response.text()
-        const errorData = parseErrorResponse(errorText)
-        const errorMessage = extractErrorMessage(errorData, errorText, response.status, response.statusText)
-        throw new Error(errorMessage)
-    }
-
-    const reader = response.body?.getReader()
-    if (!reader) {
-        throw new Error("Failed to get response reader")
-    }
-
-    yield* parseSSEStream<FireworksStreamChunk>(reader, {
+    yield* streamOpenAICompatibleChat<FireworksStreamChunk>({
+        url: FIREWORKS_CHAT_COMPLETIONS_URL,
+        apiKey,
+        providerName: 'Fireworks',
+        body: requestBody,
+        signal: options?.signal,
+        headers: options?.extraHeaders,
         onChunk: options?.onChunk,
-        providerName: 'Fireworks'
     })
 }
 
