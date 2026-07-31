@@ -238,10 +238,6 @@ async function ensureSessionsDir(): Promise<void> {
   await fs.mkdir(getSessionsDir(), { recursive: true })
 }
 
-function ensureSessionsDirSync(): void {
-  fsSync.mkdirSync(getSessionsDir(), { recursive: true })
-}
-
 async function writeIndexAsync(index: ChatIndexData): Promise<void> {
   const myVersion = ++writeVersion
   const normalized = normalizeIndex(index)
@@ -262,12 +258,6 @@ async function writeSessionFileAsync(session: ChatSession): Promise<void> {
   await ensureSessionsDir()
   const migrated = migrateSession(session)
   await writeFileAtomic(getSessionPath(migrated.id), JSON.stringify(migrated, null, 2))
-}
-
-function writeSessionFileSync(session: ChatSession): void {
-  ensureSessionsDirSync()
-  const migrated = migrateSession(session)
-  fsSync.writeFileSync(getSessionPath(migrated.id), JSON.stringify(migrated, null, 2))
 }
 
 async function migrateLegacyStoreIfNeeded(): Promise<ChatIndexData | null> {
@@ -296,34 +286,6 @@ async function migrateLegacyStoreIfNeeded(): Promise<ChatIndexData | null> {
   return index
 }
 
-function migrateLegacyStoreIfNeededSync(): ChatIndexData | null {
-  if (fsSync.existsSync(getIndexPath())) {
-    return null
-  }
-
-  const legacyPath = getLegacyStorePath()
-  if (!fsSync.existsSync(legacyPath)) {
-    return null
-  }
-
-  const raw = fsSync.readFileSync(legacyPath, 'utf-8')
-  const migrated = migrateData(JSON.parse(raw))
-  ensureSessionsDirSync()
-  for (const session of migrated.sessions) {
-    writeSessionFileSync(session)
-  }
-
-  const index: ChatIndexData = {
-    sessions: migrated.sessions.map(sessionToMetadata),
-    folders: migrated.folders,
-    version: INDEX_VERSION,
-  }
-  fsSync.writeFileSync(getIndexPath(), JSON.stringify(index, null, 2))
-  cachedIndex = index
-  indexCacheTimestamp = Date.now()
-  return index
-}
-
 async function readIndexAsync(): Promise<ChatIndexData> {
   if (cachedIndex && Date.now() - indexCacheTimestamp < CACHE_TTL) {
     return cachedIndex
@@ -335,29 +297,6 @@ async function readIndexAsync(): Promise<ChatIndexData> {
 
     if (fsSync.existsSync(getIndexPath())) {
       const data = await fs.readFile(getIndexPath(), 'utf-8')
-      const parsed = normalizeIndex(JSON.parse(data))
-      cachedIndex = parsed
-      indexCacheTimestamp = Date.now()
-      return parsed
-    }
-  } catch (error) {
-    console.error('Failed to read chat index:', error)
-  }
-
-  return createEmptyIndex()
-}
-
-function readIndex(): ChatIndexData {
-  if (cachedIndex && Date.now() - indexCacheTimestamp < CACHE_TTL) {
-    return cachedIndex
-  }
-
-  try {
-    const migrated = migrateLegacyStoreIfNeededSync()
-    if (migrated) return migrated
-
-    if (fsSync.existsSync(getIndexPath())) {
-      const data = fsSync.readFileSync(getIndexPath(), 'utf-8')
       const parsed = normalizeIndex(JSON.parse(data))
       cachedIndex = parsed
       indexCacheTimestamp = Date.now()
@@ -382,18 +321,6 @@ async function readSessionFileAsync(id: string): Promise<ChatSession | null> {
   }
 }
 
-function readSessionFile(id: string): ChatSession | null {
-  try {
-    const data = fsSync.readFileSync(getSessionPath(id), 'utf-8')
-    return migrateSession(JSON.parse(data))
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
-      console.error(`Failed to read chat session ${id}:`, error)
-    }
-    return null
-  }
-}
-
 async function replaceIndexSession(metadata: ChatSessionMetadata): Promise<void> {
   const index = await readIndexAsync()
   const nextSessions = index.sessions.filter((session) => session.id !== metadata.id)
@@ -402,17 +329,9 @@ async function replaceIndexSession(metadata: ChatSessionMetadata): Promise<void>
   await writeIndexAsync({ ...index, sessions: nextSessions })
 }
 
-export function getSessionMetadata(): ChatSessionMetadata[] {
-  return readIndex().sessions
-}
-
 export async function getSessionMetadataAsync(): Promise<ChatSessionMetadata[]> {
   const index = await readIndexAsync()
   return index.sessions
-}
-
-export function getChatIndex(): ChatIndexData {
-  return readIndex()
 }
 
 export async function getChatIndexAsync(): Promise<ChatIndexData> {
@@ -423,90 +342,11 @@ export async function saveChatIndexAsync(index: ChatIndexData): Promise<void> {
   await writeIndexAsync({ ...normalizeIndex(index), version: INDEX_VERSION })
 }
 
-export function getAllSessions(): ChatSession[] {
-  const index = readIndex()
-  return index.sessions.map((metadata) => readSessionFile(metadata.id) ?? metadataToSession(metadata))
-}
-
-export function saveAllSessions(sessions: ChatSession[]): void {
-  const index = readIndex()
-  const nextIndex: ChatIndexData = {
-    sessions: sessions.map(sessionToMetadata),
-    folders: index.folders,
-    version: INDEX_VERSION,
-  }
-
-  ensureSessionsDirSync()
-  for (const session of sessions) {
-    writeSessionFileSync(session)
-  }
-  cachedIndex = nextIndex
-  indexCacheTimestamp = Date.now()
-  writeIndexAsync(nextIndex).catch((error) => console.error('Failed to write chat index:', error))
-}
-
-export function getAllFolders(): Folder[] {
-  return readIndex().folders
-}
-
-export function saveFolders(folders: Folder[]): void {
-  const index = readIndex()
-  const nextIndex = { ...index, folders }
-  cachedIndex = nextIndex
-  indexCacheTimestamp = Date.now()
-  writeIndexAsync(nextIndex).catch((error) => console.error('Failed to write folders:', error))
-}
-
-export function getSession(id: string): ChatSession | undefined {
-  return readSessionFile(id) ?? undefined
-}
-
-export function createSession(session: ChatSession): void {
-  saveSessionAsync(session).catch((error) => console.error('Failed to create chat session:', error))
-}
-
-export function updateSession(id: string, updates: Partial<ChatSession>): void {
-  const existing = getSession(id)
-  if (!existing) return
-  saveSessionAsync({ ...existing, ...updates, id }).catch((error) =>
-    console.error('Failed to update chat session:', error)
-  )
-}
-
-export function addMessageToSession(sessionId: string, message: Message): void {
-  const session = getSession(sessionId)
-  if (!session) return
-
-  session.messages.push(message)
-  session.updatedAt = Date.now()
-  if (message.tokenCount) {
-    session.totalTokens = (session.totalTokens || 0) + message.tokenCount
-  }
-
-  saveSessionAsync(session).catch((error) => console.error('Failed to add chat message:', error))
-}
-
-export function deleteSession(id: string): void {
-  deleteSessionAsync(id).catch((error) => console.error('Failed to delete chat session:', error))
-}
-
-export function clearAllSessions(): void {
-  const index = readIndex()
-  for (const session of index.sessions) {
-    try {
-      fsSync.rmSync(getSessionPath(session.id), { force: true })
-    } catch {
-      // Best-effort cleanup; the index is authoritative.
-    }
-  }
-  saveAllSessions([])
-}
-
-export function migrateFromLocalStorage(localStorageData: ChatSession[]): void {
+export async function migrateFromLocalStorage(localStorageData: ChatSession[]): Promise<void> {
   if (localStorageData && localStorageData.length > 0) {
-    const existingSessions = getSessionMetadata()
+    const existingSessions = await getSessionMetadataAsync()
     if (existingSessions.length === 0) {
-      saveAllSessions(localStorageData)
+      await saveAllSessionsAsync(localStorageData)
     }
   }
 }

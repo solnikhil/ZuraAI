@@ -63,7 +63,7 @@ export function registerChatStoreHandlers(): void {
 
   /** Import legacy renderer-localStorage chat history. */
   ipcMain.handle('chat-store:migrate', async (_event, localStorageData) => {
-    chatStore.migrateFromLocalStorage(localStorageData)
+    await chatStore.migrateFromLocalStorage(localStorageData)
     return true
   })
 
