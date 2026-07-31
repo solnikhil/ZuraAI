@@ -2,7 +2,7 @@ import { getProviderSecretFields, type ProviderSecretField } from '../providers'
 
 // Utility functions for managing API keys in secure storage
 
-type SecureStorageKey = ProviderSecretField | 'tavilyApiKey' | 'onlineCompilerApiKey'
+export type SecureStorageKey = ProviderSecretField | 'tavilyApiKey' | 'onlineCompilerApiKey'
 
 export const SECURE_API_KEY_NAMES: SecureStorageKey[] = [
     ...getProviderSecretFields(),
