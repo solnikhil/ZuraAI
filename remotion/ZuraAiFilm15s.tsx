@@ -273,7 +273,7 @@ const CommandCenterScene = ({ frame }: { frame: number }) => {
     ['GitHub', 'Changes, branches, and sync', <GitIcon />],
     ['Layout', 'Arrange the active workspace', <LayoutIcon />],
     ['Ask about clipboard', 'Send copied context to ZuraAI', <ClipboardIcon />],
-    ['Zura Store', 'Extensions for Command Center', <StoreIcon />],
+    ['Schedules', 'Reminders and AI automations', <ScheduleIcon />],
   ]
 
   return (
@@ -390,7 +390,7 @@ const CommandCenterScene = ({ frame }: { frame: number }) => {
               padding: '0 30px',
             }}
           >
-            <span>Command Center</span>
+            <span>Quick Actions</span>
             <span style={{ color: selected ? colors.gold : colors.muted }}>↵ Open</span>
           </div>
         </div>
@@ -548,7 +548,7 @@ const Sidebar = ({ frame }: { frame: number }) => (
     <div style={{ color: colors.muted, fontSize: 12, fontWeight: 700, letterSpacing: 1.6, margin: '28px 12px 12px' }}>
       TODAY
     </div>
-    {['Release review', 'Command Center motion', 'Product research'].map((item, index) => (
+    {['Release review', 'Quick Actions motion', 'Product research'].map((item, index) => (
       <div
         key={item}
         style={{
@@ -1039,10 +1039,10 @@ const LayoutIcon = () => (
   </Icon>
 )
 
-const StoreIcon = () => (
+const ScheduleIcon = () => (
   <Icon>
-    <path d="M5 9h14l-1 12H6L5 9Z" />
-    <path d="M9 9V6a3 3 0 0 1 6 0v3" />
+    <rect height="16" rx="2" width="18" x="3" y="5" />
+    <path d="M7 3v4M17 3v4M3 10h18M8 14h3M14 14h2" />
   </Icon>
 )
 

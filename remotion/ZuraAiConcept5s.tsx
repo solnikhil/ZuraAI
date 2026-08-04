@@ -526,9 +526,9 @@ const RootResults = ({ frame, workspaceOpen }: { frame: number; workspaceOpen: n
       y: 314,
     },
     {
-      icon: <StoreGlyph />,
-      title: 'Zura Store',
-      subtitle: 'Discover extensions for Command Center',
+      icon: <ScheduleGlyph />,
+      title: 'Schedules',
+      subtitle: 'Manage reminders and AI automations',
       y: 398,
     },
   ]
@@ -818,7 +818,7 @@ const GitHubWorkspacePreview = ({
         }}
       >
         <span style={{ color: palette.gold }}>●</span>
-        Command Center keeps the workflow in motion
+        Quick Actions keep the workflow in motion
       </div>
     </div>
   )
@@ -856,7 +856,7 @@ const CommandFooter = ({ frame, workspaceOpen }: { frame: number; workspaceOpen:
   >
     <div style={{ alignItems: 'center', display: 'flex', gap: 10 }}>
       <MiniLogo size={19} />
-      ZuraAI Command Center
+      ZuraAI Quick Actions
     </div>
     <div style={{ display: 'flex', gap: 22 }}>
       <span style={{ opacity: 1 - workspaceOpen }}>↑↓ Navigate</span>
@@ -987,10 +987,10 @@ const ClipboardGlyph = () => (
   </IconFrame>
 )
 
-const StoreGlyph = () => (
+const ScheduleGlyph = () => (
   <IconFrame>
-    <path d="M5 9h14l-1 12H6L5 9Z" />
-    <path d="M9 9V6a3 3 0 0 1 6 0v3" />
+    <rect height="16" rx="2" width="18" x="3" y="5" />
+    <path d="M7 3v4M17 3v4M3 10h18M8 14h3M14 14h2" />
   </IconFrame>
 )
 

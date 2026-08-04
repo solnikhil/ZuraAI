@@ -82,7 +82,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
-    "@remotion/cli": "^4.0.499",
+    "@remotion/cli": "4.0.506",
     "@tailwindcss/vite": "^4.3.3",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/jest-dom": "^6.9.1",
@@ -103,7 +103,7 @@
     "png-to-ico": "^3.0.2",
     "pngjs": "^7.0.0",
     "prettier": "^3.9.6",
-    "remotion": "^4.0.484",
+    "remotion": "4.0.506",
     "tailwindcss": "^4.3.2",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.65.0",
