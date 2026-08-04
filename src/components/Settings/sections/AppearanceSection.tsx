@@ -4,54 +4,17 @@
  *
  */
 
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect } from 'react'
 
 import { Card } from '@/components/ui/card'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import type { Settings } from '../../../contexts/SettingsContext'
 import type { ChatSelectedOverlayStyle } from '../../../contexts/SettingsUIContext'
 import { defaultSettingsUI } from '../../../contexts/SettingsUIContext'
-import {
-  getThemeById,
-  getDefaultTheme,
-  getThemesByCategory,
-} from '../../../themes/themeRegistry'
-import {
-  getAvailableTitleModelOptions,
-  getProviderDefinition,
-} from '../../../providers'
-
-function clampNumber(value: number, min: number, max: number): number {
-  if (Number.isNaN(value)) return min
-  return Math.min(max, Math.max(min, value))
-}
-
-function isValidHexColor(color: string): boolean {
-  return /^#[0-9A-Fa-f]{6}$/.test(color)
-}
-
-function normalizeHexColor(color: string): string {
-  if (!color) return ''
-  const trimmed = color.trim()
-  if (isValidHexColor(trimmed)) return trimmed
-  if (/^[0-9A-Fa-f]{6}$/.test(trimmed)) return `#${trimmed}`
-  if (/^#[0-9A-Fa-f]{3}$/.test(trimmed)) {
-    const [, r, g, b] = trimmed
-    return `#${r}${r}${g}${g}${b}${b}`
-  }
-  if (/^[0-9A-Fa-f]{3}$/.test(trimmed)) {
-    const [r, g, b] = trimmed
-    return `#${r}${r}${g}${g}${b}${b}`
-  }
-  return trimmed
-}
+import { clampNumber } from '../../../utils/colorUtils'
+import { SettingsSelect } from './SettingsSelect'
+import { ThemeCustomizer } from './ThemeCustomizer'
+import { TitleGenerationSettings } from './TitleGenerationSettings'
 
 const chatBubblePresets = [
   {
@@ -201,9 +164,6 @@ export function AppearanceSection({
   const updateSettings = (changes: Partial<typeof settings>) => onChange(changes)
   const currentChatBubbleStyle = settings.chatBubbleStyle || 'solid'
   const currentChatSelectedOverlayStyle = settings.chatSelectedOverlayStyle || 'linear'
-  const [accentInput, setAccentInput] = useState('')
-  const [backgroundInput, setBackgroundInput] = useState('')
-  const [foregroundInput, setForegroundInput] = useState('')
 
   // Consume the initialCommandPaletteTab param (no longer needed for tab switching but keep the callback)
   useEffect(() => {
@@ -224,18 +184,6 @@ export function AppearanceSection({
   const promptAutoHide = settings.promptAutoHide
   const promptTimeout = clampNumber(promptAutoHide.timeout, 30, 600)
 
-  const titleModelOptions = getAvailableTitleModelOptions(settings).map((option) => ({
-    value: option.id,
-    label: `${getProviderDefinition(option.provider).label} - ${option.displayName}`,
-  }))
-
-  if (
-    settings.titleModel &&
-    !titleModelOptions.some((model) => model.value === settings.titleModel)
-  ) {
-    titleModelOptions.push({ value: settings.titleModel, label: settings.titleModel })
-  }
-
   const updateCommandBar = (changes: Partial<typeof settings.commandBar>) => {
     updateSettings({
       commandBar: {
@@ -254,82 +202,6 @@ export function AppearanceSection({
     })
   }
 
-  const currentTheme = getThemeById(settings.activeTheme) || getDefaultTheme()
-  const currentContrast = settings.themeContrast ?? 100
-  const themeAccentColor = settings.themeAccent ?? currentTheme.baseColors.accent
-  const themeBackgroundColor = settings.themeBackground ?? currentTheme.baseColors.background
-  const themeForegroundColor = settings.themeForeground ?? currentTheme.baseColors.foreground
-
-  useEffect(() => {
-    setAccentInput(themeAccentColor)
-    setBackgroundInput(themeBackgroundColor)
-    setForegroundInput(themeForegroundColor)
-  }, [themeAccentColor, themeBackgroundColor, themeForegroundColor])
-
-  const allThemes = useMemo(() => getThemesByCategory('all'), [])
-  const hasCustomThemeOverrides =
-    settings.themeAccent !== undefined ||
-    settings.themeBackground !== undefined ||
-    settings.themeForeground !== undefined ||
-    currentContrast !== 100
-
-  const handleThemePresetChange = (themeId: string) => {
-    const selectedTheme = getThemeById(themeId)
-    if (selectedTheme) {
-      updateSettings({
-        activeTheme: themeId,
-        theme: selectedTheme.isDark ? 'dark' : 'light',
-        themeAccent: undefined,
-        themeBackground: undefined,
-        themeForeground: undefined,
-        themeContrast: 100,
-      })
-    }
-  }
-
-  const commitThemeColor = (
-    key: 'themeAccent' | 'themeBackground' | 'themeForeground',
-    value: string,
-    fallback: string
-  ) => {
-    const normalized = normalizeHexColor(value)
-    if (!normalized) {
-      updateSettings({ [key]: undefined } as Partial<Settings>)
-      return fallback
-    }
-
-    if (!isValidHexColor(normalized)) {
-      return fallback
-    }
-
-    updateSettings({ [key]: normalized } as Partial<Settings>)
-    return normalized
-  }
-
-  const handleColorInputKeyDown = (
-    event: React.KeyboardEvent<HTMLInputElement>,
-    commit: () => void
-  ) => {
-    if (event.key === 'Enter') {
-      event.currentTarget.blur()
-      commit()
-    }
-  }
-
-  const resetThemeCustomization = () => {
-    updateSettings({
-      themeAccent: undefined,
-      themeBackground: undefined,
-      themeForeground: undefined,
-      themeContrast: 100,
-    })
-  }
-
-  const handleContrastChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = clampNumber(Number(e.target.value), 0, 100)
-    updateSettings({ themeContrast: value })
-  }
-
   return (
     <div
       className="settings-section-layout settings-section-layout--wide"
@@ -340,175 +212,7 @@ export function AppearanceSection({
         <div className="page-subtitle">Personalize themes and window presentation.</div>
       </div>
 
-      <h3 className="appearance-group-heading">Theme</h3>
-      <Card className="settings-list-card">
-        <div className="theme-customization-panel">
-          <div className="settings-list-row">
-            <div className="settings-list-row__meta">
-              <h3 className="settings-list-row__label">Preset</h3>
-              <div className="settings-list-row__description">
-                Choose a base theme preset, then fine-tune colors below if needed
-              </div>
-            </div>
-            <div className="settings-list-row__control">
-              <div className="theme-control-group">
-                <SettingsSelect
-                  value={settings.activeTheme}
-                  onValueChange={handleThemePresetChange}
-                  options={allThemes.map((theme) => ({ value: theme.id, label: theme.name }))}
-                  aria-label="Theme preset"
-                />
-                {hasCustomThemeOverrides && (
-                  <button
-                    type="button"
-                    onClick={resetThemeCustomization}
-                    className="theme-reset-button"
-                  >
-                    Reset
-                  </button>
-                )}
-              </div>
-            </div>
-          </div>
-
-          <div className="settings-list-row">
-            <div className="settings-list-row__meta">
-              <h3 className="settings-list-row__label">Accent</h3>
-              <div className="settings-list-row__description">
-                Primary accent color for highlights and buttons
-              </div>
-            </div>
-            <div className="settings-list-row__control">
-              <div className="theme-control-group">
-              <input
-                type="color"
-                value={themeAccentColor}
-                onChange={(event) => updateSettings({ themeAccent: event.target.value })}
-                className="theme-color-picker"
-                aria-label="Accent color"
-              />
-              <input
-                type="text"
-                value={accentInput}
-                onChange={(event) => setAccentInput(normalizeHexColor(event.target.value))}
-                onBlur={() => setAccentInput(commitThemeColor('themeAccent', accentInput, themeAccentColor))}
-                onKeyDown={(event) =>
-                  handleColorInputKeyDown(event, () =>
-                    setAccentInput(commitThemeColor('themeAccent', accentInput, themeAccentColor))
-                  )
-                }
-                placeholder={currentTheme.baseColors.accent}
-                className="theme-color-input"
-                aria-label="Accent color hex value"
-              />
-              </div>
-            </div>
-          </div>
-
-          <div className="settings-list-row">
-            <div className="settings-list-row__meta">
-              <h3 className="settings-list-row__label">Background</h3>
-              <div className="settings-list-row__description">
-                Base background color for the interface
-              </div>
-            </div>
-            <div className="settings-list-row__control">
-              <div className="theme-control-group">
-              <input
-                type="color"
-                value={themeBackgroundColor}
-                onChange={(event) => updateSettings({ themeBackground: event.target.value })}
-                className="theme-color-picker"
-                aria-label="Background color"
-              />
-              <input
-                type="text"
-                value={backgroundInput}
-                onChange={(event) => setBackgroundInput(normalizeHexColor(event.target.value))}
-                onBlur={() =>
-                  setBackgroundInput(
-                    commitThemeColor('themeBackground', backgroundInput, themeBackgroundColor)
-                  )
-                }
-                onKeyDown={(event) =>
-                  handleColorInputKeyDown(event, () =>
-                    setBackgroundInput(
-                      commitThemeColor('themeBackground', backgroundInput, themeBackgroundColor)
-                    )
-                  )
-                }
-                placeholder={currentTheme.baseColors.background}
-                className="theme-color-input"
-                aria-label="Background color hex value"
-              />
-              </div>
-            </div>
-          </div>
-
-          <div className="settings-list-row">
-            <div className="settings-list-row__meta">
-              <h3 className="settings-list-row__label">Foreground</h3>
-              <div className="settings-list-row__description">
-                Primary text and foreground element color
-              </div>
-            </div>
-            <div className="settings-list-row__control">
-              <div className="theme-control-group">
-              <input
-                type="color"
-                value={themeForegroundColor}
-                onChange={(event) => updateSettings({ themeForeground: event.target.value })}
-                className="theme-color-picker"
-                aria-label="Foreground color"
-              />
-              <input
-                type="text"
-                value={foregroundInput}
-                onChange={(event) => setForegroundInput(normalizeHexColor(event.target.value))}
-                onBlur={() =>
-                  setForegroundInput(
-                    commitThemeColor('themeForeground', foregroundInput, themeForegroundColor)
-                  )
-                }
-                onKeyDown={(event) =>
-                  handleColorInputKeyDown(event, () =>
-                    setForegroundInput(
-                      commitThemeColor('themeForeground', foregroundInput, themeForegroundColor)
-                    )
-                  )
-                }
-                placeholder={currentTheme.baseColors.foreground}
-                className="theme-color-input"
-                aria-label="Foreground color hex value"
-              />
-              </div>
-            </div>
-          </div>
-
-          <div className="settings-list-row">
-            <div className="settings-list-row__meta">
-              <h3 className="settings-list-row__label">Contrast</h3>
-              <div className="settings-list-row__description">
-                Adjust theme contrast (lower = softer, higher = sharper)
-              </div>
-            </div>
-            <div className="settings-list-row__control">
-              <div className="theme-contrast-control">
-              <input
-                type="range"
-                min={0}
-                max={100}
-                value={currentContrast}
-                onChange={handleContrastChange}
-                className="theme-contrast-slider"
-                aria-label="Contrast slider"
-              />
-              <span className="theme-contrast-value">{currentContrast}%</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </Card>
+      <ThemeCustomizer settings={settings} onChange={onChange} />
 
       <h3 className="appearance-group-heading">Command Palette</h3>
       <Card className="settings-list-card">
@@ -875,49 +579,7 @@ export function AppearanceSection({
         </div>
       </Card>
 
-      <h3 className="appearance-group-heading">Chat Title Generation</h3>
-      <Card className="settings-list-card">
-        <div className="settings-list-row">
-          <div className="settings-list-row__meta">
-            <h3 className="settings-list-row__label">Title model</h3>
-            <div className="settings-list-row__description">
-              Model used for automatic chat titles across all configured providers
-            </div>
-          </div>
-          <div className="settings-list-row__control">
-            <SettingsSelect
-              value={settings.titleModel || undefined}
-              onValueChange={(value) => updateSettings({ titleModel: value })}
-              options={titleModelOptions}
-              placeholder="No models available"
-              disabled={titleModelOptions.length === 0}
-              aria-label="Title generation model"
-            />
-          </div>
-        </div>
-
-        <div className="settings-list-row">
-          <div className="settings-list-row__meta">
-            <h3 className="settings-list-row__label">Sidebar title reveal</h3>
-            <div className="settings-list-row__description">
-              Show generated titles instantly or reveal them with a typewriter effect
-            </div>
-          </div>
-          <div className="settings-list-row__control">
-            <SettingsSelect
-              value={settings.titleGenerationDisplayMode || 'instant'}
-              onValueChange={(value) =>
-                updateSettings({ titleGenerationDisplayMode: value as 'instant' | 'typewriter' })
-              }
-              options={[
-                { value: 'instant', label: 'Instant' },
-                { value: 'typewriter', label: 'Typewriter' },
-              ]}
-              aria-label="Sidebar title reveal mode"
-            />
-          </div>
-        </div>
-      </Card>
+      <TitleGenerationSettings settings={settings} onChange={onChange} />
 
       <h3 className="appearance-group-heading">Prompt Auto-Hide</h3>
       <Card className="settings-list-card">
@@ -1418,48 +1080,6 @@ export function AppearanceSection({
         </div>
       </Card>
     </div>
-  )
-}
-
-interface SettingsSelectProps {
-  value?: string
-  onValueChange: (value: string) => void
-  options: Array<{ value: string; label: string }>
-  placeholder?: string
-  disabled?: boolean
-  className?: string
-  ariaLabel?: string
-}
-
-function SettingsSelect({
-  value,
-  onValueChange,
-  options,
-  placeholder,
-  disabled,
-  className,
-  ariaLabel,
-}: SettingsSelectProps): React.ReactElement {
-  return (
-    <Select value={value} onValueChange={onValueChange} disabled={disabled}>
-      <SelectTrigger
-        className={[
-          'setting-input-scira min-w-[140px] justify-between gap-3',
-          disabled ? 'opacity-50' : '',
-          className ?? '',
-        ].join(' ')}
-        aria-label={ariaLabel}
-      >
-        <SelectValue placeholder={placeholder} />
-      </SelectTrigger>
-      <SelectContent align="end">
-        {options.map((option) => (
-          <SelectItem key={option.value} value={option.value}>
-            {option.label}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
   )
 }
 
