@@ -91,7 +91,12 @@ function isSuccessfulMutatingResult(result: ToolCallResult): boolean {
   if (READ_ONLY_TOOL_NAMES.has(toolName)) return false
   if (FILE_MUTATION_TOOLS.has(toolName)) return true
   if (VISUAL_MUTATION_TOOLS.has(toolName)) return true
-  if (toolName === 'system_shell') return result.toolCall.arguments?.mutatesState !== false
+  // `system_shell` runs arbitrary PowerShell, so it is always treated as
+  // mutating. `mutatesState` is a model-supplied hint used for approval copy
+  // only; trusting it here would let a destructive command marked
+  // `mutatesState: false` skip mutation accounting and its verification
+  // checkpoint entirely. Model annotations must never weaken accounting.
+  if (toolName === 'system_shell') return true
   if (isAppWindowMutation(toolName)) return true
   if (toolName.startsWith('mcp__')) return true
   return false

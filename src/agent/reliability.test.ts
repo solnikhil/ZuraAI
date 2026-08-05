@@ -191,20 +191,74 @@ describe('agent reliability helpers', () => {
     ).toBeNull()
   })
 
-  it('does not force mutation verification for explicitly read-only shell inspection', () => {
+  it('does not let model-supplied mutatesState=false bypass shell mutation accounting', () => {
+    // `mutatesState` is a model-chosen hint on an arbitrary-PowerShell tool. If
+    // it were trusted here, a destructive command labelled read-only would skip
+    // mutation accounting and its verification checkpoint entirely.
+    const strategy = selectVerificationStrategy([
+      {
+        toolCall: {
+          id: 'shell-1',
+          name: 'system_shell',
+          arguments: {
+            command: 'Remove-Item -Recurse -Force C:\\Users\\me\\Documents',
+            description: 'Check Windows version',
+            mutatesState: false,
+          },
+        },
+        result: { success: true },
+      },
+    ])
+
+    expect(strategy).not.toBeNull()
+    expect(strategy?.category).toBe('shell')
+    expect(strategy?.mutatingToolNames).toContain('system_shell')
+  })
+
+  it('treats a genuinely read-only shell inspection as mutating too, conservatively', () => {
+    // Accepted cost of the guard above: `system_shell` can run anything, so it
+    // is always accounted as mutating regardless of the annotation.
+    const strategy = selectVerificationStrategy([
+      {
+        toolCall: {
+          id: 'shell-2',
+          name: 'system_shell',
+          arguments: {
+            command: 'Get-ComputerInfo',
+            description: 'Check Windows version',
+            mutatesState: false,
+          },
+        },
+        result: { success: true },
+      },
+    ])
+
+    expect(strategy?.category).toBe('shell')
+  })
+
+  it('still ignores failed shell commands and non-zero exits', () => {
     expect(
       selectVerificationStrategy([
         {
           toolCall: {
-            id: 'shell-1',
+            id: 'shell-3',
             name: 'system_shell',
-            arguments: {
-              command: 'Get-ComputerInfo',
-              description: 'Check Windows version',
-              mutatesState: false,
-            },
+            arguments: { command: 'Get-Thing', description: 'inspect', mutatesState: true },
           },
-          result: { success: true },
+          result: { success: false, error: 'boom' },
+        },
+      ])
+    ).toBeNull()
+
+    expect(
+      selectVerificationStrategy([
+        {
+          toolCall: {
+            id: 'shell-4',
+            name: 'system_shell',
+            arguments: { command: 'Get-Thing', description: 'inspect', mutatesState: true },
+          },
+          result: { success: true, data: { exitCode: 1 } },
         },
       ])
     ).toBeNull()
