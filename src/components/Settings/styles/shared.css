@@ -1596,3 +1596,14 @@
   background: var(--settings-panel-container-bg);
   box-shadow: none;
 }
+
+/* WCAG 2.3.3 - entrance animations are non-essential. Suppressing them still
+   leaves the toast and sidebar items fully visible in their final state. */
+@media (prefers-reduced-motion: reduce) {
+  .toast,
+  .animate-sidebar-item {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+}

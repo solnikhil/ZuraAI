@@ -224,6 +224,53 @@ describe('McpSection', () => {
     expect(openConfigFile).toHaveBeenCalled()
   })
 
+  it('tells the user deletion applies immediately and removes the server on confirm', () => {
+    const removeDraftServer = vi.fn()
+    mockUseMcp.mockReturnValue(createMcpContextValue({ removeDraftServer }))
+
+    render(<McpSection />)
+
+    fireEvent.click(screen.getByRole('menuitem', { name: /delete/i }))
+
+    // The MCP draft autosaves 250ms after confirmation, so the dialog must not
+    // imply the deletion is staged behind a Save action.
+    const description = screen.getByText(/removes the server from your configuration/i)
+    expect(description.textContent).toMatch(/immediately/i)
+    expect(description.textContent).toMatch(/cannot be undone/i)
+    expect(description.textContent).not.toMatch(/save your changes to apply/i)
+    expect(screen.queryByRole('button', { name: /^save$/i })).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: /delete now/i }))
+    expect(removeDraftServer).toHaveBeenCalledWith('server-1')
+  })
+
+  it('announces autosave progress and completion to assistive technology', () => {
+    mockUseMcp.mockReturnValue(createMcpContextValue({ hasDraftChanges: true }))
+    const { rerender } = render(<McpSection />)
+
+    const applying = screen.getByText('Applying MCP changes...')
+    expect(applying.closest('[role="status"]')).not.toBeNull()
+
+    mockUseMcp.mockReturnValue(createMcpContextValue({ hasDraftChanges: false }))
+    rerender(<McpSection />)
+
+    expect(screen.getByText('MCP configuration changes applied.')).toBeTruthy()
+  })
+
+  it('announces autosave failures as an alert instead of a success message', () => {
+    mockUseMcp.mockReturnValue(createMcpContextValue({ hasDraftChanges: true }))
+    const { rerender } = render(<McpSection />)
+
+    mockUseMcp.mockReturnValue(
+      createMcpContextValue({ hasDraftChanges: false, error: 'Could not write mcp-servers.json' })
+    )
+    rerender(<McpSection />)
+
+    const alert = screen.getByRole('alert')
+    expect(alert.textContent).toContain('Could not write mcp-servers.json')
+    expect(screen.queryByText('MCP configuration changes applied.')).toBeNull()
+  })
+
   it('opens Browse Library in catalogue mode and adds selected servers immediately', async () => {
     const addServer = vi.fn(async () => undefined)
     mockUseMcp.mockReturnValue(createMcpContextValue({ addServer }))

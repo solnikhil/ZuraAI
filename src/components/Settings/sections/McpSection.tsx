@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import {
   Cable,
   Cloud,
@@ -113,6 +113,24 @@ export function McpSection(): React.ReactElement {
   )
 
   const connectedServerCount = runtimeStates.filter((state) => state.status === 'connected').length
+
+  // MCP edits autosave. Sighted users see the spinner row; assistive technology
+  // needs the saving -> applied/failed transition announced explicitly.
+  const [saveAnnouncement, setSaveAnnouncement] = useState<string | null>(null)
+  const wasApplyingRef = useRef(false)
+  useEffect(() => {
+    if (hasDraftChanges) {
+      wasApplyingRef.current = true
+      setSaveAnnouncement(null)
+      return
+    }
+    if (!wasApplyingRef.current) {
+      return
+    }
+    wasApplyingRef.current = false
+    // A failure is already announced by the role="alert" error row.
+    setSaveAnnouncement(error ? null : 'MCP configuration changes applied.')
+  }, [error, hasDraftChanges])
 
   const openCreateDialog = () => {
     setDialogErrors([])
@@ -359,17 +377,21 @@ export function McpSection(): React.ReactElement {
         )}
 
         {error && (
-          <div className="mcp-error-row">
+          <div className="mcp-error-row" role="alert">
             <span>{error}</span>
           </div>
         )}
 
         {hasDraftChanges && (
-          <div className="mcp-info-row">
-            <Loader2 className="h-4 w-4 animate-spin" />
+          <div className="mcp-info-row" role="status">
+            <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
             <span>Applying MCP changes...</span>
           </div>
         )}
+
+        <div aria-live="polite" role="status" className="sr-only">
+          {saveAnnouncement ?? ''}
+        </div>
 
         <div className="mcp-server-list">
           {isLoading ? (
@@ -1019,10 +1041,10 @@ export function McpSection(): React.ReactElement {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete "{deleteTarget?.name || 'thisserver'}"?</AlertDialogTitle>
+            <AlertDialogTitle>Delete "{deleteTarget?.name || 'this server'}"?</AlertDialogTitle>
             <AlertDialogDescription>
-              This removes the server from your configuration. Any active connections will be
-              closed. Save your changes to apply the deletion.
+              Deleting removes the server from your configuration immediately — there is nothing
+              further to save and this cannot be undone. Any active connections will be closed.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -1036,7 +1058,7 @@ export function McpSection(): React.ReactElement {
                 setDeleteTarget(null)
               }}
             >
-              Delete server
+              Delete now
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

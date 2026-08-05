@@ -670,6 +670,21 @@
   }
 }
 
+/* WCAG 2.3.3 - the toggle pulse and thumb slide are non-essential decoration.
+   State feedback stays fully visible because the checked/unchecked colours and
+   the thumb's final position are driven by [data-state], not by the animation. */
+@media (prefers-reduced-motion: reduce) {
+  .settings-container .provider-hub-toggle[data-slot='switch'],
+  .settings-container .provider-hub-toggle [data-slot='switch-thumb'] {
+    transition: none;
+  }
+
+  .settings-container .provider-hub-toggle[data-state='checked'] [data-slot='switch-thumb'],
+  .settings-container .provider-hub-toggle[data-state='unchecked'] [data-slot='switch-thumb'] {
+    animation: none;
+  }
+}
+
 .skills-row {
   padding: 16px 18px;
 }
