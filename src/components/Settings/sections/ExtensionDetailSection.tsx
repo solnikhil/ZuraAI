@@ -4,6 +4,7 @@ import { Card } from '@/components/ui/card'
 import { Switch } from '@/components/ui/switch'
 import { SkillLogo } from '@/components/shared'
 import type { Settings } from '@/contexts/SettingsContext'
+import type { ModelSelection } from '@/contexts/SettingsConfigContext'
 import type { EmailNotificationSettings } from '@/electron/types'
 import { BUILT_IN_SKILLS, type BuiltInSkill, type SkillId, type SkillsSettings } from '@/skills'
 import { getCatalogExtension, type CatalogExtensionId } from './extensionCatalog'
@@ -23,7 +24,7 @@ export interface ExtensionDetailSectionProps {
   onChange: (changes: {
     skills?: SkillsSettings
     assistantMode?: Settings['assistantMode']
-    memoryModel?: string
+    memoryModel?: ModelSelection
     brevoApiKey?: string
     emailNotifications?: EmailNotificationSettings
   }) => void

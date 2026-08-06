@@ -89,6 +89,26 @@ const SECURE_SETTINGS_KEY_NAMES = [
 ] as const
 
 /**
+ * A model selection that optionally carries provider identity.
+ * - A bare string (legacy) is resolved via first-match across enabled providers.
+ * - A structured pair routes to an exact provider + model.
+ * - An empty string means "use the active chat model" (contextual default).
+ */
+export type ModelSelection = string | { providerId: string; modelId: string }
+
+/** Extract the model ID string from a ModelSelection value. */
+export function getModelSelectionId(selection: ModelSelection): string {
+  if (typeof selection === 'string') return selection
+  return selection.modelId
+}
+
+/** Extract the provider ID from a ModelSelection value, if available. */
+export function getModelSelectionProviderId(selection: ModelSelection): string | undefined {
+  if (typeof selection === 'string') return undefined
+  return selection.providerId
+}
+
+/**
  * Configuration-related settings that change infrequently
  */
 export interface SettingsConfig {
@@ -185,12 +205,12 @@ export interface SettingsConfig {
   agentSkills: AgentSkillsSettings
 
   // Title generation
-  titleModel: string
+  titleModel: ModelSelection
   titleGenerationPrompt: string
   titleGenerationDisplayMode: 'instant' | 'typewriter'
 
   // Background memory extraction ("dreaming"). Empty string = follow the active chat model.
-  memoryModel: string
+  memoryModel: ModelSelection
 
   // Quick prompts
   quickPrompts: string[]

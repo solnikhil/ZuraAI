@@ -1,5 +1,6 @@
 import { defaultTitleGenerationPrompt } from '../prompts/defaultTitleGenerationPrompt'
-import type { SettingsConfig } from '../contexts/SettingsConfigContext'
+import type { ModelSelection, SettingsConfig } from '../contexts/SettingsConfigContext'
+import { getModelSelectionId } from '../contexts/SettingsConfigContext'
 import { generateTitleTextForModel } from '../providers/providerRuntime'
 import { isLikelyBadGeneratedTitle } from '../utils/chatTitleRepair'
 
@@ -145,7 +146,8 @@ export const generateChatTitle = async (
   settings: TitleGenerationSettings
 ): Promise<string | null> => {
   const prompt = buildTitlePrompt(userMessage, settings)
-  const model = typeof settings.titleModel === 'string' ? settings.titleModel.trim() : ''
+  const titleSelection: ModelSelection = settings.titleModel ?? ''
+  const model = getModelSelectionId(titleSelection).trim()
 
   if (!model) {
     console.warn(
@@ -156,7 +158,7 @@ export const generateChatTitle = async (
 
   try {
     const title = await withTimeout(
-      generateTitleTextForModel(settings, model, prompt),
+      generateTitleTextForModel(settings, titleSelection, prompt),
       TITLE_GENERATION_TIMEOUT_MS
     )
     return normalizeGeneratedTitle(title)

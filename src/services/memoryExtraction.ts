@@ -24,7 +24,8 @@ import { isMemoryAutoManageEnabled, type SkillsSettings } from '@/skills'
 import { generateTitleTextForModel } from '@/providers/providerRuntime'
 import { appendChatDiagnosticEvent } from '@/diagnostics/chatDiagnosticsClient'
 import type { ChatDiagnosticEvent } from '@/diagnostics/chatDiagnostics'
-import type { SettingsConfig } from '@/contexts/SettingsConfigContext'
+import type { ModelSelection, SettingsConfig } from '@/contexts/SettingsConfigContext'
+import { getModelSelectionId } from '@/contexts/SettingsConfigContext'
 import type { MemoryCategory, MemoryScope } from '@/electron/types'
 import {
   hasReminderOrLookoutIntent,
@@ -81,10 +82,7 @@ export interface ExtractionFact {
 }
 
 type ExtractionParseErrorCode =
-  | 'empty-response'
-  | 'missing-json-object'
-  | 'invalid-json'
-  | 'invalid-json-shape'
+  'empty-response' | 'missing-json-object' | 'invalid-json' | 'invalid-json-shape'
 
 interface ExtractionParseFailure {
   errorCode: ExtractionParseErrorCode
@@ -94,8 +92,7 @@ interface ExtractionParseFailure {
 }
 
 type ExtractionParseOutcome =
-  | { ok: true; result: ExtractionResult }
-  | ({ ok: false } & ExtractionParseFailure)
+  { ok: true; result: ExtractionResult } | ({ ok: false } & ExtractionParseFailure)
 
 const MAX_MESSAGES = 12
 const MAX_CHARS_PER_MESSAGE = 800
@@ -320,8 +317,8 @@ export async function runMemoryExtraction(
   // fall back to the active chat model (the documented default, same model the
   // chat is already using). This is an explicit default, not an error-masking
   // fallback — if the resolved model's call fails, extraction stays best-effort.
-  const configuredMemoryModel =
-    typeof settings.memoryModel === 'string' ? settings.memoryModel.trim() : ''
+  const memorySelection: ModelSelection = settings.memoryModel ?? ''
+  const configuredMemoryModel = getModelSelectionId(memorySelection).trim()
   const activeModel = typeof settings.aiModel === 'string' ? settings.aiModel.trim() : ''
   const model = configuredMemoryModel || activeModel
   if (!model) return null
@@ -340,11 +337,16 @@ export async function runMemoryExtraction(
   try {
     raw = await withAbortTimeout(
       (signal) =>
-        generateTitleTextForModel(settings, model, prompt, {
-          signal,
-          maxTokens: EXTRACTION_MAX_TOKENS,
-          jsonMode: true,
-        }),
+        generateTitleTextForModel(
+          settings,
+          configuredMemoryModel ? memorySelection : model,
+          prompt,
+          {
+            signal,
+            maxTokens: EXTRACTION_MAX_TOKENS,
+            jsonMode: true,
+          }
+        ),
       EXTRACTION_TIMEOUT_MS
     )
   } catch (error) {

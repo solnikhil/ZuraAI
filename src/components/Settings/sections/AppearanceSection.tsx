@@ -16,7 +16,11 @@ import {
 } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import type { Settings } from '../../../contexts/SettingsContext'
-import type { AppChromeMaterial, ChatSelectedOverlayStyle } from '../../../contexts/SettingsUIContext'
+import { getModelSelectionId } from '../../../contexts/SettingsConfigContext'
+import type {
+  AppChromeMaterial,
+  ChatSelectedOverlayStyle,
+} from '../../../contexts/SettingsUIContext'
 import {
   ASSISTANT_PERSONALITIES,
   normalizeAssistantPersonalityId,
@@ -284,14 +288,13 @@ export function AppearanceSection({
       provider: option.provider,
     }))
 
-  if (
-    settings.titleModel &&
-    !titleModelOptions.some((model) => model.value === settings.titleModel)
-  ) {
-    titleModelOptions.push({ value: settings.titleModel, label: settings.titleModel, provider: '' })
+  const titleModelId = getModelSelectionId(settings.titleModel)
+
+  if (titleModelId && !titleModelOptions.some((model) => model.value === titleModelId)) {
+    titleModelOptions.push({ value: titleModelId, label: titleModelId, provider: '' })
   }
 
-  const selectedTitleModel = titleModelOptions.find((o) => o.value === settings.titleModel)
+  const selectedTitleModel = titleModelOptions.find((o) => o.value === titleModelId)
 
   const titleProviders = (() => {
     const seen = new Set<string>()
@@ -718,7 +721,13 @@ export function AppearanceSection({
                             .map((option) => (
                               <DropdownMenuItem
                                 key={option.value}
-                                onClick={() => updateSettings({ titleModel: option.value })}
+                                onClick={() =>
+                                  updateSettings({
+                                    titleModel: option.provider
+                                      ? { providerId: option.provider, modelId: option.value }
+                                      : option.value,
+                                  })
+                                }
                                 className="zura-menu-item--model"
                               >
                                 <ProviderLogo provider={option.provider} size={14} />

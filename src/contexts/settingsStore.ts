@@ -336,19 +336,51 @@ export function normalizeStoredSettings(raw: string | null): Settings {
     ? []
     : normalizedFireworksModels
 
+  // Migrate legacy titleModelProvider into a structured pair
   if ('titleModelProvider' in parsed) {
-    delete parsed.titleModelProvider
+    const legacyProvider = (parsed as Record<string, unknown>).titleModelProvider
+    if (
+      typeof legacyProvider === 'string' &&
+      legacyProvider &&
+      typeof parsed.titleModel === 'string' &&
+      parsed.titleModel
+    ) {
+      parsed.titleModel = { providerId: legacyProvider, modelId: parsed.titleModel }
+    }
+    delete (parsed as Record<string, unknown>).titleModelProvider
   }
   if (parsed.titleModel === undefined || parsed.titleModel === null) {
     parsed.titleModel = defaultSettings.titleModel
   }
-  if (parsed.titleModel?.startsWith('gemini-')) {
-    parsed.titleModel = ''
+  if (typeof parsed.titleModel === 'string') {
+    if (parsed.titleModel.startsWith('gemini-')) {
+      parsed.titleModel = ''
+    }
+    if (parsed.titleModel === 'google/gemini-2.0-flash-exp:free') {
+      parsed.titleModel = ''
+    }
+  } else if (
+    typeof parsed.titleModel === 'object' &&
+    parsed.titleModel !== null &&
+    'modelId' in parsed.titleModel
+  ) {
+    if (
+      typeof parsed.titleModel.modelId === 'string' &&
+      (parsed.titleModel.modelId.startsWith('gemini-') ||
+        parsed.titleModel.modelId === 'google/gemini-2.0-flash-exp:free')
+    ) {
+      parsed.titleModel = ''
+    }
   }
-  if (parsed.titleModel === 'google/gemini-2.0-flash-exp:free') {
-    parsed.titleModel = ''
+  if (
+    parsed.memoryModel !== undefined &&
+    parsed.memoryModel !== null &&
+    typeof parsed.memoryModel !== 'string' &&
+    !(typeof parsed.memoryModel === 'object' && 'modelId' in (parsed.memoryModel as object))
+  ) {
+    parsed.memoryModel = defaultSettings.memoryModel
   }
-  if (typeof parsed.memoryModel !== 'string') {
+  if (parsed.memoryModel === undefined || parsed.memoryModel === null) {
     parsed.memoryModel = defaultSettings.memoryModel
   }
   parsed.titleGenerationPrompt = defaultSettings.titleGenerationPrompt
