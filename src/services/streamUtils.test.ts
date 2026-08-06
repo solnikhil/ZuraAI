@@ -44,13 +44,13 @@ describe('streamUtils', () => {
   it('parses the final SSE event without a trailing newline', async () => {
     const reader = createReader([
       'data: {"id":"1","choices":[{"delta":{"content":"Hel"}}]}\n\n',
-      'data: {"id":"2","choices":[{"delta":{"content":"lo"}}]}',
+      'data: {"id":"2","choices":[{"delta":{"content":"lo"},"finish_reason":"stop"}]}',
     ])
 
     const chunks = await collect(
       parseSSEStream<{
         id: string
-        choices: Array<{ delta: { content: string } }>
+        choices: Array<{ delta: { content: string }; finish_reason?: string }>
       }>(reader)
     )
 
@@ -84,5 +84,73 @@ describe('streamUtils', () => {
   it('surfaces malformed NDJSON instead of silently dropping it', async () => {
     const reader = createReader(['{"done":false}\n', '{not-json}\n'])
     await expect(collect(parseNDJSONStream(reader))).rejects.toThrow('malformed NDJSON')
+  })
+
+  describe('terminal event detection', () => {
+    it('throws truncation error when stream has delta content + EOF without [DONE]', async () => {
+      const reader = createReader([
+        'data: {"id":"1","choices":[{"delta":{"content":"Hel"}}]}\n\n',
+        'data: {"id":"2","choices":[{"delta":{"content":"lo"}}]}\n\n',
+      ])
+
+      await expect(
+        collect(parseSSEStream(reader, { providerName: 'TestProvider' }))
+      ).rejects.toThrow(
+        'TestProvider stream ended without a terminal event (truncated, partial content received)'
+      )
+    })
+
+    it('succeeds when [DONE] marker is present before EOF', async () => {
+      const reader = createReader([
+        'data: {"id":"1","choices":[{"delta":{"content":"Hello"}}]}\n\n',
+        'data: [DONE]\n\n',
+      ])
+
+      const chunks = await collect(
+        parseSSEStream<{ id: string; choices: Array<{ delta: { content: string } }> }>(reader)
+      )
+
+      expect(chunks).toHaveLength(1)
+      expect(chunks[0].choices[0].delta.content).toBe('Hello')
+    })
+
+    it('succeeds when chunk contains finish_reason before EOF (no [DONE])', async () => {
+      const reader = createReader([
+        'data: {"id":"1","choices":[{"delta":{"content":"Hi"},"finish_reason":null}]}\n\n',
+        'data: {"id":"2","choices":[{"delta":{"content":""},"finish_reason":"stop"}]}\n\n',
+      ])
+
+      const chunks = await collect(
+        parseSSEStream<{
+          id: string
+          choices: Array<{ delta: { content: string }; finish_reason: string | null }>
+        }>(reader)
+      )
+
+      expect(chunks).toHaveLength(2)
+    })
+
+    it('throws truncation error when EOF occurs before any output', async () => {
+      const reader = createReader([])
+
+      await expect(
+        collect(parseSSEStream(reader, { providerName: 'EmptyProvider' }))
+      ).rejects.toThrow('EmptyProvider stream ended without a terminal event (truncated)')
+    })
+
+    it('does not throw when requireTerminalEvent is false and EOF without [DONE]', async () => {
+      const reader = createReader([
+        'data: {"id":"1","choices":[{"delta":{"content":"Hello"}}]}\n\n',
+      ])
+
+      const chunks = await collect(
+        parseSSEStream<{ id: string; choices: Array<{ delta: { content: string } }> }>(reader, {
+          requireTerminalEvent: false,
+        })
+      )
+
+      expect(chunks).toHaveLength(1)
+      expect(chunks[0].choices[0].delta.content).toBe('Hello')
+    })
   })
 })
