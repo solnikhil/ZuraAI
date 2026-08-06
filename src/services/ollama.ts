@@ -39,29 +39,80 @@ export interface OllamaResponse {
   eval_duration?: number
 }
 
-export const checkOllamaStatus = async (baseUrl: string): Promise<boolean> => {
+/**
+ * Maximum simultaneous `/api/show` requests while enriching a catalog.
+ *
+ * Ollama is a single local process; firing one request per model at once (a
+ * large catalog can be hundreds) buries it and holds that many sockets open.
+ */
+const OLLAMA_SHOW_CONCURRENCY = 4
+
+function throwIfAborted(signal?: AbortSignal): void {
+  if (signal?.aborted) {
+    throw signal.reason ?? new DOMException('Aborted', 'AbortError')
+  }
+}
+
+/**
+ * Maps `items` through `worker` with at most `limit` in flight, preserving
+ * input order in the result. Aborts stop new work from starting.
+ */
+async function mapWithConcurrency<T, R>(
+  items: readonly T[],
+  limit: number,
+  worker: (item: T, index: number) => Promise<R>,
+  signal?: AbortSignal
+): Promise<R[]> {
+  const results = new Array<R>(items.length)
+  let nextIndex = 0
+
+  const runners = Array.from({ length: Math.max(1, Math.min(limit, items.length)) }, async () => {
+    for (;;) {
+      const index = nextIndex
+      nextIndex += 1
+      if (index >= items.length) return
+      // Fail fast on cancellation rather than draining the remaining queue.
+      throwIfAborted(signal)
+      results[index] = await worker(items[index], index)
+    }
+  })
+
+  await Promise.all(runners)
+  return results
+}
+
+export const checkOllamaStatus = async (
+  baseUrl: string,
+  signal?: AbortSignal
+): Promise<boolean> => {
   if (typeof window !== 'undefined' && window.providerRuntime) {
     try {
-      await listProviderModelsThroughMain<OllamaModel>('ollama', undefined, { ollamaUrl: baseUrl })
+      await listProviderModelsThroughMain<OllamaModel>('ollama', signal, { ollamaUrl: baseUrl })
       return true
-    } catch {
+    } catch (error) {
+      // Cancellation is not an "Ollama is down" answer.
+      if (signal?.aborted) throw error
       return false
     }
   }
   try {
-    const response = await fetch(`${baseUrl}/api/tags`, { method: 'HEAD' })
+    const response = await fetch(`${baseUrl}/api/tags`, { method: 'HEAD', signal })
     return response.ok
-  } catch {
+  } catch (error) {
+    if (signal?.aborted) throw error
     return false
   }
 }
 
-export const listOllamaModels = async (baseUrl: string): Promise<OllamaModel[]> => {
-  const bridged = await listProviderModelsThroughMain<OllamaModel>('ollama', undefined, {
+export const listOllamaModels = async (
+  baseUrl: string,
+  signal?: AbortSignal
+): Promise<OllamaModel[]> => {
+  const bridged = await listProviderModelsThroughMain<OllamaModel>('ollama', signal, {
     ollamaUrl: baseUrl,
   })
   if (bridged) return bridged
-  const response = await fetch(`${baseUrl}/api/tags`)
+  const response = await fetch(`${baseUrl}/api/tags`, { signal })
   if (!response.ok) {
     throw new Error(`Failed to fetch Ollama models: ${response.status} ${response.statusText}`)
   }
@@ -72,11 +123,16 @@ export const listOllamaModels = async (baseUrl: string): Promise<OllamaModel[]> 
   return data.models
 }
 
-const getOllamaModelContextLength = async (baseUrl: string, modelName: string): Promise<number> => {
+const getOllamaModelContextLength = async (
+  baseUrl: string,
+  modelName: string,
+  signal?: AbortSignal
+): Promise<number> => {
   const response = await fetch(`${baseUrl}/api/show`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ name: modelName }),
+    signal,
   })
   if (!response.ok) {
     throw new Error(
@@ -96,11 +152,16 @@ const getOllamaModelContextLength = async (baseUrl: string, modelName: string): 
 }
 
 /**
- * Enrich an array of basic Ollama model entries with context lengths fetched in parallel.
+ * Enrich an array of basic Ollama model entries with context lengths.
+ *
+ * Requests run through a small bounded pool and honour `signal`, so a cancelled
+ * or timed-out catalog request stops issuing work and releases its runtime
+ * capacity instead of leaving hung `/api/show` calls behind.
  */
 export const enrichOllamaModelsWithContext = async (
   baseUrl: string,
-  models: Array<{ code: string; displayName: string; [key: string]: unknown }>
+  models: Array<{ code: string; displayName: string; [key: string]: unknown }>,
+  signal?: AbortSignal
 ): Promise<
   Array<{ code: string; displayName: string; maxContext: number; [key: string]: unknown }>
 > => {
@@ -112,10 +173,19 @@ export const enrichOllamaModelsWithContext = async (
       [key: string]: unknown
     }>
   }
-  const results = await Promise.all(models.map((m) => getOllamaModelContextLength(baseUrl, m.code)))
-  return models.map((m, i) => ({
-    ...m,
-    maxContext: results[i],
+
+  throwIfAborted(signal)
+
+  const results = await mapWithConcurrency(
+    models,
+    OLLAMA_SHOW_CONCURRENCY,
+    (model) => getOllamaModelContextLength(baseUrl, model.code, signal),
+    signal
+  )
+
+  return models.map((model, index) => ({
+    ...model,
+    maxContext: results[index],
   }))
 }
 
