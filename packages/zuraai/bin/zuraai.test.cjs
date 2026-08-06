@@ -38,12 +38,28 @@ test('creates chat deep links with local userData validation and createIfMissing
   assert.match(url, /messageBase64=aGVsbG8gZnJvbSB0ZXJtaW5hbA/)
 })
 
-test('joins chat command arguments into one message', () => {
-  const parsed = parseArgs(['chat', 'hello', 'world'])
+// `parseArgs(['chat', ...])` resolves the default userData path, which only
+// exists on the two platforms the launcher supports. Gate the assertion rather
+// than letting the suite fail on Linux CI runners.
+const LAUNCHER_SUPPORTED = process.platform === 'darwin' || process.platform === 'win32'
 
-  assert.equal(parsed.type, 'chat')
-  assert.match(parsed.url, /zura-chat:\/\//)
-  assert.match(parsed.url, /messageBase64=aGVsbG8gd29ybGQ/)
+test(
+  'joins chat command arguments into one message',
+  { skip: LAUNCHER_SUPPORTED ? false : 'launcher supports macOS and Windows only' },
+  () => {
+    const parsed = parseArgs(['chat', 'hello', 'world'])
+
+    assert.equal(parsed.type, 'chat')
+    assert.match(parsed.url, /zura-chat:\/\//)
+    assert.match(parsed.url, /messageBase64=aGVsbG8gd29ybGQ/)
+  }
+)
+
+test('rejects unsupported platforms with the documented error', () => {
+  assert.throws(
+    () => getDefaultUserDataPath('linux', {}, '/home/nikhil'),
+    /currently supports macOS and Windows/
+  )
 })
 
 test('exposes an explicit desktop installation command', () => {
