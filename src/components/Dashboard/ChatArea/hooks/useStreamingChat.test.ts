@@ -1,15 +1,201 @@
 import { describe, expect, it, vi } from 'vitest'
+import { renderHook, act } from '@testing-library/react'
+
+const mocks = vi.hoisted(() => ({
+  addMessageToSession: vi.fn(() => 'msg-id'),
+  createSession: vi.fn(() => 'session-new'),
+  updateStreamingMessage: vi.fn(),
+  deleteMessageFromSession: vi.fn(),
+  updateSessionTitle: vi.fn(),
+  startStreaming: vi.fn(),
+  updateStreaming: vi.fn(),
+  completeStreaming: vi.fn(() => ({
+    sessionId: 'session-1',
+    messageId: 'msg-id',
+    content: 'Hello',
+    isStreaming: false,
+  })),
+  cancelStreaming: vi.fn(),
+  showToast: vi.fn(),
+  requestApproval: vi.fn(),
+  runProviderStream: vi.fn(async () => ({
+    content: 'Hello',
+    model: 'test/model',
+    finishReason: 'stop',
+  })),
+}))
 
 vi.mock('../attachmentUtils', () => ({
-  buildProviderMessages: vi.fn(),
-  canAnalyzeImageAttachments: vi.fn(),
+  buildProviderMessages: vi.fn((msgs: unknown[]) => msgs),
+  canAnalyzeImageAttachments: vi.fn(() => true),
   isImageAttachment: vi.fn(() => false),
+}))
+
+vi.mock('../../../../contexts/ChatHistoryContext', () => ({
+  useChatHistory: () => ({
+    sessions: [{ id: 'session-1', messages: [] }],
+    folders: [],
+    currentSessionId: 'session-1',
+    addMessageToSession: mocks.addMessageToSession,
+    updateStreamingMessage: mocks.updateStreamingMessage,
+    createSession: mocks.createSession,
+    updateSessionTitle: mocks.updateSessionTitle,
+    deleteMessageFromSession: mocks.deleteMessageFromSession,
+  }),
+}))
+
+vi.mock('../../../../contexts/StreamingContext', () => ({
+  useStreamingActions: () => ({
+    startStreaming: mocks.startStreaming,
+    updateStreaming: mocks.updateStreaming,
+    completeStreaming: mocks.completeStreaming,
+    cancelStreaming: mocks.cancelStreaming,
+  }),
+}))
+
+vi.mock('../../../../contexts/SettingsContext', () => ({
+  useSettings: () => ({
+    settings: {
+      aiModel: 'test-model',
+      modelProvider: 'openrouter',
+      temperature: 0.7,
+      maxTokens: 4096,
+      streamResponses: true,
+      webSearchPrompt: '',
+      ollamaUrl: '',
+      openRouterDebug: false,
+      openRouterApiKey: 'test-key',
+      configuredModels: [],
+      alibabaModels: [],
+      alibabaRegion: '',
+      groqApiKey: '',
+      alibabaApiKey: '',
+      deepseekApiKey: '',
+      opencodeGoApiKey: '',
+      fireworksApiKey: '',
+      nvidiaApiKey: '',
+      nvidiaModels: [],
+      skills: [],
+      enabledTools: [],
+      assistantMode: 'chat',
+      titleGenerationDisplayMode: 'instant',
+    },
+    updateSettings: vi.fn(),
+  }),
+}))
+
+vi.mock('../../../shared/Toast', () => ({
+  useToast: () => ({
+    showToast: mocks.showToast,
+  }),
+}))
+
+vi.mock('../../../../agent/AgentToolApprovalContext', () => ({
+  useAgentToolApproval: () => ({
+    requestApproval: mocks.requestApproval,
+  }),
+}))
+
+vi.mock('../../../../services/titleGenerator', () => ({
+  generateChatTitle: vi.fn(async () => null),
+}))
+
+vi.mock('../../../../services/memoryExtraction', () => ({
+  runMemoryExtraction: vi.fn(async () => undefined),
+}))
+
+vi.mock('../../../../utils/tokenUtils', () => ({
+  buildOptimizedContextWithTrace: vi.fn(() => ({
+    messages: [],
+    trace: { inputTokenEstimate: 0, outputTokenBudget: 4096 },
+  })),
+}))
+
+vi.mock('../../../../utils/promptSelection', () => ({
+  getEffectiveSystemPrompt: vi.fn(() => 'system prompt'),
+}))
+
+vi.mock('../../../../prompts/buildMemoryBlock', () => ({
+  loadMemoryBlock: vi.fn(async () => ''),
+}))
+
+vi.mock('../../../../prompts/buildRecentActivityBlock', () => ({
+  loadRecentActivityBlock: vi.fn(async () => ''),
+}))
+
+vi.mock('../../../../utils/memoryScope', () => ({
+  getSessionMemoryScope: vi.fn(() => ({ type: 'global' })),
+  isFolderAssociationResolvable: vi.fn(() => true),
+}))
+
+vi.mock('../../../../providers', () => ({
+  getAvailableModelOptions: vi.fn(() => []),
+  getProviderCredentialError: vi.fn(() => null),
+  normalizeActiveProviderId: vi.fn(() => 'openrouter'),
+  TITLE_REVEAL_INTERVAL_MS: 30,
+}))
+
+vi.mock('../../../../agent/agentRun', () => ({
+  completeAgentToolStep: vi.fn(),
+  createAgentRun: vi.fn(),
+  finishAgentRun: vi.fn(),
+  isAgentWorkspaceMode: vi.fn(() => false),
+  upsertAgentToolStep: vi.fn(),
+  upsertAgentVerificationStep: vi.fn(),
+}))
+
+vi.mock('../../../../analytics/track', () => ({
+  trackAnalytics: vi.fn(),
+  trackRendererError: vi.fn(),
+}))
+
+vi.mock('./streaming', () => ({
+  formatProviderStreamError: vi.fn(() => ({ message: 'err', tone: 'error' })),
+  useProviderStreaming: () => ({
+    runProviderStream: mocks.runProviderStream,
+  }),
+  useStreamingToolCalls: () => ({
+    canUseTools: false,
+    getToolsForRequest: vi.fn(() => []),
+    getToolsForRequestAsync: vi.fn(async () => []),
+    handleToolCalls: vi.fn(),
+    toolState: { activeToolCalls: [], completedToolCalls: [] },
+    clearToolState: vi.fn(),
+    startResearchMode: vi.fn(),
+    getResearchContext: vi.fn(() => ''),
+  }),
+  useResearchMode: () => ({
+    calculateResearchConfig: vi.fn(() => ({ maxRounds: -1, forceWebSearch: false })),
+  }),
+}))
+
+vi.mock('./streaming/chatRunConfig', () => ({
+  buildStreamingSettings: vi.fn((s: unknown) => s),
+}))
+
+vi.mock('./chatRunRequest', () => ({
+  buildChatRunRequest: vi.fn((args: unknown) => args),
+}))
+
+vi.mock('./chatRunFinalization', () => ({
+  buildChatRunResultUpdates: vi.fn(() => ({})),
+  finalizeChatRun: vi.fn(
+    (_run: unknown, _outcome: unknown, finalizer: () => void, cleanup: () => void) => {
+      finalizer()
+      cleanup()
+    }
+  ),
+  mergeStreamingFinalState: vi.fn((finalState: unknown, result: unknown) => ({
+    ...(finalState as object),
+    ...(result as object),
+  })),
 }))
 
 import {
   buildCommittedStreamingUpdates,
   buildRegenerationResponseVersions,
   normalizeGeneratedSessionTitle,
+  useStreamingChat,
 } from './useStreamingChat'
 
 describe('useStreamingChat final commit helpers', () => {
@@ -164,5 +350,42 @@ describe('useStreamingChat regeneration versions', () => {
     ])
     expect(versions).not.toBe(existingVersions)
     expect(existingVersions).toHaveLength(1)
+  })
+})
+
+describe('useStreamingChat duplicate send guard', () => {
+  it('rejects a second send in the same tick via the synchronous activeRunRef guard', async () => {
+    // Arrange: make the provider stream resolve immediately
+    mocks.runProviderStream.mockReset()
+    mocks.addMessageToSession.mockReset()
+    mocks.addMessageToSession.mockReturnValue('msg-id')
+    mocks.runProviderStream.mockResolvedValue({
+      content: 'Hi',
+      model: 'test/model',
+      finishReason: 'stop',
+    })
+
+    const { result } = renderHook(() => useStreamingChat())
+
+    // Act: fire two sends synchronously in the same tick (before any microtask runs).
+    // The second should be rejected by the synchronous activeRunRef guard because
+    // the first call sets activeRunRef.current synchronously before any await.
+    await act(async () => {
+      const firstSend = result.current.sendMessage('Hello', [])
+      const secondSend = result.current.sendMessage('Hello again', [])
+      await Promise.all([firstSend, secondSend])
+    })
+
+    // Assert: only ONE user message was added (the first send).
+    // addMessageToSession is called twice per successful send: once for user msg, once for assistant msg.
+    // A rejected duplicate produces zero calls.
+    const userMessageCalls = mocks.addMessageToSession.mock.calls.filter(
+      (_call: unknown[]) => (_call as [string, { role: string }])[1]?.role === 'user'
+    )
+    expect(userMessageCalls).toHaveLength(1)
+    expect(userMessageCalls[0][1].content).toBe('Hello')
+
+    // Only one provider stream request was made
+    expect(mocks.runProviderStream).toHaveBeenCalledTimes(1)
   })
 })
