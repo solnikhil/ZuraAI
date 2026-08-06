@@ -6,6 +6,7 @@ export type {
   ScrollArgs,
   CursorPositionArgs,
 } from './computer-use/types'
+export { releaseActionBudget } from './computer-use/actionBudget'
 export {
   executeScreenshot,
   executeClick,

@@ -20,7 +20,13 @@ import {
   performScroll,
   performCursorMove,
 } from './actions'
-import { MAX_ACTIONS_PER_SESSION, ACTION_DELAY_MS } from './constants'
+import { ACTION_DELAY_MS } from './constants'
+import {
+  consumeActionBudget,
+  initializeActionBudget,
+  releaseActionBudget,
+  releaseAllActionBudgets,
+} from './actionBudget'
 import { registerKillSwitch, unregisterKillSwitch } from './killSwitch'
 import {
   mapScreenshotPointToDesktop,
@@ -30,9 +36,7 @@ import {
 } from './coordinates'
 
 let approvalManager: ComputerUseApprovalManager | null = null
-let actionCount = 0
 let aborted = false
-const maxActions = MAX_ACTIONS_PER_SESSION
 interface ScreenshotSessionState {
   coordinateContext: ScreenshotCoordinateContext
   screenshotArgs: ScreenshotArgs
@@ -64,6 +68,8 @@ function rememberScreenshot(sessionKey: string, state: ScreenshotSessionState): 
     const oldest = screenshotSessions.keys().next().value
     if (typeof oldest !== 'string') break
     screenshotSessions.delete(oldest)
+    // The session is gone, so its budget must go with it.
+    releaseActionBudget(oldest)
   }
 }
 
@@ -89,7 +95,7 @@ export function setApprovalManager(manager: ComputerUseApprovalManager): void {
 
 export function abortSession(): void {
   aborted = true
-  actionCount = 0
+  releaseAllActionBudgets()
   approvalManager?.dispose()
   unregisterKillSwitch()
   screenshotSessions.clear()
@@ -136,6 +142,9 @@ export async function executeScreenshot(
       appName: args.app_name,
     })
     const sessionKey = options.sessionKey ?? 'unscoped'
+    // Session creation point: establish the budget without resetting an
+    // in-progress run's remaining actions.
+    initializeActionBudget(sessionKey)
     const screenshotId = randomUUID()
     const ocr = await extractOcrElements(result.image, result.width, result.height)
     rememberScreenshot(sessionKey, {
@@ -191,9 +200,9 @@ async function executeAction(
     }
   }
 
-  actionCount++
-  if (actionCount > maxActions) {
-    return { success: false, error: `Action limit reached (${maxActions}). Start a new task.` }
+  const overBudget = consumeActionBudget(sessionKey)
+  if (overBudget) {
+    return { success: false, error: overBudget }
   }
 
   const gate = await gateApproval(action, args, autoApprove)
