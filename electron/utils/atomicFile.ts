@@ -1,4 +1,5 @@
 import * as fs from 'fs/promises'
+import * as fsSync from 'fs'
 import * as path from 'path'
 import { randomUUID } from 'crypto'
 
@@ -51,6 +52,38 @@ async function replaceWithBackup(tempPath: string, filePath: string): Promise<vo
     if (!existingMoved) {
       await fs.rm(backupPath, { force: true }).catch(() => undefined)
     }
+  }
+}
+
+/**
+ * Synchronous atomic write, for the few stores that must be readable/writable
+ * from synchronous startup paths (for example analytics consent).
+ *
+ * Same contract as {@link writeFileAtomic}: write a temp file, fsync it, then
+ * replace the target so a reader never observes a partially written document.
+ */
+export function writeFileAtomicSync(filePath: string, content: string | Buffer): void {
+  const dir = path.dirname(filePath)
+  fsSync.mkdirSync(dir, { recursive: true })
+
+  const tempPath = buildTempPath(filePath)
+  const handle = fsSync.openSync(tempPath, 'w')
+  try {
+    fsSync.writeFileSync(handle, content)
+    fsSync.fsyncSync(handle)
+  } finally {
+    fsSync.closeSync(handle)
+  }
+
+  try {
+    fsSync.renameSync(tempPath, filePath)
+  } catch (error) {
+    try {
+      fsSync.rmSync(tempPath, { force: true })
+    } catch {
+      // Best-effort cleanup; surface the original failure.
+    }
+    throw error
   }
 }
 

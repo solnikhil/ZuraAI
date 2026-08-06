@@ -878,12 +878,50 @@ export async function createScheduledTask(
       updatedAt: now,
       nextRunAt: calculateScheduledNextRunAt(now, intervalPreset, schedule, input.dueAt),
     }
+
+    assertValidScheduledTaskDefinition(task)
+
     await persistIndex({ ...index, tasks: [task, ...index.tasks] })
     return task
   })
 }
 
 export const createMonitor = createScheduledTask
+
+/**
+ * Enforces the per-type requirements of a *complete* task definition.
+ *
+ * `sanitizeScheduledTaskInput(raw, true)` can only validate the fields present
+ * in a patch, so a patch that changes `type` would otherwise be merged blindly:
+ * a reminder could become a persisted web lookout with no URLs, or an
+ * automation with no prompt. Every write validates the merged candidate here.
+ */
+function assertValidScheduledTaskDefinition(task: ScheduledTaskDefinition): void {
+  if (!isScheduledTaskType(task.type)) {
+    throw new Error('Invalid scheduled task type')
+  }
+  if (typeof task.title !== 'string' || !task.title.trim()) {
+    throw new Error('Scheduled task title is required')
+  }
+
+  switch (task.type) {
+    case 'web_lookout':
+      if (!Array.isArray(task.urls) || task.urls.length === 0) {
+        throw new Error('At least one URL is required for a lookout')
+      }
+      break
+    case 'reminder':
+      if (typeof task.reminderText !== 'string' || !task.reminderText.trim()) {
+        throw new Error('Reminder text is required')
+      }
+      break
+    case 'ai_automation':
+      if (typeof task.prompt !== 'string' || !task.prompt.trim()) {
+        throw new Error('Automation prompt is required')
+      }
+      break
+  }
+}
 
 export async function updateScheduledTask(
   id: string,
@@ -915,6 +953,11 @@ export async function updateScheduledTask(
       updatedAt: now,
       nextRunAt,
     }
+
+    // Validate the merged candidate, not just the patch, so a type change can
+    // never persist a task missing its new type's required fields.
+    assertValidScheduledTaskDefinition(task)
+
     await persistIndex({
       ...index,
       tasks: index.tasks.map((item) => (item.id === id ? task : item)),
