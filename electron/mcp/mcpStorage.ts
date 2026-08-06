@@ -548,13 +548,37 @@ export async function saveMcpServers(servers: McpServerConfig[]): Promise<void> 
   })
 }
 
-function configValuesToRecord(values: McpConfigValue[]): Promise<Record<string, string>> {
+const MCP_SECRET_KEY_PATTERN =
+  /^mcp\.server\.[^.]+\.(env\.[^.]+|header\.[^.]+|token|oauth\.accessToken|oauth\.refreshToken|oauth\.clientSecret)$/
+
+export function validateMcpSecretKey(serverId: string, secretKey: string): void {
+  const expectedPrefix = `mcp.server.${serverId}.`
+  if (!secretKey.startsWith(expectedPrefix)) {
+    throw new Error(
+      `MCP secret key "${secretKey}" is not within the namespace of server "${serverId}". ` +
+        `Expected prefix: "${expectedPrefix}"`
+    )
+  }
+  if (!MCP_SECRET_KEY_PATTERN.test(secretKey)) {
+    throw new Error(
+      `MCP secret key "${secretKey}" does not match any allowed pattern for server "${serverId}". ` +
+        `Allowed patterns: mcp.server.<serverId>.(env|header).<name>, mcp.server.<serverId>.token, ` +
+        `mcp.server.<serverId>.oauth.(accessToken|refreshToken|clientSecret)`
+    )
+  }
+}
+
+function configValuesToRecord(
+  serverId: string,
+  values: McpConfigValue[]
+): Promise<Record<string, string>> {
   return values.reduce<Promise<Record<string, string>>>(async (accPromise, entry) => {
     const acc = await accPromise
 
     if (entry.valueSource === 'secret') {
       const secretKey = entry.secretKey?.trim()
       if (secretKey) {
+        validateMcpSecretKey(serverId, secretKey)
         const resolved = await getSecureValueAsync(secretKey)
         if (resolved) {
           acc[entry.name] = resolved
@@ -578,8 +602,8 @@ export async function resolveMcpServerSecrets(
     throw new Error('Cannot resolve secrets for invalid MCP server config')
   }
 
-  const env = await configValuesToRecord(normalized.env ?? [])
-  const headers = await configValuesToRecord(normalized.headers ?? [])
+  const env = await configValuesToRecord(normalized.id, normalized.env ?? [])
+  const headers = await configValuesToRecord(normalized.id, normalized.headers ?? [])
 
   return {
     ...normalized,
