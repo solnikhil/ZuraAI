@@ -4,6 +4,7 @@ const MAX_SESSION_COUNT = 10_000
 const MAX_FOLDER_COUNT = 10_000
 const MAX_MESSAGES_PER_SESSION = 100_000
 const MAX_SESSION_BYTES = 256 * 1024 * 1024
+export const MAX_BULK_AGGREGATE_BYTES = 512 * 1024 * 1024
 const MAX_INDEX_BYTES = 64 * 1024 * 1024
 const MAX_IDENTIFIER_LENGTH = 512
 const MAX_TITLE_LENGTH = 100_000
@@ -147,7 +148,17 @@ export function assertSessionsInput(value: unknown): asserts value is ChatSessio
   if (!Array.isArray(value) || value.length > MAX_SESSION_COUNT) {
     throw new Error(`sessions must contain at most ${MAX_SESSION_COUNT} entries`)
   }
-  value.forEach((session, index) => assertChatSessionInput(session, `sessions[${index}]`))
+  let aggregateBytes = 0
+  value.forEach((session, index) => {
+    assertChatSessionInput(session, `sessions[${index}]`)
+    const serialized = JSON.stringify(session)
+    aggregateBytes += Buffer.byteLength(serialized, 'utf8')
+    if (aggregateBytes > MAX_BULK_AGGREGATE_BYTES) {
+      throw new Error(
+        `Bulk save exceeds the ${MAX_BULK_AGGREGATE_BYTES}-byte aggregate IPC limit (rejected at session ${index})`
+      )
+    }
+  })
 }
 
 export function assertChatIndexInput(value: unknown): asserts value is ChatIndexData {
