@@ -63,13 +63,19 @@ export function registerChatStoreHandlers(): void {
     }
     const deleted = await chatStore.deleteSessionAsync(sessionId)
     if (deleted) {
-      const [deletedMemories, deletedSummary] = await Promise.all([
-        memoryStore.deleteMemoriesForSessionAsync(sessionId),
-        summaryStore.deleteSummaryAsync(sessionId),
-      ])
-      broadcastChatStoreChanged()
-      if (deletedMemories > 0 || deletedSummary) {
-        broadcastMemoryStoreChanged()
+      // Memory/summary cleanup is best-effort; failures should not break the deletion.
+      try {
+        const [deletedMemories, deletedSummary] = await Promise.all([
+          memoryStore.deleteMemoriesForSessionAsync(sessionId),
+          summaryStore.deleteSummaryAsync(sessionId),
+        ])
+        broadcastChatStoreChanged()
+        if (deletedMemories > 0 || deletedSummary) {
+          broadcastMemoryStoreChanged()
+        }
+      } catch (error) {
+        console.error('Non-fatal: memory/summary cleanup failed after session deletion:', error)
+        broadcastChatStoreChanged()
       }
     }
     return deleted
