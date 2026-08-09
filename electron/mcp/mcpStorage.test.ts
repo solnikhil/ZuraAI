@@ -123,7 +123,7 @@ describe('mcpStorage', () => {
     const loaded = await loadMcpServerStore()
     const directoryEntries = await fs.readdir(path.dirname(storePath))
 
-    expect(loaded).toEqual({ version: MCP_SERVER_STORE_VERSION, servers: [] })
+    expect(loaded).toEqual({ version: MCP_SERVER_STORE_VERSION, revision: 0, servers: [] })
     expect(directoryEntries.some((entry) => entry.startsWith('mcp-servers.json.corrupt-'))).toBe(
       true
     )

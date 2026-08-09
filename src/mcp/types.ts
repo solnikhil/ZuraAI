@@ -184,6 +184,7 @@ export interface McpResolvedServerConfig extends Omit<McpServerConfig, 'env' | '
 
 export interface McpServerStoreFile {
   version: number
+  revision: number
   servers: McpServerConfig[]
 }
 
