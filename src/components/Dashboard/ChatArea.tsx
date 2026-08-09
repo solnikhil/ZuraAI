@@ -658,7 +658,7 @@ export default function ChatArea() {
                 width: '40px',
                 height: '4px',
                 borderRadius: '2px',
-                background: 'var(--theme-text-muted)',
+                background: 'var(--theme-text-decorative)',
                 opacity: 0.4,
               }}
             />
