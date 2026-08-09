@@ -1,8 +1,10 @@
-import { execFile } from 'child_process'
+import crypto from 'crypto'
 import fs from 'fs/promises'
+import https from 'https'
 import os from 'os'
 import path from 'path'
-import { promisify } from 'util'
+
+import { extract as tarExtract } from 'tar'
 
 import type {
   AgentSkillActivationResult,
@@ -14,10 +16,10 @@ import type {
   AgentSkillSummary,
 } from '../../src/agentSkills/types'
 
-const execFileAsync = promisify(execFile)
 const MAX_SKILL_MD_BYTES = 256_000
 const MAX_RESOURCE_ENTRIES = 80
-const SKILLS_CLI_TIMEOUT_MS = 60_000
+const NPM_REGISTRY = 'https://registry.npmjs.org'
+const NPM_SEARCH_SIZE = 20
 
 export interface AgentSkillsQuery {
   projectRoot?: string
@@ -284,37 +286,151 @@ export async function activateAgentSkill(
   }
 }
 
-function getNpxCommand(): string {
-  return process.platform === 'win32' ? 'npx.cmd' : 'npx'
+// --- npm registry HTTP helpers ---
+
+function httpsGet(url: string): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    https
+      .get(url, (res) => {
+        if (
+          res.statusCode &&
+          res.statusCode >= 300 &&
+          res.statusCode < 400 &&
+          res.headers.location
+        ) {
+          httpsGet(res.headers.location).then(resolve, reject)
+          return
+        }
+        if (res.statusCode && res.statusCode >= 400) {
+          reject(new Error(`HTTP ${res.statusCode} for ${url}`))
+          return
+        }
+        const chunks: Buffer[] = []
+        res.on('data', (chunk: Buffer) => chunks.push(chunk))
+        res.on('end', () => resolve(Buffer.concat(chunks)))
+        res.on('error', reject)
+      })
+      .on('error', reject)
+  })
 }
 
-async function runSkillsCli(
-  args: string[],
-  cwd: string
-): Promise<{ ok: boolean; output: string; error?: string }> {
-  try {
-    const result = await execFileAsync(getNpxCommand(), ['--yes', 'skills', ...args], {
-      cwd,
-      timeout: SKILLS_CLI_TIMEOUT_MS,
-      windowsHide: true,
-      maxBuffer: 1_000_000,
-    })
-    return { ok: true, output: [result.stdout, result.stderr].filter(Boolean).join('\n').trim() }
-  } catch (error) {
-    const err = error as { stdout?: string; stderr?: string; message?: string }
-    return {
-      ok: false,
-      output: [err.stdout, err.stderr].filter(Boolean).join('\n').trim(),
-      error: err.message ?? 'Skills CLI failed.',
-    }
+export async function downloadAndVerifyTarball(
+  url: string,
+  expectedShasum: string
+): Promise<Buffer> {
+  const data = await httpsGet(url)
+  const hash = crypto.createHash('sha1').update(data).digest('hex')
+  if (hash !== expectedShasum) {
+    throw new Error(`Integrity check failed: expected sha1 ${expectedShasum}, got ${hash}`)
   }
+  return data
+}
+
+interface NpmSearchObject {
+  package: {
+    name: string
+    version: string
+    description?: string
+    keywords?: string[]
+  }
+}
+
+interface NpmSearchResponse {
+  objects: NpmSearchObject[]
 }
 
 export async function searchAgentSkills(query: string): Promise<AgentSkillSearchResult> {
   const trimmed = typeof query === 'string' ? query.trim() : ''
   if (!trimmed) return { ok: false, query: '', output: '', error: 'Search query is required.' }
-  const result = await runSkillsCli(['find', trimmed], os.homedir())
-  return { query: trimmed, ...result }
+
+  try {
+    const searchUrl = `${NPM_REGISTRY}/-/v1/search?text=keywords:agent-skill+${encodeURIComponent(trimmed)}&size=${NPM_SEARCH_SIZE}`
+    const data = await httpsGet(searchUrl)
+    const response: NpmSearchResponse = JSON.parse(data.toString('utf8'))
+
+    if (!response.objects || response.objects.length === 0) {
+      return { ok: true, query: trimmed, output: 'No packages found.' }
+    }
+
+    const lines = response.objects.map((obj) => {
+      const pkg = obj.package
+      return `${pkg.name}@${pkg.version} - ${pkg.description || '(no description)'}`
+    })
+
+    return { ok: true, query: trimmed, output: lines.join('\n') }
+  } catch (error) {
+    return {
+      ok: false,
+      query: trimmed,
+      output: '',
+      error: error instanceof Error ? error.message : 'Search failed.',
+    }
+  }
+}
+
+interface NpmPackageVersion {
+  version: string
+  dist: {
+    tarball: string
+    shasum: string
+  }
+}
+
+interface NpmPackageMetadata {
+  name: string
+  'dist-tags': Record<string, string>
+  versions: Record<string, NpmPackageVersion>
+}
+
+async function extractSkillFromTarball(tarballBuffer: Buffer, targetDir: string): Promise<void> {
+  await fs.mkdir(targetDir, { recursive: true })
+
+  // Write tarball to a temporary file, extract to a temp directory, then copy skill files
+  const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'zura-skill-'))
+  const tarballPath = path.join(tmpDir, 'package.tgz')
+
+  try {
+    await fs.writeFile(tarballPath, tarballBuffer)
+    await tarExtract({ file: tarballPath, cwd: tmpDir })
+
+    // npm tarballs extract to a "package/" directory
+    const packageDir = path.join(tmpDir, 'package')
+    const packageDirExists = await fs
+      .stat(packageDir)
+      .then((s) => s.isDirectory())
+      .catch(() => false)
+
+    const sourceDir = packageDirExists ? packageDir : tmpDir
+
+    // Look for SKILL.md at top level or agents/skills/ subdirectory
+    const agentsSkillsDir = path.join(sourceDir, 'agents', 'skills')
+    const hasAgentsSkills = await fs
+      .stat(agentsSkillsDir)
+      .then((s) => s.isDirectory())
+      .catch(() => false)
+
+    if (hasAgentsSkills) {
+      await copyDir(agentsSkillsDir, targetDir)
+    } else {
+      await copyDir(sourceDir, targetDir)
+    }
+  } finally {
+    await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => {})
+  }
+}
+
+async function copyDir(src: string, dest: string): Promise<void> {
+  await fs.mkdir(dest, { recursive: true })
+  const entries = await fs.readdir(src, { withFileTypes: true })
+  for (const entry of entries) {
+    const srcPath = path.join(src, entry.name)
+    const destPath = path.join(dest, entry.name)
+    if (entry.isDirectory()) {
+      await copyDir(srcPath, destPath)
+    } else if (entry.isFile()) {
+      await fs.copyFile(srcPath, destPath)
+    }
+  }
 }
 
 export async function installAgentSkill(
@@ -331,8 +447,9 @@ export async function installAgentSkill(
       output: '',
       error: 'Package reference is required.',
     }
-  const cwd = target === 'project' ? normalizeProjectRoot(projectRoot) : os.homedir()
-  if (target === 'project' && !cwd) {
+
+  const targetRoot = target === 'project' ? normalizeProjectRoot(projectRoot) : os.homedir()
+  if (target === 'project' && !targetRoot) {
     return {
       ok: false,
       packageRef: trimmed,
@@ -341,20 +458,92 @@ export async function installAgentSkill(
       error: 'Project root is required for project installs.',
     }
   }
+
+  // Resolve package metadata from npm registry
+  let metadata: NpmPackageMetadata
+  try {
+    const registryUrl = `${NPM_REGISTRY}/${encodeURIComponent(trimmed)}`
+    const data = await httpsGet(registryUrl)
+    metadata = JSON.parse(data.toString('utf8'))
+  } catch (error) {
+    return {
+      ok: false,
+      packageRef: trimmed,
+      target,
+      output: '',
+      error: `Failed to resolve package: ${error instanceof Error ? error.message : 'unknown error'}`,
+    }
+  }
+
+  const latestTag = metadata['dist-tags']?.latest
+  if (!latestTag || !metadata.versions[latestTag]) {
+    return {
+      ok: false,
+      packageRef: trimmed,
+      target,
+      output: '',
+      error: 'Could not determine latest version for package.',
+    }
+  }
+
+  const versionInfo = metadata.versions[latestTag]
+  const { tarball, shasum } = versionInfo.dist
+  const skillsDir = path.join(targetRoot || os.homedir(), '.agents', 'skills')
+
+  // Show confirmation dialog with full details
   const { dialog } = await import('electron')
   const confirmation = await dialog.showMessageBox({
     type: 'warning',
     buttons: ['Install', 'Cancel'],
     defaultId: 1,
     cancelId: 1,
-    message: `Install Agent Skill "${trimmed}"?`,
-    detail: `Target: ${target === 'project' ? cwd : 'user skills'}`,
+    message: `Install Agent Skill "${metadata.name}"?`,
+    detail: [
+      `Package: ${metadata.name}`,
+      `Version: ${versionInfo.version}`,
+      `Source: ${tarball}`,
+      `Integrity: sha1-${shasum}`,
+      `Target: ${skillsDir}`,
+    ].join('\n'),
   })
+
   if (confirmation.response !== 0) {
     return { ok: false, packageRef: trimmed, target, output: '', error: 'Install cancelled.' }
   }
-  const result = await runSkillsCli(['add', trimmed, '--agent', 'universal'], cwd || os.homedir())
-  return { packageRef: trimmed, target, ...result }
+
+  // Download and verify tarball integrity
+  let tarballBuffer: Buffer
+  try {
+    tarballBuffer = await downloadAndVerifyTarball(tarball, shasum)
+  } catch (error) {
+    return {
+      ok: false,
+      packageRef: trimmed,
+      target,
+      output: '',
+      error: `Download failed: ${error instanceof Error ? error.message : 'unknown error'}`,
+    }
+  }
+
+  // Extract skill files to target directory
+  try {
+    const skillTargetDir = path.join(skillsDir, metadata.name)
+    await extractSkillFromTarball(tarballBuffer, skillTargetDir)
+    return {
+      ok: true,
+      packageRef: trimmed,
+      target,
+      output: `Installed ${metadata.name}@${versionInfo.version} to ${skillTargetDir}`,
+    }
+  } catch (error) {
+    return {
+      ok: false,
+      packageRef: trimmed,
+      target,
+      output: '',
+      error: `Extraction failed: ${error instanceof Error ? error.message : 'unknown error'}`,
+    }
+  }
 }
 
 export async function selectAgentSkillsProjectRoot(): Promise<string> {

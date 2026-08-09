@@ -2,7 +2,11 @@ import { ChatMessage, ReasoningDetail, ServiceToolCall, ToolDefinition } from '.
 import { parseSSEStream } from './streamUtils'
 import { getProviderEndpoint, getProviderRetryPolicy } from '../providers'
 import { ProviderError } from '@zura/provider-core'
-import { createProviderHttpError, missingResponseBodyError } from './providerHttpError'
+import {
+  createProviderHttpError,
+  createProviderNetworkError,
+  missingResponseBodyError,
+} from './providerHttpError'
 
 // OpenRouter API service with streaming support
 
@@ -328,18 +332,39 @@ export async function* streamOpenRouterCompletion(
       await sleep(delay, options?.signal)
     }
 
-    response = await fetch(OPENROUTER_CHAT_COMPLETIONS_URL, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-        'HTTP-Referer': 'https://zuraai.in',
-        'X-OpenRouter-Title': 'ZuraAI',
-        'X-OpenRouter-Categories': 'general-chat',
-      },
-      body: JSON.stringify(requestBody),
-      signal: options?.signal,
-    })
+    try {
+      response = await fetch(OPENROUTER_CHAT_COMPLETIONS_URL, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+          'HTTP-Referer': 'https://zuraai.in',
+          'X-OpenRouter-Title': 'ZuraAI',
+          'X-OpenRouter-Categories': 'general-chat',
+        },
+        body: JSON.stringify(requestBody),
+        signal: options?.signal,
+      })
+    } catch (fetchError) {
+      // A rejection here means no response was ever received (DNS failure,
+      // connection reset, TLS failure). The outer runtime retry is disabled for
+      // OpenRouter, so this transport owns the advertised retry policy for
+      // pre-response failures too - otherwise a transient blip fails the run
+      // immediately despite maxRetries being 3.
+      response = null
+      const networkError = createProviderNetworkError('openrouter', fetchError)
+
+      // Aborts and deterministic request errors must surface as-is.
+      if (!networkError.retryable || attempt >= OPENROUTER_RETRY_POLICY.maxRetries) {
+        throw networkError
+      }
+
+      console.warn(
+        `[ZuraAI] OpenRouter network failure before response (attempt ${attempt + 1}): ${networkError.message}`
+      )
+      lastError = networkError
+      continue
+    }
 
     if (response.ok) break // Success, proceed to streaming
 

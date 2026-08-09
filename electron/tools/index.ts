@@ -15,6 +15,7 @@ import {
   executeScroll,
   executeCursorPosition,
   executeListWindows,
+  releaseActionBudget,
 } from './computerUse'
 import {
   executeWindowsUiaSnapshot,
@@ -108,6 +109,8 @@ const SCHEDULED_TASK_TOOL_NAMES = new Set<string>([
 const observedToolSenders = new Set<number>()
 const FOREGROUND_FALLBACK_PERMIT_TTL_MS = 30_000
 const foregroundFallbackPermits = new Map<string, number>()
+/** Computer Use session keys seen from each renderer, for teardown cleanup. */
+const trackedComputerSessionKeys = new Set<string>()
 
 function grantForegroundFallbackPermit(context?: ToolHandlerContext): void {
   foregroundFallbackPermits.set(
@@ -135,6 +138,7 @@ function observeToolSender(sender: {
   observedToolSenders.add(sender.id)
   sender.once('destroyed', () => {
     observedToolSenders.delete(sender.id)
+    releaseSenderComputerBudgets(sender.id)
     void backgroundWindowCoordinator.releaseSender(sender.id)
   })
 }
@@ -191,10 +195,7 @@ async function executeReservedUiAction(
   return handler(args)
 }
 
-async function attachBackgroundWindowForRun(
-  hwnd: number,
-  context?: ToolHandlerContext
-) {
+async function attachBackgroundWindowForRun(hwnd: number, context?: ToolHandlerContext) {
   clearForegroundFallbackPermit(context)
   const owner = requireBackgroundOwner(context)
   const notifyRunStopped = (payload: {
@@ -219,8 +220,33 @@ async function releaseGuardForForegroundAction(context?: ToolHandlerContext): Pr
   await backgroundWindowCoordinator.release(requireBackgroundOwner(context), 'user-release')
 }
 
+const MAX_TRACKED_COMPUTER_SESSIONS = 256
+
 function computerSessionKey(context?: ToolHandlerContext): string {
-  return context?.runId ? `${context.senderWebContentsId}:${context.runId}` : 'unscoped'
+  if (!context?.runId) return 'unscoped'
+  const key = `${context.senderWebContentsId}:${context.runId}`
+  // Remembered so a destroyed renderer's budgets can be released by prefix.
+  trackedComputerSessionKeys.add(key)
+  while (trackedComputerSessionKeys.size > MAX_TRACKED_COMPUTER_SESSIONS) {
+    const oldest = trackedComputerSessionKeys.values().next().value
+    if (typeof oldest !== 'string') break
+    trackedComputerSessionKeys.delete(oldest)
+    releaseActionBudget(oldest)
+  }
+  return key
+}
+
+/**
+ * Terminal cleanup: a destroyed renderer can never continue its Computer Use
+ * runs, so their action budgets must not linger.
+ */
+function releaseSenderComputerBudgets(senderWebContentsId: number): void {
+  for (const key of trackedComputerSessionKeys) {
+    if (key.startsWith(`${senderWebContentsId}:`)) {
+      releaseActionBudget(key)
+      trackedComputerSessionKeys.delete(key)
+    }
+  }
 }
 
 async function executeReservedScreenshot(
@@ -247,10 +273,7 @@ async function executeReservedScreenshot(
     }
   }
   if (!target) {
-    if (
-      normalizedArgs.reserve_background === false &&
-      !consumeForegroundFallbackPermit(context)
-    ) {
+    if (normalizedArgs.reserve_background === false && !consumeForegroundFallbackPermit(context)) {
       return {
         success: false,
         error:
@@ -264,8 +287,9 @@ async function executeReservedScreenshot(
     const result = await executeScreenshot(normalizedArgs, {
       sessionKey: computerSessionKey(context),
     })
-    const capturedTarget = (result.data as { target?: { type?: unknown; hwnd?: unknown } } | undefined)
-      ?.target
+    const capturedTarget = (
+      result.data as { target?: { type?: unknown; hwnd?: unknown } } | undefined
+    )?.target
     if (
       normalizedArgs.reserve_background !== false &&
       result.success &&
@@ -273,10 +297,7 @@ async function executeReservedScreenshot(
       typeof capturedTarget.hwnd === 'number' &&
       capturedTarget.hwnd > 0
     ) {
-      const reserved = await attachBackgroundWindowForRun(
-        Math.trunc(capturedTarget.hwnd),
-        context
-      )
+      const reserved = await attachBackgroundWindowForRun(Math.trunc(capturedTarget.hwnd), context)
       return {
         ...result,
         data: {
@@ -551,8 +572,7 @@ const toolHandlers: Record<BuiltinMainToolName, ToolHandler> = {
   computer_cursor_position: async (args, context) => {
     if (context?.runId) {
       const target = backgroundWindowCoordinator.status(requireBackgroundOwner(context))
-      if (target)
-        return backgroundWindowPhysicalInputBlocked(target, 'computer_cursor_position')
+      if (target) return backgroundWindowPhysicalInputBlocked(target, 'computer_cursor_position')
     }
     const n = normalizeCursorArgs(args)
     return executeCursorPosition(n.args, n.autoApprove, spotlightFn, computerSessionKey(context))
@@ -760,5 +780,7 @@ export function unregisterToolHandlers(): void {
   ipcMain.removeHandler('execute-tool')
   ipcMain.removeHandler('background-window:release-run')
   observedToolSenders.clear()
+  for (const key of trackedComputerSessionKeys) releaseActionBudget(key)
+  trackedComputerSessionKeys.clear()
   void backgroundWindowCoordinator.dispose()
 }

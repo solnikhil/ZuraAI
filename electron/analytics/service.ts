@@ -4,6 +4,12 @@ import path from 'path'
 import { app } from 'electron'
 
 import { log } from '../startup/logger'
+import { writeFileAtomicSync } from '../utils/atomicFile'
+import {
+  parseJsonStoreRoot,
+  quarantineCorruptStoreSync,
+  readJsonStoreFileSync,
+} from '../utils/jsonStore'
 
 const analyticsLog = log.withTag('analytics')
 
@@ -54,13 +60,40 @@ function getStoragePath(): string {
   return storagePath
 }
 
-function readPersistedState(): PersistedAnalyticsState {
+/**
+ * Outcome of loading persisted analytics state.
+ *
+ * `corrupt` is kept distinct from `missing` so a damaged file is never silently
+ * treated as a fresh install: that would reset the install id, consent, and
+ * launch/update markers while destroying the evidence.
+ */
+type AnalyticsStateLoad =
+  | { status: 'missing' }
+  | { status: 'loaded'; persisted: PersistedAnalyticsState }
+  | { status: 'corrupt'; quarantinePath: string | null }
+
+function readPersistedState(): AnalyticsStateLoad {
+  // Operational failures (EACCES, EIO, ...) are not "no state": they must not
+  // trigger a write-back that overwrites recoverable state.
+  const file = readJsonStoreFileSync(getStoragePath())
+  if (file.status === 'missing') {
+    return { status: 'missing' }
+  }
+
   try {
-    const raw = fs.readFileSync(getStoragePath(), 'utf8')
-    const parsed = JSON.parse(raw)
-    return typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed) ? parsed : {}
-  } catch {
-    return {}
+    return { status: 'loaded', persisted: parseJsonStoreRoot(file.raw) as PersistedAnalyticsState }
+  } catch (error) {
+    const quarantinePath = quarantineCorruptStoreSync(getStoragePath(), (message) =>
+      analyticsLog.warn(message)
+    )
+    analyticsLog.error(
+      `analytics state is corrupt${
+        quarantinePath
+          ? ` and was quarantined to ${quarantinePath}`
+          : ' and could not be quarantined'
+      }: ${error instanceof Error ? error.message : String(error)}`
+    )
+    return { status: 'corrupt', quarantinePath }
   }
 }
 
@@ -74,7 +107,8 @@ function writePersistedState(nextState: AnalyticsState): void {
       lastSeenVersion: nextState.lastSeenVersion,
       consentState: nextState.consentState,
     }
-    fs.writeFileSync(getStoragePath(), JSON.stringify(persisted, null, 2), 'utf8')
+    // Atomic: a torn write here would corrupt consent and the install id.
+    writeFileAtomicSync(getStoragePath(), JSON.stringify(persisted, null, 2))
   } catch (error) {
     analyticsLog.warn(
       `failed to persist analytics state: ${error instanceof Error ? error.message : String(error)}`
@@ -82,6 +116,12 @@ function writePersistedState(nextState: AnalyticsState): void {
   }
 }
 
+/**
+ * Builds runtime state from a persisted document.
+ *
+ * Consent fails closed: anything other than an explicit `accepted` consent with
+ * `analyticsEnabled === true` disables analytics.
+ */
 function normalizeState(persisted: PersistedAnalyticsState): AnalyticsState {
   const consentState =
     persisted.consentState === 'accepted' || persisted.consentState === 'declined'
@@ -102,10 +142,45 @@ function normalizeState(persisted: PersistedAnalyticsState): AnalyticsState {
   }
 }
 
+/** True when persisting `next` would not change the stored document. */
+function matchesPersisted(persisted: PersistedAnalyticsState, next: AnalyticsState): boolean {
+  return (
+    persisted.analyticsEnabled === next.analyticsEnabled &&
+    persisted.anonymousInstallId === next.anonymousInstallId &&
+    persisted.firstLaunchSent === next.firstLaunchSent &&
+    persisted.lastSeenVersion === next.lastSeenVersion &&
+    persisted.consentState === next.consentState
+  )
+}
+
 function getState(): AnalyticsState {
   if (!state) {
-    state = normalizeState(readPersistedState())
-    writePersistedState(state)
+    let load: AnalyticsStateLoad
+    try {
+      load = readPersistedState()
+    } catch (error) {
+      // Operational I/O error: the file may be perfectly good and simply
+      // unreadable right now. Fail closed in memory, do NOT write back (that
+      // would destroy recoverable state), and do not cache so a transient
+      // failure can recover on the next call.
+      analyticsLog.error(
+        `failed to read analytics state, analytics stays disabled for now: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      )
+      return { ...normalizeState({}), hasProjectKey: Boolean(getProjectKey()) }
+    }
+
+    const next = normalizeState(load.status === 'loaded' ? load.persisted : {})
+    state = next
+
+    // Only write when the document needs establishing or normalization changed
+    // it. A corrupt file has already been moved to quarantine, so writing a
+    // fresh document here cannot destroy evidence.
+    const needsWrite = load.status !== 'loaded' || !matchesPersisted(load.persisted, next)
+    if (needsWrite) {
+      writePersistedState(next)
+    }
   }
 
   state.hasProjectKey = Boolean(getProjectKey())

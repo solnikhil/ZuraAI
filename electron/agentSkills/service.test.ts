@@ -11,14 +11,26 @@ vi.mock('electron', () => ({
   },
   dialog: {
     showOpenDialog: vi.fn(),
+    showMessageBox: vi.fn(),
   },
 }))
 
 vi.mock('os', () => ({
   default: {
     homedir: () => mockHome,
+    tmpdir: () => tmpdir(),
   },
   homedir: () => mockHome,
+  tmpdir: () => tmpdir(),
+}))
+
+const mockHttpsGet = vi.fn()
+
+vi.mock('https', () => ({
+  default: {
+    get: (...args: unknown[]) => mockHttpsGet(...args),
+  },
+  get: (...args: unknown[]) => mockHttpsGet(...args),
 }))
 
 async function writeSkill(root: string, folder: string, content: string): Promise<string> {
@@ -28,10 +40,29 @@ async function writeSkill(root: string, folder: string, content: string): Promis
   return skillDir
 }
 
+function createMockResponse(statusCode: number, body: string) {
+  const { EventEmitter } = require('events')
+  const res = new EventEmitter()
+  res.statusCode = statusCode
+  res.headers = {}
+  setTimeout(() => {
+    res.emit('data', Buffer.from(body))
+    res.emit('end')
+  }, 0)
+  return res
+}
+
+function createMockRequest() {
+  const { EventEmitter } = require('events')
+  const req = new EventEmitter()
+  return req
+}
+
 describe('Agent Skills service', () => {
   beforeEach(async () => {
     mockHome = await mkdtemp(path.join(tmpdir(), 'zura-skills-home-'))
     vi.resetModules()
+    mockHttpsGet.mockReset()
   })
 
   it('discovers valid SKILL.md files and parses optional frontmatter fields', async () => {
@@ -171,5 +202,196 @@ Use the house style.
     expect(result.resources).toHaveLength(80)
     expect(result.resources[0]).toMatch(/^scripts\/tool-/)
     expect(result.resources.every((resource) => !path.isAbsolute(resource))).toBe(true)
+  })
+
+  describe('searchAgentSkills', () => {
+    it('queries npm registry API directly without invoking child_process', async () => {
+      const searchResponse = JSON.stringify({
+        objects: [
+          {
+            package: {
+              name: 'agent-skill-test',
+              version: '1.0.0',
+              description: 'A test skill',
+              keywords: ['agent-skill'],
+            },
+          },
+          {
+            package: {
+              name: 'agent-skill-other',
+              version: '2.1.0',
+              description: 'Another skill',
+              keywords: ['agent-skill'],
+            },
+          },
+        ],
+      })
+
+      mockHttpsGet.mockImplementation((_url: string, callback: (res: unknown) => void) => {
+        const res = createMockResponse(200, searchResponse)
+        callback(res)
+        return createMockRequest()
+      })
+
+      const { searchAgentSkills } = await import('./service')
+      const result = await searchAgentSkills('test')
+
+      expect(result.ok).toBe(true)
+      expect(result.query).toBe('test')
+      expect(result.output).toContain('agent-skill-test@1.0.0')
+      expect(result.output).toContain('A test skill')
+      expect(result.output).toContain('agent-skill-other@2.1.0')
+
+      // Verify the correct URL was called
+      const calledUrl = mockHttpsGet.mock.calls[0][0]
+      expect(calledUrl).toContain('registry.npmjs.org/-/v1/search')
+      expect(calledUrl).toContain('keywords:agent-skill')
+      expect(calledUrl).toContain('test')
+    })
+
+    it('returns error for empty query', async () => {
+      const { searchAgentSkills } = await import('./service')
+      const result = await searchAgentSkills('')
+
+      expect(result.ok).toBe(false)
+      expect(result.error).toBe('Search query is required.')
+    })
+
+    it('handles no results gracefully', async () => {
+      mockHttpsGet.mockImplementation((_url: string, callback: (res: unknown) => void) => {
+        const res = createMockResponse(200, JSON.stringify({ objects: [] }))
+        callback(res)
+        return createMockRequest()
+      })
+
+      const { searchAgentSkills } = await import('./service')
+      const result = await searchAgentSkills('nonexistent')
+
+      expect(result.ok).toBe(true)
+      expect(result.output).toBe('No packages found.')
+    })
+
+    it('handles HTTP errors gracefully', async () => {
+      mockHttpsGet.mockImplementation((_url: string, callback: (res: unknown) => void) => {
+        const res = createMockResponse(500, 'Internal Server Error')
+        callback(res)
+        return createMockRequest()
+      })
+
+      const { searchAgentSkills } = await import('./service')
+      const result = await searchAgentSkills('test')
+
+      expect(result.ok).toBe(false)
+      expect(result.error).toContain('500')
+    })
+  })
+
+  describe('installAgentSkill', () => {
+    it('validates integrity before extraction', async () => {
+      const { downloadAndVerifyTarball } = await import('./service')
+      const fakeData = Buffer.from('fake tarball content')
+      const correctHash = require('crypto').createHash('sha1').update(fakeData).digest('hex')
+      const wrongHash = 'deadbeefdeadbeefdeadbeefdeadbeefdeadbeef'
+
+      mockHttpsGet.mockImplementation((_url: string, callback: (res: unknown) => void) => {
+        const res = createMockResponse(200, fakeData.toString())
+        callback(res)
+        return createMockRequest()
+      })
+
+      // With correct hash it should succeed
+      const result = await downloadAndVerifyTarball('https://example.com/pkg.tgz', correctHash)
+      expect(result).toBeInstanceOf(Buffer)
+
+      // With wrong hash it should reject
+      mockHttpsGet.mockImplementation((_url: string, callback: (res: unknown) => void) => {
+        const res = createMockResponse(200, fakeData.toString())
+        callback(res)
+        return createMockRequest()
+      })
+
+      await expect(
+        downloadAndVerifyTarball('https://example.com/pkg.tgz', wrongHash)
+      ).rejects.toThrow('Integrity check failed')
+    })
+
+    it('returns error for empty package reference', async () => {
+      const { installAgentSkill } = await import('./service')
+      const result = await installAgentSkill('', 'user')
+
+      expect(result.ok).toBe(false)
+      expect(result.error).toBe('Package reference is required.')
+    })
+
+    it('requires project root for project scope installs', async () => {
+      const { installAgentSkill } = await import('./service')
+      const result = await installAgentSkill('some-pkg', 'project')
+
+      expect(result.ok).toBe(false)
+      expect(result.error).toContain('Project root is required')
+    })
+
+    it('shows confirmation dialog with package details before installing', async () => {
+      const packageMetadata = JSON.stringify({
+        name: 'agent-skill-demo',
+        'dist-tags': { latest: '1.2.3' },
+        versions: {
+          '1.2.3': {
+            version: '1.2.3',
+            dist: {
+              tarball: 'https://registry.npmjs.org/agent-skill-demo/-/agent-skill-demo-1.2.3.tgz',
+              shasum: 'abc123',
+            },
+          },
+        },
+      })
+
+      mockHttpsGet.mockImplementation((_url: string, callback: (res: unknown) => void) => {
+        const res = createMockResponse(200, packageMetadata)
+        callback(res)
+        return createMockRequest()
+      })
+
+      const { dialog } = await import('electron')
+      const mockShowMessageBox = vi.mocked(dialog.showMessageBox)
+      mockShowMessageBox.mockResolvedValue({ response: 1 })
+
+      const { installAgentSkill } = await import('./service')
+      const result = await installAgentSkill('agent-skill-demo', 'user')
+
+      expect(result.ok).toBe(false)
+      expect(result.error).toBe('Install cancelled.')
+
+      // Verify dialog was shown with package details
+      expect(mockShowMessageBox).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: 'Install Agent Skill "agent-skill-demo"?',
+          detail: expect.stringContaining('1.2.3'),
+        })
+      )
+      const dialogCall = mockShowMessageBox.mock.calls[0][0] as { detail: string }
+      expect(dialogCall.detail).toContain('agent-skill-demo')
+      expect(dialogCall.detail).toContain('1.2.3')
+      expect(dialogCall.detail).toContain('https://registry.npmjs.org')
+      expect(dialogCall.detail).toContain('sha1-abc123')
+    })
+  })
+
+  describe('no child_process usage', () => {
+    it('does not import or use child_process for any operation', async () => {
+      const serviceSource = await import('fs/promises').then((fsModule) =>
+        fsModule.readFile(path.join(__dirname, 'service.ts'), 'utf8')
+      )
+
+      // Verify no child_process imports or usage
+      expect(serviceSource).not.toContain("from 'child_process'")
+      expect(serviceSource).not.toContain("require('child_process')")
+      expect(serviceSource).not.toContain('execFile')
+      expect(serviceSource).not.toContain('execFileAsync')
+      expect(serviceSource).not.toContain('spawn(')
+      expect(serviceSource).not.toContain('npx')
+      expect(serviceSource).not.toContain('runSkillsCli')
+      expect(serviceSource).not.toContain('getNpxCommand')
+    })
   })
 })

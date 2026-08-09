@@ -44,6 +44,108 @@ export async function createProviderHttpError(
   })
 }
 
+/**
+ * Socket/DNS level failure codes that mean "the request never reached the
+ * provider", so replaying it is safe and usually succeeds.
+ */
+const TRANSIENT_TRANSPORT_CODES = new Set([
+  'EAI_AGAIN',
+  'ECONNABORTED',
+  'ECONNREFUSED',
+  'ECONNRESET',
+  'EHOSTUNREACH',
+  'ENETDOWN',
+  'ENETUNREACH',
+  'ENOTFOUND',
+  'EPIPE',
+  'ETIMEDOUT',
+  'UND_ERR_CONNECT_TIMEOUT',
+  'UND_ERR_HEADERS_TIMEOUT',
+  'UND_ERR_SOCKET',
+])
+
+function transportErrorCode(error: unknown): string | undefined {
+  let current: unknown = error
+  // undici nests the real errno one or two `cause` levels down.
+  for (let depth = 0; depth < 4 && current instanceof Error; depth += 1) {
+    const code = (current as Error & { code?: unknown }).code
+    if (typeof code === 'string') return code
+    current = (current as Error & { cause?: unknown }).cause
+  }
+  return undefined
+}
+
+/**
+ * Classifies a `fetch` rejection that happened before any response arrived.
+ *
+ * `retryable` is only set for failures where no request was delivered. Aborts
+ * and deterministic request/configuration errors stay non-retryable so a
+ * cancelled or malformed request is never replayed.
+ */
+export function createProviderNetworkError(provider: string, error: unknown): ProviderError {
+  if (error instanceof ProviderError) return error
+
+  // Read `name` structurally: `DOMException` is not reliably `instanceof Error`
+  // across runtimes, so an instanceof-gated check would misclassify aborts as
+  // unknown errors.
+  const name =
+    typeof error === 'object' &&
+    error !== null &&
+    typeof (error as { name?: unknown }).name === 'string'
+      ? (error as { name: string }).name
+      : ''
+  const message =
+    typeof error === 'object' &&
+    error !== null &&
+    typeof (error as { message?: unknown }).message === 'string'
+      ? (error as { message: string }).message
+      : String(error)
+
+  if (name === 'AbortError') {
+    return new ProviderError({
+      provider,
+      code: 'aborted',
+      message: `${provider} request was cancelled.`,
+      retryable: false,
+      cause: error,
+    })
+  }
+
+  if (name === 'TimeoutError') {
+    return new ProviderError({
+      provider,
+      code: 'timeout',
+      message: `${provider} request timed out before a response.`,
+      retryable: true,
+      cause: error,
+    })
+  }
+
+  const code = transportErrorCode(error)
+  // `fetch` surfaces every transport failure as a TypeError; the concrete errno
+  // is only present on the nested cause.
+  const isTransportFailure =
+    (code !== undefined && TRANSIENT_TRANSPORT_CODES.has(code)) || error instanceof TypeError
+
+  if (isTransportFailure) {
+    return new ProviderError({
+      provider,
+      code: 'network',
+      message: `${provider} request failed before a response: ${message}`,
+      retryable: true,
+      cause: error,
+    })
+  }
+
+  return new ProviderError({
+    provider,
+    code: 'unknown',
+    message,
+    retryable: false,
+    cause: error,
+  })
+}
+
 export function missingResponseBodyError(provider: string): ProviderError {
   return new ProviderError({
     provider,

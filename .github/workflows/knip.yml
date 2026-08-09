@@ -34,13 +34,12 @@ concurrency:
 
 jobs:
   # ---------------------------------------------------------------------------
-  # knip: unused dependency / export / file detection.
+  # knip: unused dependency / export / file detection, gated through the
+  # quality ratchet.
   #
-  # NOTE: Currently informational (continue-on-error). The repo has 2 unused
-  # deps (rehype-katex, remark-math) flagged at the time this workflow was
-  # added. After a cleanup PR removes/justifies them, flip continue-on-error
-  # to false so this becomes a required PR gate.
-  # TODO: remove continue-on-error once existing knip findings are resolved.
+  # Existing findings are recorded in quality-baseline.json; the ratchet fails
+  # only on new ones. This is a required gate. The baseline may only shrink -
+  # use `bun run quality:baseline` after fixing findings.
   # ---------------------------------------------------------------------------
   knip:
     runs-on: ubuntu-latest
@@ -51,6 +50,10 @@ jobs:
       - name: Setup Bun and install dependencies
         uses: ./.github/actions/setup-bun
 
-      - name: Knip
+      - name: Block newly introduced dead-code findings
+        run: bun run quality:ratchet --only=knip
+
+      - name: Knip (full report, informational)
+        if: always()
         continue-on-error: true
         run: bun run knip --reporter compact

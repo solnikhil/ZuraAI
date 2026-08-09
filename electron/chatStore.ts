@@ -1005,16 +1005,89 @@ export async function saveSessionAsync(session: ChatSession): Promise<ChatSessio
   })
 }
 
+/**
+ * Path for the pending-deletions journal used by the two-phase delete protocol.
+ * Session IDs are written here before removal so incomplete cleanup can be retried on restart.
+ */
+const PENDING_DELETIONS_FILE = 'pending-deletions.json'
+
+function getPendingDeletionsPath(): string {
+  return path.join(getUserDataPath(), PENDING_DELETIONS_FILE)
+}
+
+async function readPendingDeletions(): Promise<string[]> {
+  try {
+    const data = await fs.readFile(getPendingDeletionsPath(), 'utf-8')
+    const parsed = JSON.parse(data)
+    return Array.isArray(parsed) ? parsed.filter((id): id is string => typeof id === 'string') : []
+  } catch {
+    return []
+  }
+}
+
+async function writePendingDeletions(ids: string[]): Promise<void> {
+  await writeFileAtomic(getPendingDeletionsPath(), JSON.stringify(ids))
+}
+
+/**
+ * Best-effort garbage collection: remove the session JSON file and associated tool media.
+ * Failures are swallowed because the index is already authoritative.
+ */
+async function cleanupSessionFiles(id: string): Promise<void> {
+  await fs.rm(getSessionPath(id), { force: true }).catch(() => undefined)
+  await deleteSessionToolMedia(id).catch(() => undefined)
+}
+
+/**
+ * Two-phase transactional delete:
+ * 1. Record intent in pending-deletions.json, then update the index atomically.
+ * 2. After the index is durably written, perform destructive file cleanup as best-effort GC.
+ */
 export async function deleteSessionAsync(id: string): Promise<boolean> {
-  return mutateIndex(async (index) => {
+  // Phase 1a: Record deletion intent so incomplete cleanup can be retried after crash.
+  const pending = await readPendingDeletions()
+  if (!pending.includes(id)) {
+    await writePendingDeletions([...pending, id])
+  }
+
+  // Phase 1b: Atomically remove the session from the index.
+  const existed = await mutateIndex(async (index) => {
     const nextSessions = index.sessions.filter((session) => session.id !== id)
     const existed = nextSessions.length !== index.sessions.length
-    if (existed) {
-      await fs.rm(getSessionPath(id), { force: true })
-      await deleteSessionToolMedia(id)
-    }
     return { index: existed ? { ...index, sessions: nextSessions } : index, result: existed }
   })
+
+  // Phase 2: Destructive cleanup (best-effort). Index is already consistent.
+  if (existed) {
+    await cleanupSessionFiles(id)
+  }
+
+  // Remove from pending-deletions journal.
+  const updatedPending = (await readPendingDeletions()).filter((pid) => pid !== id)
+  await writePendingDeletions(updatedPending)
+
+  return existed
+}
+
+/**
+ * Process incomplete deletions left over from a previous crash or unexpected exit.
+ * For each pending ID, attempts to delete the session file and tool media idempotently.
+ * Should be called on app startup.
+ */
+export async function recoverPendingDeletions(): Promise<void> {
+  const pending = await readPendingDeletions()
+  if (pending.length === 0) return
+
+  const remaining: string[] = []
+  for (const id of pending) {
+    try {
+      await cleanupSessionFiles(id)
+    } catch {
+      // If cleanup fails, keep in pending list for next attempt.
+      remaining.push(id)
+    }
+  }
+  await writePendingDeletions(remaining)
 }
 
 export async function saveSessionMetadataAsync(metadata: ChatSessionMetadata): Promise<void> {

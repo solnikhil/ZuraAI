@@ -14,10 +14,9 @@
  */
 
 import { app } from 'electron'
-import * as fs from 'fs/promises'
-import * as fsSync from 'fs'
 import * as path from 'path'
 import { writeFileAtomic } from './utils/atomicFile'
+import { parseJsonStoreRoot, quarantineCorruptStore, readJsonStoreFile } from './utils/jsonStore'
 
 export interface ConversationSummary {
   sessionId: string
@@ -62,9 +61,17 @@ function normalizeSummary(input: unknown): ConversationSummary | null {
   }
 }
 
-function normalizeIndex(data: unknown): ConversationSummaryIndex {
-  if (!data || typeof data !== 'object') return createEmptyIndex()
+/**
+ * Normalizes a parsed index.
+ *
+ * @throws if `summaries` is present but not an array. A wrong root shape is
+ *   corruption, not an empty store.
+ */
+function normalizeIndex(data: Record<string, unknown>): ConversationSummaryIndex {
   const raw = data as Partial<ConversationSummaryIndex>
+  if (raw.summaries !== undefined && !Array.isArray(raw.summaries)) {
+    throw new Error(`Expected "summaries" to be an array, received ${typeof raw.summaries}`)
+  }
   const summaries = Array.isArray(raw.summaries)
     ? (raw.summaries.map(normalizeSummary).filter(Boolean) as ConversationSummary[])
     : []
@@ -77,25 +84,38 @@ function applyCapAndSort(summaries: ConversationSummary[]): ConversationSummary[
   return sorted.slice(0, SUMMARY_CAP)
 }
 
+function cacheIndex(index: ConversationSummaryIndex): ConversationSummaryIndex {
+  cachedIndex = index
+  cacheTimestamp = Date.now()
+  return index
+}
+
 async function readIndexAsync(): Promise<ConversationSummaryIndex> {
   if (cachedIndex && Date.now() - cacheTimestamp < CACHE_TTL_MS) {
     return cachedIndex
   }
-  try {
-    if (fsSync.existsSync(getIndexPath())) {
-      const raw = await fs.readFile(getIndexPath(), 'utf-8')
-      const parsed = normalizeIndex(JSON.parse(raw))
-      cachedIndex = parsed
-      cacheTimestamp = Date.now()
-      return parsed
-    }
-  } catch (error) {
-    console.error('Failed to read conversation summary index:', error)
+
+  // Operational I/O failures propagate: treating them as an empty store lets
+  // the next upsert silently delete every existing summary.
+  const file = await readJsonStoreFile(getIndexPath())
+  if (file.status === 'missing') {
+    return cacheIndex(createEmptyIndex())
   }
-  const empty = createEmptyIndex()
-  cachedIndex = empty
-  cacheTimestamp = Date.now()
-  return empty
+
+  try {
+    return cacheIndex(normalizeIndex(parseJsonStoreRoot(file.raw)))
+  } catch (error) {
+    const quarantinePath = await quarantineCorruptStore(getIndexPath(), (message) =>
+      console.warn(`[conversation-summary-store] ${message}`)
+    )
+    console.error(
+      `Conversation summary index is corrupt and was quarantined${
+        quarantinePath ? ` to ${quarantinePath}` : ' (quarantine failed)'
+      }:`,
+      error
+    )
+    return cacheIndex(createEmptyIndex())
+  }
 }
 
 async function withWriteLock<T>(

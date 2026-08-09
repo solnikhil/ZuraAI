@@ -65,7 +65,7 @@ describe('generateChatTitle', () => {
       'groq-key',
       'groq-primary',
       [{ role: 'user', content: expect.any(String) }],
-      {}
+      { signal: expect.any(AbortSignal) }
     )
     expect(generateOpenRouterCompletion).not.toHaveBeenCalled()
   })
@@ -87,7 +87,7 @@ describe('generateChatTitle', () => {
       'or-key',
       'meta-llama/llama-3.3',
       [{ role: 'user', content: 'Make a title for Please draft a launch plan' }],
-      { reasoning: { exclude: true } }
+      { reasoning: { exclude: true }, signal: expect.any(AbortSignal) }
     )
   })
 
@@ -127,7 +127,7 @@ describe('generateChatTitle', () => {
       'deepseek-key',
       'deepseek-v4-flash',
       [{ role: 'user', content: expect.any(String) }],
-      { enableThinking: false }
+      { enableThinking: false, signal: expect.any(AbortSignal) }
     )
   })
 
@@ -175,7 +175,7 @@ describe('generateChatTitle', () => {
       'or-key',
       'text-model',
       [{ role: 'user', content: expect.any(String) }],
-      { reasoning: { exclude: true } }
+      { reasoning: { exclude: true }, signal: expect.any(AbortSignal) }
     )
   })
 
@@ -382,7 +382,7 @@ describe('generateChatTitle', () => {
       'http://localhost:11434',
       'llama3.2',
       [{ role: 'user', content: expect.any(String) }],
-      { think: false }
+      { think: false, signal: expect.any(AbortSignal) }
     )
   })
 
@@ -433,5 +433,77 @@ describe('generateChatTitle', () => {
     })
 
     expect(result).toBeNull()
+  })
+
+  describe('timeout cancellation', () => {
+    const settings = {
+      titleModel: 'groq-primary',
+      groqApiKey: 'groq-key',
+      groqModels: [{ code: 'groq-primary', displayName: 'Groq Primary' }],
+    }
+
+    /** Captures the AbortSignal the provider call received. */
+    function captureSignal(): { current: AbortSignal | undefined } {
+      const captured: { current: AbortSignal | undefined } = { current: undefined }
+      vi.mocked(generateGroqCompletion).mockImplementation((...args: unknown[]) => {
+        const options = args[3] as { signal?: AbortSignal } | undefined
+        captured.current = options?.signal
+        return new Promise((_resolve, reject) => {
+          options?.signal?.addEventListener(
+            'abort',
+            () => reject(new DOMException('The operation was aborted.', 'AbortError')),
+            { once: true }
+          )
+        })
+      })
+      return captured
+    }
+
+    it('aborts the provider request when the 10s deadline elapses', async () => {
+      vi.useFakeTimers()
+      const captured = captureSignal()
+
+      try {
+        const pending = generateChatTitle('A conversation that needs a title', settings)
+
+        await vi.advanceTimersByTimeAsync(0)
+        expect(captured.current).toBeInstanceOf(AbortSignal)
+        expect(captured.current?.aborted).toBe(false)
+
+        // Before the fix the timeout only rejected the race; the provider
+        // request kept running for the full main-process deadline.
+        await vi.advanceTimersByTimeAsync(10_000)
+        expect(captured.current?.aborted).toBe(true)
+
+        await expect(pending).resolves.toBeNull()
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('does not abort when generation settles before the deadline', async () => {
+      vi.useFakeTimers()
+      let observed: AbortSignal | undefined
+
+      try {
+        vi.mocked(generateGroqCompletion).mockImplementation((...args: unknown[]) => {
+          observed = (args[3] as { signal?: AbortSignal } | undefined)?.signal
+          return Promise.resolve({
+            choices: [{ message: { content: 'Quantum Computing Basics' } }],
+          } as never)
+        })
+
+        await expect(generateChatTitle('Tell me about quantum computing', settings)).resolves.toBe(
+          'Quantum Computing Basics'
+        )
+
+        // The deadline timer must have been cleared, so passing the deadline
+        // cannot retroactively abort a settled request.
+        await vi.advanceTimersByTimeAsync(30_000)
+        expect(observed?.aborted).toBe(false)
+      } finally {
+        vi.useRealTimers()
+      }
+    })
   })
 })

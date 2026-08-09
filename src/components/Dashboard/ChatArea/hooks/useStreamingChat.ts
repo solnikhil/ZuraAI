@@ -460,9 +460,14 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
    */
   const sendMessage = useCallback(
     async (content: string, files: AttachedFile[]) => {
+      // Synchronous ref guard: reject same-tick duplicate sends even before
+      // React state (isLoading) has flushed.
+      if (activeRunRef.current) return
       if ((!content.trim() && files.length === 0) || isLoading) return
 
       const run = new ChatRunController('send')
+      // Set the ref synchronously before any await so a second call in the
+      // same tick sees it immediately.
       activeRunRef.current = run
       clearToolState()
       setIsLoading(true)
@@ -853,6 +858,8 @@ export function useStreamingChat(options: UseStreamingChatOptions = {}): UseStre
   /** Regenerate a message with different instructions. */
   const regenerateMessage = useCallback(
     async (message: RegenerateMessage, instruction: string) => {
+      // Synchronous ref guard: reject same-tick duplicate regenerates.
+      if (activeRunRef.current) return
       if (!currentSessionId || isLoading) return
 
       let effectiveSettings = settings

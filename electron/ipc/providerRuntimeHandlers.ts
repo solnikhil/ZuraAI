@@ -202,9 +202,9 @@ async function listModelsInMain(
     case 'ollama': {
       const baseUrl = request.ollamaUrl
       if (!baseUrl) throw new Error('Ollama URL is required to list local models.')
-      const models = await listOllamaModels(baseUrl)
+      const models = await listOllamaModels(baseUrl, signal)
       const formatted = models.map((model) => ({ code: model.name, displayName: model.name }))
-      const enriched = await enrichOllamaModelsWithContext(baseUrl, formatted)
+      const enriched = await enrichOllamaModelsWithContext(baseUrl, formatted, signal)
       const contexts = new Map(enriched.map((model) => [model.code, model.maxContext]))
       return models.map((model) => ({ ...model, maxContext: contexts.get(model.name) }))
     }

@@ -128,17 +128,37 @@ function normalizeGeneratedTitle(title: string): string {
   return constrained
 }
 
-function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
-  return Promise.race<T>([
-    promise,
-    new Promise<T>((_, reject) => {
-      const timeoutId = setTimeout(() => {
-        reject(new Error('Title generation timed out'))
-      }, ms)
+function isAbortError(error: unknown): boolean {
+  return error instanceof Error && error.name === 'AbortError'
+}
 
-      promise.finally(() => clearTimeout(timeoutId)).catch(() => undefined)
-    }),
-  ])
+/**
+ * Run `run` under a deadline that actually cancels the underlying provider
+ * request.
+ *
+ * Racing the returned promise is not enough: the provider request would keep
+ * running for the full main-process runtime deadline after the UI gave up,
+ * holding an active request slot and burning potentially billable tokens. This
+ * mirrors the AbortController pattern used by memory extraction.
+ */
+async function withAbortTimeout<T>(
+  run: (signal: AbortSignal) => Promise<T>,
+  ms: number
+): Promise<T> {
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), ms)
+
+  try {
+    return await run(controller.signal)
+  } catch (error) {
+    if (controller.signal.aborted && isAbortError(error)) {
+      throw new Error('Title generation timed out', { cause: error })
+    }
+    throw error
+  } finally {
+    // Settling normally must not leave a pending abort that could fire later.
+    clearTimeout(timeoutId)
+  }
 }
 
 export const generateChatTitle = async (
@@ -157,8 +177,8 @@ export const generateChatTitle = async (
   }
 
   try {
-    const title = await withTimeout(
-      generateTitleTextForModel(settings, titleSelection, prompt),
+    const title = await withAbortTimeout(
+      (signal) => generateTitleTextForModel(settings, titleSelection, prompt, { signal }),
       TITLE_GENERATION_TIMEOUT_MS
     )
     return normalizeGeneratedTitle(title)

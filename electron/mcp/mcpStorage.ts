@@ -36,9 +36,16 @@ const CACHE_TTL_MS = 1000
 
 const writeQueue = new RecoverableSerializedTaskQueue()
 
+export function resetMcpStoreCache(): void {
+  cachedStore = null
+  cacheTimestamp = 0
+  cachedStoreFilePath = null
+}
+
 function getDefaultStore(): McpServerStoreFile {
   return {
     version: MCP_SERVER_STORE_VERSION,
+    revision: 0,
     servers: [],
   }
 }
@@ -434,6 +441,11 @@ export function normalizeMcpStore(
       ? Math.max(1, Math.round(input.version))
       : MCP_SERVER_STORE_VERSION
 
+  const revision =
+    typeof input.revision === 'number' && Number.isFinite(input.revision)
+      ? Math.max(0, Math.round(input.revision))
+      : 0
+
   const normalizedServers = Array.isArray(input.servers)
     ? input.servers
         .map((server, index) => normalizeMcpServerConfig(server, index, now))
@@ -442,6 +454,7 @@ export function normalizeMcpStore(
 
   return {
     version: version < MCP_SERVER_STORE_VERSION ? MCP_SERVER_STORE_VERSION : version,
+    revision,
     servers: normalizedServers,
   }
 }
@@ -450,6 +463,7 @@ function migrateMcpStore(store: McpServerStoreFile): McpServerStoreFile {
   if (store.version < MCP_SERVER_STORE_VERSION) {
     return {
       version: MCP_SERVER_STORE_VERSION,
+      revision: store.revision,
       servers: store.servers,
     }
   }
@@ -457,9 +471,10 @@ function migrateMcpStore(store: McpServerStoreFile): McpServerStoreFile {
   return store
 }
 
-async function readMcpStoreInternal(): Promise<McpServerStoreFile> {
+async function readMcpStoreInternal(skipCache = false): Promise<McpServerStoreFile> {
   const filePath = getMcpStoreFilePath()
   if (
+    !skipCache &&
     cachedStore &&
     cachedStoreFilePath === filePath &&
     Date.now() - cacheTimestamp < CACHE_TTL_MS
@@ -542,19 +557,77 @@ export async function loadMcpServers(): Promise<McpServerConfig[]> {
 }
 
 export async function saveMcpServers(servers: McpServerConfig[]): Promise<void> {
+  const currentStore = await readMcpStoreInternal()
   await writeMcpStoreInternal({
     version: MCP_SERVER_STORE_VERSION,
+    revision: currentStore.revision + 1,
     servers,
   })
 }
 
-function configValuesToRecord(values: McpConfigValue[]): Promise<Record<string, string>> {
+export async function getMcpConfigRevision(): Promise<number> {
+  const store = await readMcpStoreInternal()
+  return store.revision
+}
+
+export async function saveMcpServersWithRevision(
+  servers: McpServerConfig[],
+  expectedRevision: number
+): Promise<void> {
+  await writeQueue.run(async () => {
+    // Invalidate cache to force fresh read from disk
+    cachedStore = null
+    const currentStore = await readMcpStoreInternal()
+    const currentRevision = currentStore.revision
+    if (currentRevision !== expectedRevision) {
+      throw new Error(
+        `MCP configuration conflict: expected revision ${expectedRevision} but found ${currentRevision}`
+      )
+    }
+    const normalized = normalizeMcpStore({
+      version: MCP_SERVER_STORE_VERSION,
+      revision: expectedRevision + 1,
+      servers,
+    })
+    const filePath = getMcpStoreFilePath()
+    await writeFileAtomic(filePath, JSON.stringify(normalized, null, 2))
+    cachedStore = normalized
+    cachedStoreFilePath = filePath
+    cacheTimestamp = Date.now()
+  })
+}
+
+const MCP_SECRET_KEY_PATTERN =
+  /^mcp\.server\.[^.]+\.(env\.[^.]+|header\.[^.]+|token|oauth\.accessToken|oauth\.refreshToken|oauth\.clientSecret)$/
+
+export function validateMcpSecretKey(serverId: string, secretKey: string): void {
+  const expectedPrefix = `mcp.server.${serverId}.`
+  if (!secretKey.startsWith(expectedPrefix)) {
+    throw new Error(
+      `MCP secret key "${secretKey}" is not within the namespace of server "${serverId}". ` +
+        `Expected prefix: "${expectedPrefix}"`
+    )
+  }
+  if (!MCP_SECRET_KEY_PATTERN.test(secretKey)) {
+    throw new Error(
+      `MCP secret key "${secretKey}" does not match any allowed pattern for server "${serverId}". ` +
+        `Allowed patterns: mcp.server.<serverId>.(env|header).<name>, mcp.server.<serverId>.token, ` +
+        `mcp.server.<serverId>.oauth.(accessToken|refreshToken|clientSecret)`
+    )
+  }
+}
+
+function configValuesToRecord(
+  serverId: string,
+  values: McpConfigValue[]
+): Promise<Record<string, string>> {
   return values.reduce<Promise<Record<string, string>>>(async (accPromise, entry) => {
     const acc = await accPromise
 
     if (entry.valueSource === 'secret') {
       const secretKey = entry.secretKey?.trim()
       if (secretKey) {
+        validateMcpSecretKey(serverId, secretKey)
         const resolved = await getSecureValueAsync(secretKey)
         if (resolved) {
           acc[entry.name] = resolved
@@ -578,8 +651,8 @@ export async function resolveMcpServerSecrets(
     throw new Error('Cannot resolve secrets for invalid MCP server config')
   }
 
-  const env = await configValuesToRecord(normalized.env ?? [])
-  const headers = await configValuesToRecord(normalized.headers ?? [])
+  const env = await configValuesToRecord(normalized.id, normalized.env ?? [])
+  const headers = await configValuesToRecord(normalized.id, normalized.headers ?? [])
 
   return {
     ...normalized,
