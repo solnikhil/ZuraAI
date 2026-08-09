@@ -1,4 +1,8 @@
-import type { ConfiguredModel, SettingsConfig } from '../contexts/SettingsConfigContext'
+import type {
+  ConfiguredModel,
+  ModelSelection,
+  SettingsConfig,
+} from '../contexts/SettingsConfigContext'
 import { getOpenRouterApiKey } from '../utils/openRouterKey'
 import { getTitleEligibleModels } from '../utils/titleGenerationModels'
 import type { ActiveProviderId, ProviderId } from './providerTypes'
@@ -651,9 +655,22 @@ export function getAvailableTitleModelOptions(
 
 export function resolveProviderForModel(
   settings: ProviderSettingsLike,
-  modelCode: string
+  modelSelection: ModelSelection
 ): ResolvedProviderModelOption | null {
-  const normalizedCode = modelCode.trim()
+  if (typeof modelSelection === 'object' && modelSelection !== null) {
+    const { providerId, modelId } = modelSelection
+    const normalizedId = modelId.trim()
+    if (!normalizedId) return null
+    // Exact match: find by both provider and model ID
+    return (
+      getAvailableTitleModelOptions(settings).find(
+        (option) => option.provider === providerId && option.id.trim() === normalizedId
+      ) ?? null
+    )
+  }
+
+  // Legacy bare string: first-match by model ID alone
+  const normalizedCode = modelSelection.trim()
   if (!normalizedCode) return null
 
   return (

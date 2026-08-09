@@ -36,7 +36,7 @@ import {
   type OpenRouterResponse,
 } from '../services/openrouter'
 import type { ChatMessage, ReasoningDetail } from '../services/types'
-import type { SettingsConfig } from '../contexts/SettingsConfigContext'
+import type { ModelSelection, SettingsConfig } from '../contexts/SettingsConfigContext'
 import {
   DEFAULT_OLLAMA_URL,
   getProviderDefinition,
@@ -616,7 +616,7 @@ export async function generateTitleTextForModel(
         | 'opencodeModels'
       >
     >,
-  model: string,
+  model: ModelSelection,
   prompt: string,
   generationOptions: LightweightGenerationOptions = {}
 ): Promise<string> {

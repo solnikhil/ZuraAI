@@ -9,6 +9,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import type { Settings } from '@/contexts/SettingsContext'
+import type { ModelSelection } from '@/contexts/SettingsConfigContext'
 import type { EmailNotificationSettings } from '@/electron/types'
 import {
   BUILT_IN_SKILLS,
@@ -34,7 +35,7 @@ export interface SkillsSectionProps {
   onChange: (changes: {
     skills?: SkillsSettings
     assistantMode?: Settings['assistantMode']
-    memoryModel?: string
+    memoryModel?: ModelSelection
     brevoApiKey?: string
     emailNotifications?: EmailNotificationSettings
   }) => void

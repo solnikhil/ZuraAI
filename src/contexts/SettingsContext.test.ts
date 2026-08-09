@@ -419,7 +419,7 @@ SEARCH STRATEGY:
         )
       ).toEqual(
         expect.objectContaining({
-          titleModel: 'groq-primary',
+          titleModel: { providerId: 'groq', modelId: 'groq-primary' },
         })
       )
       expect(

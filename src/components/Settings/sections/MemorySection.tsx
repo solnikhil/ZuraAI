@@ -30,6 +30,8 @@ import type { ConversationSummary, Memory, MemoryCategory } from '@/electron/typ
 import { useAppShell } from '@/contexts/AppShellContext'
 import { useChatHistory } from '@/contexts/ChatHistoryContext'
 import type { Settings } from '@/contexts/SettingsContext'
+import { getModelSelectionId } from '@/contexts/SettingsConfigContext'
+import type { ModelSelection } from '@/contexts/SettingsConfigContext'
 import { getAvailableTitleModelOptions, getProviderDefinition } from '@/providers'
 import { isMemoryAutoManageEnabled, withMemoryAutoManage, type SkillsSettings } from '@/skills'
 import { needsMemoryReview } from '@/utils/memoryReview'
@@ -40,7 +42,7 @@ export interface MemorySectionProps {
   /** Full settings (for the Memory model selector). Optional in standalone use. */
   settings?: Settings
   /** Persist settings changes (auto-management toggle, memory model). */
-  onChange?: (changes: { skills?: SkillsSettings; memoryModel?: string }) => void
+  onChange?: (changes: { skills?: SkillsSettings; memoryModel?: ModelSelection }) => void
   /** Hide the top-level page header when rendered inside an extension detail page. */
   embedded?: boolean
 }
@@ -76,12 +78,7 @@ type BackgroundViewerItem =
     }
 
 type MemoryLibraryFilter =
-  | 'all'
-  | 'memory'
-  | 'summary'
-  | 'project_scope'
-  | MemoryCategory
-  | 'needs_review'
+  'all' | 'memory' | 'summary' | 'project_scope' | MemoryCategory | 'needs_review'
 
 const MEMORY_CATEGORY_FILTERS: Array<{ id: MemoryCategory; label: string }> = [
   { id: 'preference', label: 'Preferences' },
@@ -235,17 +232,20 @@ export function MemorySection({
         provider: option.provider,
       }))
     // Preserve a previously-selected model even if it's no longer in the list.
-    if (settings.memoryModel && !options.some((option) => option.value === settings.memoryModel)) {
+    const memoryModelId = getModelSelectionId(settings.memoryModel)
+    if (memoryModelId && !options.some((option) => option.value === memoryModelId)) {
       options.push({
-        value: settings.memoryModel,
-        label: settings.memoryModel,
+        value: memoryModelId,
+        label: memoryModelId,
         provider: '' as string,
       })
     }
     return options
   }, [settings])
 
-  const selectedMemoryModel = memoryModelOptions.find((o) => o.value === settings?.memoryModel)
+  const selectedMemoryModel = memoryModelOptions.find(
+    (o) => o.value === (settings ? getModelSelectionId(settings.memoryModel) : '')
+  )
 
   const memoryProviders = useMemo(() => {
     const seen = new Set<string>()
@@ -392,7 +392,13 @@ export function MemorySection({
                                   .map((option) => (
                                     <DropdownMenuItem
                                       key={option.value}
-                                      onClick={() => onChange({ memoryModel: option.value })}
+                                      onClick={() =>
+                                        onChange({
+                                          memoryModel: option.provider
+                                            ? { providerId: option.provider, modelId: option.value }
+                                            : option.value,
+                                        })
+                                      }
                                       className="zura-menu-item--model"
                                     >
                                       <ProviderLogo provider={option.provider} size={14} />

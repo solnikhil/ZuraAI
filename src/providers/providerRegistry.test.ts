@@ -146,4 +146,126 @@ describe('providerRegistry', () => {
     )
     expect(resolveProviderForModel(settings, 'missing-model')).toBeNull()
   })
+
+  it('resolves a structured ModelSelection pair to the exact provider+model', () => {
+    const settings = {
+      openRouterApiKey: 'or-key',
+      groqApiKey: 'groq-key',
+      ollamaUrl: DEFAULT_OLLAMA_URL,
+      configuredModels: [
+        {
+          code: 'openai/gpt-4.1-mini',
+          displayName: 'GPT-4.1 Mini',
+          enabled: true,
+          outputModalities: ['text'],
+        },
+      ],
+      groqModels: [{ code: 'llama-3.1-8b-instant', displayName: 'Llama Instant', enabled: true }],
+      ollamaModels: [] as Array<{ code: string; displayName: string; enabled: boolean }>,
+    }
+
+    const result = resolveProviderForModel(settings, {
+      providerId: 'groq',
+      modelId: 'llama-3.1-8b-instant',
+    })
+    expect(result).toEqual(
+      expect.objectContaining({
+        provider: 'groq',
+        id: 'llama-3.1-8b-instant',
+      })
+    )
+  })
+
+  it('resolves duplicate model IDs to the correct provider when a structured pair is used', () => {
+    const settings = {
+      openRouterApiKey: 'or-key',
+      groqApiKey: 'groq-key',
+      deepseekApiKey: 'ds-key',
+      ollamaUrl: DEFAULT_OLLAMA_URL,
+      configuredModels: [
+        {
+          code: 'shared-model-id',
+          displayName: 'Shared on OpenRouter',
+          enabled: true,
+          outputModalities: ['text'],
+        },
+      ],
+      groqModels: [{ code: 'shared-model-id', displayName: 'Shared on Groq', enabled: true }],
+      deepseekModels: [] as Array<{ code: string; displayName: string; enabled: boolean }>,
+      ollamaModels: [] as Array<{ code: string; displayName: string; enabled: boolean }>,
+    }
+
+    // Using structured pair targets the exact provider
+    const groqResult = resolveProviderForModel(settings, {
+      providerId: 'groq',
+      modelId: 'shared-model-id',
+    })
+    expect(groqResult).toEqual(
+      expect.objectContaining({
+        provider: 'groq',
+        id: 'shared-model-id',
+        displayName: 'Shared on Groq',
+      })
+    )
+
+    const openrouterResult = resolveProviderForModel(settings, {
+      providerId: 'openrouter',
+      modelId: 'shared-model-id',
+    })
+    expect(openrouterResult).toEqual(
+      expect.objectContaining({
+        provider: 'openrouter',
+        id: 'shared-model-id',
+        displayName: 'Shared on OpenRouter',
+      })
+    )
+  })
+
+  it('falls back to first-match for a bare string (legacy behavior)', () => {
+    const settings = {
+      openRouterApiKey: 'or-key',
+      groqApiKey: 'groq-key',
+      ollamaUrl: DEFAULT_OLLAMA_URL,
+      configuredModels: [
+        {
+          code: 'shared-model-id',
+          displayName: 'Shared on OpenRouter',
+          enabled: true,
+          outputModalities: ['text'],
+        },
+      ],
+      groqModels: [{ code: 'shared-model-id', displayName: 'Shared on Groq', enabled: true }],
+      ollamaModels: [] as Array<{ code: string; displayName: string; enabled: boolean }>,
+    }
+
+    // Bare string uses first-match (openrouter comes first in provider order)
+    const result = resolveProviderForModel(settings, 'shared-model-id')
+    expect(result).toEqual(
+      expect.objectContaining({
+        provider: 'openrouter',
+        id: 'shared-model-id',
+      })
+    )
+  })
+
+  it('returns null for a structured pair with an empty model ID', () => {
+    const settings = {
+      openRouterApiKey: 'or-key',
+      ollamaUrl: DEFAULT_OLLAMA_URL,
+      configuredModels: [
+        {
+          code: 'openai/gpt-4.1-mini',
+          displayName: 'GPT-4.1 Mini',
+          enabled: true,
+          outputModalities: ['text'],
+        },
+      ],
+      ollamaModels: [] as Array<{ code: string; displayName: string; enabled: boolean }>,
+    }
+
+    expect(resolveProviderForModel(settings, { providerId: 'openrouter', modelId: '' })).toBeNull()
+    expect(
+      resolveProviderForModel(settings, { providerId: 'openrouter', modelId: '  ' })
+    ).toBeNull()
+  })
 })
