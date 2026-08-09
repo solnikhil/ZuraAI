@@ -34,13 +34,16 @@ concurrency:
 
 jobs:
   # ---------------------------------------------------------------------------
-  # lint: ESLint + Prettier check.
+  # lint: ESLint + Prettier, gated through the quality ratchet.
   #
-  # NOTE: Currently run as informational (continue-on-error). The codebase has
-  # ~136 pre-existing ESLint errors and ~294 unformatted files that need a
-  # dedicated cleanup PR. After that cleanup lands, flip continue-on-error to
-  # false (or drop it) to make these required PR gates.
-  # TODO: remove continue-on-error once existing lint/format debt is resolved.
+  # The repository carries pre-existing lint/format debt (see
+  # quality-baseline.json). Blanket continue-on-error made new regressions
+  # indistinguishable from that debt, so instead the ratchet fails only on
+  # findings that are NOT in the baseline. This is a required gate.
+  #
+  # The baseline may only shrink. Burn it down with `bun run quality:baseline`
+  # after fixing findings; once a check reaches zero, drop it from the baseline
+  # and enforce the raw command directly.
   # ---------------------------------------------------------------------------
   lint:
     runs-on: ubuntu-latest
@@ -51,10 +54,15 @@ jobs:
       - name: Setup Bun and install dependencies
         uses: ./.github/actions/setup-bun
 
-      - name: ESLint
+      - name: Block newly introduced lint and formatting findings
+        run: bun run quality:ratchet
+
+      - name: ESLint (full report, informational)
+        if: always()
         continue-on-error: true
         run: bun run lint
 
-      - name: Prettier (format check)
+      - name: Prettier (full report, informational)
+        if: always()
         continue-on-error: true
         run: bun run format:check

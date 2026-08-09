@@ -8,12 +8,21 @@ on:
       - opened
       - synchronize
       - reopened
+    # Any input that can change what electron-builder puts in the package must
+    # trigger this workflow. `bun.lock` is the important one: a lockfile-only
+    # transitive or native-dependency change alters shipped contents without
+    # touching any source file.
     paths:
       - 'electron/**'
       - 'installer/**'
       - 'build/**'
+      - 'packages/**'
       - 'scripts/generate-icons.mjs'
+      - 'scripts/generate-release-checksums.mjs'
       - 'package.json'
+      - 'bun.lock'
+      - 'bunfig.toml'
+      - 'tsconfig.json'
       - 'vite.config.ts'
       - '.github/workflows/ci-package-smoke.yml'
       - '.github/actions/setup-bun/**'

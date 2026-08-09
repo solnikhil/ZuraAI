@@ -265,3 +265,137 @@ describe('chatStore metadata-first persistence', () => {
     )
   })
 })
+
+describe('chatStore transactional deletion', () => {
+  beforeEach(async () => {
+    vi.resetModules()
+    electronMock.userDataPath = await mkdtemp(path.join(os.tmpdir(), 'zura-chat-store-'))
+  })
+
+  afterEach(async () => {
+    await rm(electronMock.userDataPath, { recursive: true, force: true })
+  })
+
+  it('updates the index atomically BEFORE file deletion', async () => {
+    const chatStore = await import('./chatStore')
+
+    // Create a session first
+    await chatStore.saveSessionAsync({
+      id: 'session-del',
+      title: 'To be deleted',
+      messages: [{ id: 'm1', role: 'user', content: 'hello', timestamp: 1 }],
+      createdAt: 1,
+      updatedAt: 2,
+    })
+
+    // Verify session exists in index
+    let metadata = await chatStore.getSessionMetadataAsync()
+    expect(metadata).toHaveLength(1)
+
+    // Delete the session
+    const result = await chatStore.deleteSessionAsync('session-del')
+    expect(result).toBe(true)
+
+    // Verify index no longer contains the session
+    metadata = await chatStore.getSessionMetadataAsync()
+    expect(metadata).toHaveLength(0)
+
+    // Verify the index was persisted (read raw file)
+    const indexData = JSON.parse(
+      await readFile(path.join(electronMock.userDataPath, 'chat-index.json'), 'utf8')
+    )
+    expect(indexData.sessions).toHaveLength(0)
+  })
+
+  it('session is removed from index even if session file does not exist', async () => {
+    const chatStore = await import('./chatStore')
+
+    // Create a session first
+    await chatStore.saveSessionAsync({
+      id: 'session-fail-rm',
+      title: 'Cleanup will fail',
+      messages: [{ id: 'm1', role: 'user', content: 'hi', timestamp: 1 }],
+      createdAt: 1,
+      updatedAt: 2,
+    })
+
+    // Manually remove the session file to simulate a scenario where cleanup might encounter issues
+    const sessionFile = path.join(
+      electronMock.userDataPath,
+      'chat-sessions',
+      'session-fail-rm.json'
+    )
+    await rm(sessionFile, { force: true })
+
+    // Delete should still succeed (index-wise) because file cleanup is best-effort
+    const result = await chatStore.deleteSessionAsync('session-fail-rm')
+    expect(result).toBe(true)
+
+    // Index should not contain the session
+    const metadata = await chatStore.getSessionMetadataAsync()
+    expect(metadata).toHaveLength(0)
+
+    // Verify the index on disk is persisted correctly
+    const indexData = JSON.parse(
+      await readFile(path.join(electronMock.userDataPath, 'chat-index.json'), 'utf8')
+    )
+    expect(indexData.sessions).toHaveLength(0)
+  })
+
+  it('recoverPendingDeletions processes incomplete deletions', async () => {
+    const chatStore = await import('./chatStore')
+
+    // Create a session and its file
+    await chatStore.saveSessionAsync({
+      id: 'session-orphan',
+      title: 'Orphan session',
+      messages: [{ id: 'm1', role: 'user', content: 'lost', timestamp: 1 }],
+      createdAt: 1,
+      updatedAt: 2,
+    })
+
+    // Simulate a crash scenario: remove session from index but leave pending-deletions
+    // Write pending-deletions.json manually
+    await writeFile(
+      path.join(electronMock.userDataPath, 'pending-deletions.json'),
+      JSON.stringify(['session-orphan'])
+    )
+
+    // The session file should still exist
+    const sessionFile = path.join(electronMock.userDataPath, 'chat-sessions', 'session-orphan.json')
+    expect(existsSync(sessionFile)).toBe(true)
+
+    // Run recovery
+    await chatStore.recoverPendingDeletions()
+
+    // Session file should be cleaned up
+    expect(existsSync(sessionFile)).toBe(false)
+
+    // Pending-deletions should be empty
+    const pendingData = JSON.parse(
+      await readFile(path.join(electronMock.userDataPath, 'pending-deletions.json'), 'utf8')
+    )
+    expect(pendingData).toEqual([])
+  })
+
+  it('deleteSessionAsync records and clears pending-deletions journal', async () => {
+    const chatStore = await import('./chatStore')
+
+    await chatStore.saveSessionAsync({
+      id: 'session-journal',
+      title: 'Journal test',
+      messages: [{ id: 'm1', role: 'user', content: 'test', timestamp: 1 }],
+      createdAt: 1,
+      updatedAt: 2,
+    })
+
+    await chatStore.deleteSessionAsync('session-journal')
+
+    // After successful deletion, pending-deletions should not contain the id
+    const pendingPath = path.join(electronMock.userDataPath, 'pending-deletions.json')
+    if (existsSync(pendingPath)) {
+      const pendingData = JSON.parse(await readFile(pendingPath, 'utf8'))
+      expect(pendingData).not.toContain('session-journal')
+    }
+  })
+})

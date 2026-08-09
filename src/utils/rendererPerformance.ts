@@ -41,16 +41,37 @@ type PerformanceCallback = (metrics: Partial<RendererPerformanceMetrics>) => voi
  * - First Input Delay (FID)
  * - Cumulative Layout Shift (CLS)
  */
+/**
+ * Maximum span of a single CLS session window (web-vitals algorithm).
+ */
+const CLS_SESSION_MAX_DURATION_MS = 5000
+
+/**
+ * Maximum gap between shifts before a new CLS session window starts.
+ */
+const CLS_SESSION_MAX_GAP_MS = 1000
+
 class RendererPerformanceTracker {
   private metrics: RendererPerformanceMetrics
   private observers: PerformanceObserver[] = []
   private callbacks: PerformanceCallback[] = []
   private initialized = false
+  /** Highest scoring CLS session window seen so far. */
   private clsValue = 0
-  private clsEntries: PerformanceEntry[] = []
+  /**
+   * Windowed CLS accumulator. Only scalars are retained - layout-shift entries
+   * hold references to their source nodes, so keeping them would pin detached
+   * DOM subtrees for the entire life of this long-lived renderer.
+   */
+  private clsSessionValue = 0
+  private clsSessionFirstShiftTime = 0
+  private clsSessionLastShiftTime = 0
+  private longTaskObserver: PerformanceObserver | null = null
   private lastLongTaskEnd = 0
   private ttiResolved = false
   private ttiTimeout: ReturnType<typeof setTimeout> | null = null
+  /** Aborted by cleanup() so every DOM listener this tracker adds is removed. */
+  private listenerAbort: AbortController | null = null
 
   constructor() {
     this.metrics = {
@@ -81,6 +102,7 @@ class RendererPerformanceTracker {
     }
 
     this.initialized = true
+    this.listenerAbort = new AbortController()
 
     this.collectNavigationTiming()
 
@@ -92,6 +114,48 @@ class RendererPerformanceTracker {
 
     // Listen for DOM events
     this.listenForDOMEvents()
+
+    // Release observers and listeners when the renderer document goes away so a
+    // reloaded or navigated renderer never leaves the previous generation
+    // observing.
+    this.listenForLifecycleDisposal()
+  }
+
+  /**
+   * Signal returned to every listener this tracker registers, so `cleanup()`
+   * removes them all in one shot.
+   */
+  private get listenerSignal(): AbortSignal | undefined {
+    return this.listenerAbort?.signal
+  }
+
+  /**
+   * Track an observer so cleanup can disconnect it.
+   */
+  private trackObserver(observer: PerformanceObserver): void {
+    this.observers.push(observer)
+  }
+
+  /**
+   * Disconnect an observer that has produced its final value and drop the
+   * reference so it is not retained until cleanup.
+   */
+  private releaseObserver(observer: PerformanceObserver): void {
+    observer.disconnect()
+    const index = this.observers.indexOf(observer)
+    if (index > -1) {
+      this.observers.splice(index, 1)
+    }
+  }
+
+  /**
+   * Disconnect everything when the document is discarded.
+   */
+  private listenForLifecycleDisposal(): void {
+    const signal = this.listenerSignal
+    // `pagehide` covers reload, navigation and Electron window teardown, and
+    // unlike `beforeunload` it does not block the back/forward cache.
+    window.addEventListener('pagehide', () => this.cleanup(), { signal })
   }
 
   /**
@@ -135,14 +199,15 @@ class RendererPerformanceTracker {
           if (entry.name === 'first-contentful-paint') {
             this.metrics.fcp = entry.startTime
             this.notifyCallbacks({ fcp: this.metrics.fcp })
-            observer.disconnect()
+            // FCP is single-valued - stop observing paints entirely.
+            this.releaseObserver(observer)
             break
           }
         }
       })
 
       observer.observe({ type: 'paint', buffered: true })
-      this.observers.push(observer)
+      this.trackObserver(observer)
     } catch (error) {
       console.warn('[RendererPerformance] FCP observation not supported:', error)
     }
@@ -164,7 +229,14 @@ class RendererPerformanceTracker {
       })
 
       observer.observe({ type: 'largest-contentful-paint', buffered: true })
-      this.observers.push(observer)
+      this.trackObserver(observer)
+
+      // LCP is final once the user interacts or the page is hidden; the browser
+      // stops reporting after that, so release the observer at the same point.
+      const finalizeLcp = () => this.releaseObserver(observer)
+      const signal = this.listenerSignal
+      window.addEventListener('keydown', finalizeLcp, { once: true, signal })
+      window.addEventListener('pointerdown', finalizeLcp, { once: true, signal })
     } catch (error) {
       console.warn('[RendererPerformance] LCP observation not supported:', error)
     }
@@ -182,14 +254,15 @@ class RendererPerformanceTracker {
           if (entry.processingStart && entry.startTime) {
             this.metrics.fid = entry.processingStart - entry.startTime
             this.notifyCallbacks({ fid: this.metrics.fid })
-            observer.disconnect()
+            // FID is measured once, on the first input only.
+            this.releaseObserver(observer)
             break
           }
         }
       })
 
       observer.observe({ type: 'first-input', buffered: true })
-      this.observers.push(observer)
+      this.trackObserver(observer)
     } catch (error) {
       console.warn('[RendererPerformance] FID observation not supported:', error)
     }
@@ -208,8 +281,7 @@ class RendererPerformanceTracker {
         for (const entry of entries) {
           // Only count layout shifts without recent user input
           if (!entry.hadRecentInput && entry.value !== undefined) {
-            this.clsValue += entry.value
-            this.clsEntries.push(entry)
+            this.recordLayoutShift(entry.startTime, entry.value)
           }
         }
         this.metrics.cls = this.clsValue
@@ -217,9 +289,37 @@ class RendererPerformanceTracker {
       })
 
       observer.observe({ type: 'layout-shift', buffered: true })
-      this.observers.push(observer)
+      this.trackObserver(observer)
     } catch (error) {
       console.warn('[RendererPerformance] CLS observation not supported:', error)
+    }
+  }
+
+  /**
+   * Fold a layout shift into the windowed CLS accumulator.
+   *
+   * Uses the standard web-vitals session windowing (max 5s window, max 1s gap)
+   * and reports the highest-scoring window. Only numbers are kept, so no
+   * `LayoutShift` entry - and therefore no `sources[].node` reference - outlives
+   * this call.
+   */
+  private recordLayoutShift(startTime: number, value: number): void {
+    const withinCurrentSession =
+      this.clsSessionValue > 0 &&
+      startTime - this.clsSessionLastShiftTime < CLS_SESSION_MAX_GAP_MS &&
+      startTime - this.clsSessionFirstShiftTime < CLS_SESSION_MAX_DURATION_MS
+
+    if (withinCurrentSession) {
+      this.clsSessionValue += value
+      this.clsSessionLastShiftTime = startTime
+    } else {
+      this.clsSessionValue = value
+      this.clsSessionFirstShiftTime = startTime
+      this.clsSessionLastShiftTime = startTime
+    }
+
+    if (this.clsSessionValue > this.clsValue) {
+      this.clsValue = this.clsSessionValue
     }
   }
 
@@ -242,7 +342,8 @@ class RendererPerformanceTracker {
       })
 
       observer.observe({ type: 'longtask', buffered: true })
-      this.observers.push(observer)
+      this.trackObserver(observer)
+      this.longTaskObserver = observer
 
       // Start initial TTI check
       this.scheduleTTICheck()
@@ -271,8 +372,25 @@ class RendererPerformanceTracker {
         this.metrics.tti = Math.max(this.metrics.fcp, this.lastLongTaskEnd)
         this.ttiResolved = true
         this.notifyCallbacks({ tti: this.metrics.tti })
+        this.finalizeTTI()
       }
     }, 5000)
+  }
+
+  /**
+   * TTI is single-valued. Once resolved, long-task observation exists purely to
+   * burn main-thread time in a renderer that stays open for hours, so stop it.
+   */
+  private finalizeTTI(): void {
+    if (this.ttiTimeout) {
+      clearTimeout(this.ttiTimeout)
+      this.ttiTimeout = null
+    }
+
+    if (this.longTaskObserver) {
+      this.releaseObserver(this.longTaskObserver)
+      this.longTaskObserver = null
+    }
   }
 
   /**
@@ -282,7 +400,10 @@ class RendererPerformanceTracker {
     if (document.readyState === 'complete') {
       this.setFallbackTTI()
     } else {
-      window.addEventListener('load', () => this.setFallbackTTI())
+      window.addEventListener('load', () => this.setFallbackTTI(), {
+        once: true,
+        signal: this.listenerSignal,
+      })
     }
   }
 
@@ -297,6 +418,7 @@ class RendererPerformanceTracker {
       this.metrics.tti = navEntries[0].loadEventEnd
       this.ttiResolved = true
       this.notifyCallbacks({ tti: this.metrics.tti })
+      this.finalizeTTI()
     }
   }
 
@@ -304,16 +426,26 @@ class RendererPerformanceTracker {
    * Listen for DOM events to update timing metrics
    */
   private listenForDOMEvents(): void {
+    const signal = this.listenerSignal
+
     if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', () => {
-        this.collectNavigationTiming()
-      })
+      document.addEventListener(
+        'DOMContentLoaded',
+        () => {
+          this.collectNavigationTiming()
+        },
+        { once: true, signal }
+      )
     }
 
     if (document.readyState !== 'complete') {
-      window.addEventListener('load', () => {
-        this.collectNavigationTiming()
-      })
+      window.addEventListener(
+        'load',
+        () => {
+          this.collectNavigationTiming()
+        },
+        { once: true, signal }
+      )
     }
   }
 
@@ -419,6 +551,7 @@ class RendererPerformanceTracker {
       observer.disconnect()
     }
     this.observers = []
+    this.longTaskObserver = null
     this.callbacks = []
 
     if (this.ttiTimeout) {
@@ -426,7 +559,19 @@ class RendererPerformanceTracker {
       this.ttiTimeout = null
     }
 
+    // Removes every listener registered through `listenerSignal`.
+    this.listenerAbort?.abort()
+    this.listenerAbort = null
+
     this.initialized = false
+  }
+
+  /**
+   * Number of still-connected observers. Exposed for diagnostics and for the
+   * long-session regression test.
+   */
+  getActiveObserverCount(): number {
+    return this.observers.length
   }
 }
 

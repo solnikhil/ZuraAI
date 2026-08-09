@@ -19,10 +19,15 @@
 
 import { app } from 'electron'
 import { randomUUID } from 'crypto'
-import * as fs from 'fs/promises'
-import * as fsSync from 'fs'
 import * as path from 'path'
 import { writeFileAtomic } from './utils/atomicFile'
+import {
+  parseJsonStoreRoot,
+  quarantineCorruptStore,
+  quarantineCorruptStoreSync,
+  readJsonStoreFile,
+  readJsonStoreFileSync,
+} from './utils/jsonStore'
 import { scoreMemories } from './memoryRetrieval'
 
 export type MemorySource = 'user' | 'model'
@@ -35,8 +40,7 @@ export type MemorySource = 'user' | 'model'
 export type MemoryOrigin = 'tool' | 'background'
 
 export type MemoryScope =
-  | { type: 'global' }
-  | { type: 'project'; projectId: string; includeGlobal?: boolean }
+  { type: 'global' } | { type: 'project'; projectId: string; includeGlobal?: boolean }
 export type MemoryCategory = 'preference' | 'project' | 'personal' | 'workflow' | 'context'
 
 /**
@@ -197,9 +201,18 @@ function normalizeMemory(input: unknown): Memory | null {
   return memory
 }
 
-function normalizeIndex(data: unknown): MemoryIndex {
-  if (!data || typeof data !== 'object') return createEmptyIndex()
+/**
+ * Normalizes a parsed index.
+ *
+ * @throws if `memories` is present but not an array. A wrong root shape is
+ *   corruption, not an empty store - returning empty here would let the next
+ *   mutation overwrite a readable-but-unexpected file.
+ */
+function normalizeIndex(data: Record<string, unknown>): MemoryIndex {
   const raw = data as Partial<MemoryIndex>
+  if (raw.memories !== undefined && !Array.isArray(raw.memories)) {
+    throw new Error(`Expected "memories" to be an array, received ${typeof raw.memories}`)
+  }
   const memories = Array.isArray(raw.memories)
     ? (raw.memories.map(normalizeMemory).filter(Boolean) as Memory[])
     : []
@@ -320,46 +333,66 @@ function applyCapAndSort(memories: Memory[]): Memory[] {
   return [...survivors].sort((a, b) => b.updatedAt - a.updatedAt)
 }
 
+function cacheIndex(index: MemoryIndex): MemoryIndex {
+  cachedIndex = index
+  cacheTimestamp = Date.now()
+  return index
+}
+
 async function readIndexAsync(): Promise<MemoryIndex> {
   if (cachedIndex && Date.now() - cacheTimestamp < CACHE_TTL_MS) {
     return cachedIndex
   }
-  try {
-    if (fsSync.existsSync(getIndexPath())) {
-      const raw = await fs.readFile(getIndexPath(), 'utf-8')
-      const parsed = normalizeIndex(JSON.parse(raw))
-      cachedIndex = parsed
-      cacheTimestamp = Date.now()
-      return parsed
-    }
-  } catch (error) {
-    console.error('Failed to read memory index:', error)
+
+  // Operational I/O failures (EACCES, EIO, EBUSY, ...) propagate deliberately:
+  // treating them as an empty store lets the next add/update silently delete
+  // every existing memory.
+  const file = await readJsonStoreFile(getIndexPath())
+  if (file.status === 'missing') {
+    return cacheIndex(createEmptyIndex())
   }
-  const empty = createEmptyIndex()
-  cachedIndex = empty
-  cacheTimestamp = Date.now()
-  return empty
+
+  try {
+    return cacheIndex(normalizeIndex(parseJsonStoreRoot(file.raw)))
+  } catch (error) {
+    // Proven-bad content: preserve the original bytes, then continue from empty.
+    const quarantinePath = await quarantineCorruptStore(getIndexPath(), (message) =>
+      console.warn(`[memory-store] ${message}`)
+    )
+    console.error(
+      `Memory index is corrupt and was quarantined${
+        quarantinePath ? ` to ${quarantinePath}` : ' (quarantine failed)'
+      }:`,
+      error
+    )
+    return cacheIndex(createEmptyIndex())
+  }
 }
 
 function readIndexSync(): MemoryIndex {
   if (cachedIndex && Date.now() - cacheTimestamp < CACHE_TTL_MS) {
     return cachedIndex
   }
-  try {
-    if (fsSync.existsSync(getIndexPath())) {
-      const raw = fsSync.readFileSync(getIndexPath(), 'utf-8')
-      const parsed = normalizeIndex(JSON.parse(raw))
-      cachedIndex = parsed
-      cacheTimestamp = Date.now()
-      return parsed
-    }
-  } catch (error) {
-    console.error('Failed to read memory index:', error)
+
+  const file = readJsonStoreFileSync(getIndexPath())
+  if (file.status === 'missing') {
+    return cacheIndex(createEmptyIndex())
   }
-  const empty = createEmptyIndex()
-  cachedIndex = empty
-  cacheTimestamp = Date.now()
-  return empty
+
+  try {
+    return cacheIndex(normalizeIndex(parseJsonStoreRoot(file.raw)))
+  } catch (error) {
+    const quarantinePath = quarantineCorruptStoreSync(getIndexPath(), (message) =>
+      console.warn(`[memory-store] ${message}`)
+    )
+    console.error(
+      `Memory index is corrupt and was quarantined${
+        quarantinePath ? ` to ${quarantinePath}` : ' (quarantine failed)'
+      }:`,
+      error
+    )
+    return cacheIndex(createEmptyIndex())
+  }
 }
 
 /**

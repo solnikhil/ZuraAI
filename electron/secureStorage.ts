@@ -44,16 +44,12 @@ function isEncryptionAvailable(): boolean {
   }
 }
 
+const VERSION_TAG = 'v1:'
+
+const KNOWN_API_KEY_PREFIXES = ['sk-', 'tvly-', 'dashscope-', 'fw-', 'nvapi-', 'xkeysib-']
+
 function isLikelyLegacyPlaintextSecret(value: string): boolean {
-  return (
-    value.startsWith('sk-') ||
-    value.startsWith('tvly-') ||
-    value.startsWith('dashscope-') ||
-    value.startsWith('fw-') ||
-    value.startsWith('nvapi-') ||
-    value.startsWith('xkeysib-') ||
-    value.length < 100
-  )
+  return KNOWN_API_KEY_PREFIXES.some((prefix) => value.startsWith(prefix))
 }
 
 async function readSecureDataAsync(): Promise<SecureData> {
@@ -78,16 +74,32 @@ async function readSecureDataAsync(): Promise<SecureData> {
     let migratedLegacyPlaintext = false
     for (const [key, value] of Object.entries(parsed)) {
       if (typeof value === 'string' && value) {
-        try {
-          decrypted[key as keyof SecureData] = safeStorage.decryptString(
-            Buffer.from(value, 'base64')
-          )
-        } catch {
-          if (isLikelyLegacyPlaintextSecret(value)) {
-            decrypted[key as keyof SecureData] = value
-            migratedLegacyPlaintext = true
-          } else {
-            storageLog.warn(`failed to decrypt secure storage entry for key "${key}"`)
+        if (value.startsWith(VERSION_TAG)) {
+          // Tagged encrypted value - strip prefix and decrypt
+          const base64Payload = value.slice(VERSION_TAG.length)
+          try {
+            decrypted[key as keyof SecureData] = safeStorage.decryptString(
+              Buffer.from(base64Payload, 'base64')
+            )
+          } catch {
+            // Corrupt v1: tagged value - do not treat as legacy plaintext
+            storageLog.warn(`corrupt v1-tagged secure storage entry for key "${key}" - skipping`)
+          }
+        } else {
+          // No version tag - attempt decryption (pre-v1 encrypted format)
+          try {
+            decrypted[key as keyof SecureData] = safeStorage.decryptString(
+              Buffer.from(value, 'base64')
+            )
+            migratedLegacyPlaintext = true // re-write with v1: tag
+          } catch {
+            // Decryption failed - check if it matches known API key prefixes
+            if (isLikelyLegacyPlaintextSecret(value)) {
+              decrypted[key as keyof SecureData] = value
+              migratedLegacyPlaintext = true
+            } else {
+              storageLog.warn(`failed to decrypt secure storage entry for key "${key}" - skipping`)
+            }
           }
         }
       }
@@ -97,6 +109,9 @@ async function readSecureDataAsync(): Promise<SecureData> {
       const migrated = await writeSecureDataAsync(decrypted)
       if (!migrated) {
         storageLog.error('failed to migrate legacy plaintext secure storage entries')
+        throw new Error(
+          'Secure storage migration failed: legacy plaintext entries could not be re-encrypted. Refusing to return unencrypted credentials.'
+        )
       }
     }
 
@@ -153,7 +168,7 @@ async function writeSecureDataAsync(data: SecureData): Promise<boolean> {
 
     for (const [key, value] of Object.entries(data)) {
       if (value && typeof value === 'string') {
-        toWrite[key] = safeStorage.encryptString(value).toString('base64')
+        toWrite[key] = VERSION_TAG + safeStorage.encryptString(value).toString('base64')
       }
     }
 

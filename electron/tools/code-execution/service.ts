@@ -20,6 +20,74 @@ function truncate(value: string, max: number): string {
   return value.length > max ? value.slice(0, max) + '\n...[truncated]' : value
 }
 
+function optionalString(value: unknown): string | null {
+  if (value === undefined || value === null) return ''
+  return typeof value === 'string' ? value : null
+}
+
+/**
+ * Validates an OnlineCompiler payload against its documented shape.
+ *
+ * Returns `null` when the response cannot be interpreted, so a malformed body
+ * is surfaced as a failure rather than silently read as an empty successful run.
+ */
+function parseOnlineCompilerResponse(payload: unknown): OnlineCompilerResponse | null {
+  if (typeof payload !== 'object' || payload === null || Array.isArray(payload)) return null
+  const record = payload as Record<string, unknown>
+
+  const output = optionalString(record.output)
+  const error = optionalString(record.error)
+  if (output === null || error === null) return null
+
+  if (record.status !== 'success' && record.status !== 'error') return null
+
+  const exitCode = record.exit_code
+  if (exitCode !== null && exitCode !== undefined && typeof exitCode !== 'number') return null
+
+  const signal = record.signal
+  if (signal !== null && signal !== undefined && typeof signal !== 'number') return null
+
+  return {
+    output,
+    error,
+    status: record.status,
+    exit_code: typeof exitCode === 'number' ? exitCode : null,
+    signal: typeof signal === 'number' ? signal : null,
+    time: typeof record.time === 'string' ? record.time : '',
+    total: typeof record.total === 'string' ? record.total : '',
+    memory: typeof record.memory === 'string' ? record.memory : '',
+  }
+}
+
+/**
+ * Describes why an execution failed, or `null` when it genuinely succeeded.
+ *
+ * Success requires the documented success status together with a zero or absent
+ * exit code. A non-zero exit code is a failure even when the API reports
+ * `status: "success"`, because the process itself did not succeed.
+ */
+function describeExecutionFailure(result: OnlineCompilerResponse): string | null {
+  if (result.status !== 'success') {
+    const detail = result.error.trim() || result.output.trim()
+    return detail
+      ? `Code execution failed: ${truncate(detail, EXEC_MAX_OUTPUT_LENGTH)}`
+      : 'Code execution failed without a reported error message.'
+  }
+
+  if (typeof result.signal === 'number' && result.signal !== 0) {
+    return `Code execution was terminated by signal ${result.signal}.`
+  }
+
+  if (typeof result.exit_code === 'number' && result.exit_code !== 0) {
+    const detail = result.error.trim()
+    return detail
+      ? `Code exited with status ${result.exit_code}: ${truncate(detail, EXEC_MAX_OUTPUT_LENGTH)}`
+      : `Code exited with status ${result.exit_code}.`
+  }
+
+  return null
+}
+
 export async function executeCode(args: CodeExecutionArgs): Promise<ToolResult> {
   const { code, language } = args
 
@@ -106,23 +174,37 @@ export async function executeCode(args: CodeExecutionArgs): Promise<ToolResult> 
       }
     }
 
-    const result = (await response.json()) as OnlineCompilerResponse
+    const payload = (await response.json().catch(() => undefined)) as unknown
+    const result = parseOnlineCompilerResponse(payload)
+    if (!result) {
+      return {
+        success: false,
+        error: 'OnlineCompiler returned a malformed response that could not be interpreted.',
+      }
+    }
 
-    const stdout = truncate(result.output || '', EXEC_MAX_OUTPUT_LENGTH)
-    const stderr = truncate(result.error || '', EXEC_MAX_OUTPUT_LENGTH)
+    const stdout = truncate(result.output, EXEC_MAX_OUTPUT_LENGTH)
+    const stderr = truncate(result.error, EXEC_MAX_OUTPUT_LENGTH)
     const exitCode = result.exit_code
 
-    return {
-      success: true,
-      data: {
-        stdout,
-        stderr,
-        exitCode,
-        language,
-        executionTime: result.time,
-        executionOutput: stdout,
-      },
+    const data = {
+      stdout,
+      stderr,
+      exitCode,
+      language,
+      executionTime: result.time,
+      executionOutput: stdout,
     }
+
+    // A reachable API does not mean the code ran successfully. Compile errors
+    // and runtime failures must not be reported as a successful execution, or
+    // the tool loop and Agent verification will treat them as a working result.
+    const failure = describeExecutionFailure(result)
+    if (failure) {
+      return { success: false, error: failure, data }
+    }
+
+    return { success: true, data }
   } catch (error: unknown) {
     if (error instanceof Error && error.name === 'AbortError') {
       return {

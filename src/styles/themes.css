@@ -13,10 +13,18 @@
   --theme-surface-pressed: rgba(255, 255, 255, 0.13);
 
   /* Text hierarchy */
+  /* Meaningful text tokens must stay >= 4.5:1 (WCAG 1.4.3) on every surface
+     they render on. Enforced by src/styles/themeContrast.test.ts. Raising the
+     muted floor to AA necessarily compresses the emphasis ramp; the ordering
+     primary > secondary > tertiary > muted is still preserved. */
   --theme-text-primary: rgba(255, 255, 255, 0.85);
-  --theme-text-secondary: rgba(255, 255, 255, 0.62);
-  --theme-text-tertiary: rgba(255, 255, 255, 0.48);
-  --theme-text-muted: rgba(255, 255, 255, 0.35);
+  --theme-text-secondary: rgba(255, 255, 255, 0.72);
+  --theme-text-tertiary: rgba(255, 255, 255, 0.58);
+  --theme-text-muted: rgba(255, 255, 255, 0.46);
+  /* Purely decorative / disabled affordances (dots, dividers, inert glyphs).
+     Intentionally below AA and exempt from 1.4.3 - never use for text that
+     carries meaning. */
+  --theme-text-decorative: rgba(255, 255, 255, 0.35);
   --theme-text-inverse: #000000;
 
   /* Borders */
@@ -101,9 +109,10 @@
   --theme-surface-pressed: #c9c4be;
 
   --theme-text-primary: #1f1a14;
-  --theme-text-secondary: rgba(31, 26, 20, 0.74);
-  --theme-text-tertiary: rgba(31, 26, 20, 0.6);
-  --theme-text-muted: rgba(31, 26, 20, 0.48);
+  --theme-text-secondary: rgba(31, 26, 20, 0.86);
+  --theme-text-tertiary: rgba(31, 26, 20, 0.78);
+  --theme-text-muted: rgba(31, 26, 20, 0.7);
+  --theme-text-decorative: rgba(31, 26, 20, 0.48);
   --theme-text-inverse: #ffffff;
 
   --theme-border: rgba(0, 0, 0, 0.19);

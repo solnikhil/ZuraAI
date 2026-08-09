@@ -160,6 +160,8 @@ export function ProviderLogo({
         <img
           src={`./provider-logos/${normalizedProvider}.${extension}`}
           alt={`${provider} logo`}
+          width={pixelSize}
+          height={pixelSize}
           onError={() => setImgError(true)}
           style={{
             width: `${pixelSize}px`,

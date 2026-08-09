@@ -523,12 +523,20 @@ export class McpManager {
   }> {
     await this.ensureInitialized()
 
-    const tool = this.listTools().find(
+    const matches = this.listTools().filter(
       (candidate) => candidate.namespacedName === namespacedToolName
     )
-    if (!tool) {
+    if (matches.length === 0) {
       throw new Error(`Unknown or unavailable MCP tool: ${namespacedToolName}`)
     }
+    if (matches.length > 1) {
+      // Fail closed rather than silently dispatching whichever tool happened to
+      // be listed first.
+      throw new Error(
+        `Ambiguous MCP tool name "${namespacedToolName}" resolves to ${matches.length} tools; refusing to dispatch.`
+      )
+    }
+    const tool = matches[0]
 
     const server = this.getServerOrThrow(tool.serverId)
     if (server.enabled !== true) {
